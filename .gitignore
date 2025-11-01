@@ -8,6 +8,6 @@ dev/
 data/
 output/
 *.egg-info
-
+.DS*
 # Virtual environments
 .venv

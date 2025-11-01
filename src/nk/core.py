@@ -49,6 +49,46 @@ BLOCK_LEVEL_TAGS = {
 FORCE_BREAK_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "li", "p", "dt", "dd", "tr"}
 
 
+def _is_cjk_char(ch: str) -> bool:
+    if not ch:
+        return False
+    code = ord(ch)
+    return (
+        0x4E00 <= code <= 0x9FFF  # CJK Unified Ideographs
+        or 0x3400 <= code <= 0x4DBF  # Extension A
+        or 0x20000 <= code <= 0x2A6DF  # Extension B
+        or ch in "々〆ヵヶ"
+    )
+
+
+def _build_mapping_pattern(mapping: dict[str, str]) -> re.Pattern[str] | None:
+    if not mapping:
+        return None
+    keys = sorted(mapping.keys(), key=len, reverse=True)
+    if not keys:
+        return None
+    return re.compile("|".join(re.escape(k) for k in keys))
+
+
+def _apply_mapping_with_pattern(
+    text: str, mapping: dict[str, str], pattern: re.Pattern[str]
+) -> str:
+    if pattern is None:
+        return text
+
+    def repl(match: re.Match[str]) -> str:
+        base = match.group(0)
+        if len(base) == 1:
+            start, end = match.span()
+            prev_ch = text[start - 1] if start > 0 else ""
+            next_ch = text[end] if end < len(text) else ""
+            if (_is_cjk_char(prev_ch) and prev_ch != "\n") or _is_cjk_char(next_ch):
+                return base
+        return mapping[base]
+
+    return pattern.sub(repl, text)
+
+
 def _get_book_title(zf: zipfile.ZipFile) -> str | None:
     try:
         opf_path = _find_opf_path(zf)
@@ -64,11 +104,10 @@ def _get_book_title(zf: zipfile.ZipFile) -> str | None:
 
 
 def _apply_mapping_to_plain_text(text: str, mapping: dict[str, str]) -> str:
-    if not mapping:
+    pattern = _build_mapping_pattern(mapping)
+    if pattern is None:
         return text
-    keys = sorted(mapping.keys(), key=len, reverse=True)
-    pattern = re.compile("|".join(re.escape(k) for k in keys))
-    return pattern.sub(lambda m: mapping[m.group(0)], text)
+    return _apply_mapping_with_pattern(text, mapping, pattern)
 
 
 def _hiragana_to_katakana(text: str) -> str:
@@ -191,11 +230,7 @@ def _ruby_reading_text(ruby: Tag) -> str:
     return "".join(ruby.stripped_strings)
 
 
-def _collect_mapping_from_soup(soup: BeautifulSoup) -> dict[str, str]:
-    """
-    Return {base -> most_common_reading} for this document.
-    Keys/values are whitespace-stripped. Only keep bases with CJK.
-    """
+def _collect_reading_counts_from_soup(soup: BeautifulSoup) -> dict[str, Counter[str]]:
     counts: dict[str, Counter[str]] = defaultdict(Counter)
     for ruby in soup.find_all("ruby"):
         base = _normalize_ws(_ruby_base_text(ruby))
@@ -203,22 +238,40 @@ def _collect_mapping_from_soup(soup: BeautifulSoup) -> dict[str, str]:
         reading = _hiragana_to_katakana(reading)
         if base and reading and _contains_cjk(base):
             counts[base][reading] += 1
-    return {b: c.most_common(1)[0][0] for b, c in counts.items()}
+    return counts
 
 
-def _build_book_mapping(zf: zipfile.ZipFile) -> dict[str, str]:
-    mapping: dict[str, str] = {}
-    # Collect from every HTML file; first-seen wins on ties; overall most_common per file
+def _select_reading_mapping(
+    read_counts: dict[str, Counter[str]]
+) -> tuple[dict[str, str], dict[str, str]]:
+    unique_mapping: dict[str, str] = {}
+    common_mapping: dict[str, str] = {}
+    for base, counter in read_counts.items():
+        if not counter:
+            continue
+        if len(counter) == 1:
+            chosen_reading = counter.most_common(1)[0][0]
+            unique_mapping[base] = chosen_reading
+        else:
+            most_common = counter.most_common()
+            top_reading, top_count = most_common[0]
+            second_count = most_common[1][1] if len(most_common) > 1 else 0
+            if top_count > second_count:
+                common_mapping[base] = top_reading
+    return unique_mapping, common_mapping
+
+
+def _build_book_mapping(zf: zipfile.ZipFile) -> tuple[dict[str, str], dict[str, str]]:
+    read_counts: dict[str, Counter[str]] = defaultdict(Counter)
     for name in zf.namelist():
         if not name.lower().endswith(HTML_EXTS):
             continue
         html = _zip_read_text(zf, name)
         soup = BeautifulSoup(html, "lxml-xml")
-        partial = _collect_mapping_from_soup(soup)
-        for k, v in partial.items():
-            # If different readings appear across the book, keep the one we saw first.
-            mapping.setdefault(k, v)
-    return mapping
+        partial_counts = _collect_reading_counts_from_soup(soup)
+        for base, counter in partial_counts.items():
+            read_counts[base].update(counter)
+    return _select_reading_mapping(read_counts)
 
 
 def _replace_outside_ruby_with_readings(soup: BeautifulSoup, mapping: dict[str, str]) -> None:
@@ -226,11 +279,9 @@ def _replace_outside_ruby_with_readings(soup: BeautifulSoup, mapping: dict[str, 
     Replace text nodes NOT inside ruby/rt/rp/script/style using {base->reading}.
     Longest-match-first to avoid swallowing shorter substrings.
     """
-    if not mapping:
+    pat = _build_mapping_pattern(mapping)
+    if pat is None:
         return
-    keys = sorted(mapping.keys(), key=len, reverse=True)
-    # Big alternation is fast enough for typical book-sized maps.
-    pat = re.compile("|".join(re.escape(k) for k in keys))
     for node in list(soup.find_all(string=True)):
         parent = node.parent.name if isinstance(node.parent, Tag) else None
         if parent in ("script", "style", "rt", "rp", "ruby"):
@@ -238,7 +289,7 @@ def _replace_outside_ruby_with_readings(soup: BeautifulSoup, mapping: dict[str, 
         text = str(node)
         if not text.strip():
             continue
-        new_text = pat.sub(lambda m: mapping[m.group(0)], text)
+        new_text = _apply_mapping_with_pattern(text, mapping, pat)
         if new_text != text:
             node.replace_with(new_text)
 
@@ -283,14 +334,16 @@ def epub_to_txt(inp_epub: str) -> str:
     Returns the final TXT as a single string.
     """
     with zipfile.ZipFile(inp_epub, "r") as zf:
-        mapping = _build_book_mapping(zf)
+        unique_mapping, common_mapping = _build_book_mapping(zf)
         spine = _spine_items(zf)
         book_title = _get_book_title(zf)
-        title_variant = (
-            unicodedata.normalize("NFKC", _apply_mapping_to_plain_text(book_title, mapping))
-            if book_title
-            else None
-        )
+        if book_title:
+            title_variant = unicodedata.normalize(
+                "NFKC", _apply_mapping_to_plain_text(book_title, unique_mapping)
+            )
+            title_variant = _apply_mapping_to_plain_text(title_variant, common_mapping)
+        else:
+            title_variant = None
         title_seen = False
 
         pieces: list[str] = []
@@ -309,7 +362,8 @@ def epub_to_txt(inp_epub: str) -> str:
             html = _zip_read_text(zf, name)
             soup = BeautifulSoup(html, "lxml-xml")
             # 1) propagate: replace base outside ruby using the global mapping
-            _replace_outside_ruby_with_readings(soup, mapping)
+            _replace_outside_ruby_with_readings(soup, unique_mapping)
+            _replace_outside_ruby_with_readings(soup, common_mapping)
             # 2) drop bases inside ruby, keep only readings
             _collapse_ruby_to_readings(soup)
             # 3) strip remaining html to text
