@@ -230,14 +230,72 @@ def _ruby_reading_text(ruby: Tag) -> str:
     return "".join(ruby.stripped_strings)
 
 
+def _is_hiragana_or_katakana(ch: str) -> bool:
+    if not ch:
+        return False
+    code = ord(ch)
+    return (
+        0x3041 <= code <= 0x309F  # Hiragana
+        or 0x30A1 <= code <= 0x30FF  # Katakana
+        or ch in "ー"
+    )
+
+
+def _collect_suffix(ruby: Tag) -> str:
+    suffix_chars: list[str] = []
+    for sibling in ruby.next_siblings:
+        if isinstance(sibling, NavigableString):
+            text = str(sibling)
+            idx = 0
+            while idx < len(text):
+                ch = text[idx]
+                if ch.isspace():
+                    idx += 1
+                    continue
+                if _is_hiragana_or_katakana(ch):
+                    suffix_chars.append(ch)
+                    idx += 1
+                    continue
+                return "".join(suffix_chars)
+            continue
+        if isinstance(sibling, Tag):
+            nested = "".join(sibling.stripped_strings)
+            if not nested:
+                continue
+            for ch in nested:
+                if _is_hiragana_or_katakana(ch):
+                    suffix_chars.append(ch)
+                else:
+                    return "".join(suffix_chars)
+            continue
+        break
+    return "".join(suffix_chars)
+
+
+def _is_kana_string(text: str) -> bool:
+    for ch in text:
+        if ch.isspace():
+            continue
+        if _is_hiragana_or_katakana(ch) or ch in {"・"}:
+            continue
+        return False
+    return True
+
+
 def _collect_reading_counts_from_soup(soup: BeautifulSoup) -> dict[str, Counter[str]]:
     counts: dict[str, Counter[str]] = defaultdict(Counter)
     for ruby in soup.find_all("ruby"):
         base = _normalize_ws(_ruby_base_text(ruby))
         reading = _normalize_ws(_ruby_reading_text(ruby))
+        reading = unicodedata.normalize("NFKC", reading)
         reading = _hiragana_to_katakana(reading)
         if base and reading and _contains_cjk(base):
-            counts[base][reading] += 1
+            suffix = unicodedata.normalize("NFKC", _collect_suffix(ruby))
+            key = base + suffix
+            combined_reading = reading + suffix
+            if not _is_kana_string(combined_reading):
+                continue
+            counts[key][combined_reading] += 1
     return counts
 
 
