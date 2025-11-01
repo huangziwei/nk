@@ -282,8 +282,11 @@ def _is_kana_string(text: str) -> bool:
     return True
 
 
-def _collect_reading_counts_from_soup(soup: BeautifulSoup) -> dict[str, Counter[str]]:
+def _collect_reading_counts_from_soup(
+    soup: BeautifulSoup,
+) -> tuple[dict[str, Counter[str]], dict[str, dict[str, bool]]]:
     counts: dict[str, Counter[str]] = defaultdict(Counter)
+    has_hiragana: dict[str, dict[str, bool]] = defaultdict(dict)
     for ruby in soup.find_all("ruby"):
         base = _normalize_ws(_ruby_base_text(ruby))
         reading = _normalize_ws(_ruby_reading_text(ruby))
@@ -296,11 +299,16 @@ def _collect_reading_counts_from_soup(soup: BeautifulSoup) -> dict[str, Counter[
             if not _is_kana_string(combined_reading):
                 continue
             counts[key][combined_reading] += 1
-    return counts
+            raw = _normalize_ws(_ruby_reading_text(ruby))
+            has_hira = any(0x3040 <= ord(ch) <= 0x309F for ch in raw)
+            flags = has_hiragana[key]
+            flags[combined_reading] = flags.get(combined_reading, False) or has_hira
+    return counts, has_hiragana
 
 
 def _select_reading_mapping(
-    read_counts: dict[str, Counter[str]]
+    read_counts: dict[str, Counter[str]],
+    reading_flags: dict[str, dict[str, bool]],
 ) -> tuple[dict[str, str], dict[str, str]]:
     unique_mapping: dict[str, str] = {}
     common_mapping: dict[str, str] = {}
@@ -309,27 +317,39 @@ def _select_reading_mapping(
             continue
         if len(counter) == 1:
             chosen_reading = counter.most_common(1)[0][0]
+            total = sum(counter.values())
+            has_hira = reading_flags.get(base, {}).get(chosen_reading, False)
+            if total == 1 and not has_hira:
+                continue
             unique_mapping[base] = chosen_reading
         else:
             most_common = counter.most_common()
             top_reading, top_count = most_common[0]
             second_count = most_common[1][1] if len(most_common) > 1 else 0
             if top_count > second_count:
+                has_hira = reading_flags.get(base, {}).get(top_reading, False)
+                if top_count == 1 and not has_hira:
+                    continue
                 common_mapping[base] = top_reading
     return unique_mapping, common_mapping
 
 
 def _build_book_mapping(zf: zipfile.ZipFile) -> tuple[dict[str, str], dict[str, str]]:
     read_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    reading_flags: dict[str, dict[str, bool]] = defaultdict(dict)
     for name in zf.namelist():
         if not name.lower().endswith(HTML_EXTS):
             continue
         html = _zip_read_text(zf, name)
         soup = BeautifulSoup(html, "lxml-xml")
-        partial_counts = _collect_reading_counts_from_soup(soup)
+        partial_counts, flags = _collect_reading_counts_from_soup(soup)
         for base, counter in partial_counts.items():
             read_counts[base].update(counter)
-    return _select_reading_mapping(read_counts)
+        for base, readings in flags.items():
+            base_flags = reading_flags[base]
+            for reading, has_hira in readings.items():
+                base_flags[reading] = base_flags.get(reading, False) or has_hira
+    return _select_reading_mapping(read_counts, reading_flags)
 
 
 def _replace_outside_ruby_with_readings(soup: BeautifulSoup, mapping: dict[str, str]) -> None:
