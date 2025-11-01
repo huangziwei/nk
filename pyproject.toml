@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "nk"
 version = "0.1.0"
-description = "Add your description here"
+description = "Convert Japanese EPUBs to ruby-expanded, TTS-friendly plain text"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
