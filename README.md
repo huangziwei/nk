@@ -5,7 +5,7 @@ Convert Japanese EPUBs into TTS-friendly plain text.
 ## Usage
 
 ```bash
-uvx --force git+https://github.com/huangziwei/nk
+uv tool install git+https://github.com/huangziwei/nk
 nk path/to/book.epub
 # optional: nk book.epub -o custom.txt
 ```
