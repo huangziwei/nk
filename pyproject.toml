@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "nk"
 version = "0.1.0"
@@ -8,3 +12,12 @@ dependencies = [
     "beautifulsoup4>=4.14.2",
     "lxml>=6.0.2",
 ]
+
+[project.scripts]
+nk = "nk.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nk"]
+
+[tool.hatch.envs.default]
+path = ".venv"
