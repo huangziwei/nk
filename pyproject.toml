@@ -11,9 +11,10 @@ requires-python = ">=3.11"
 dependencies = [
     "beautifulsoup4>=4.14.2",
     "lxml>=6.0.2",
-    "sudachipy>=0.6.8",
-    "sudachidict_core>=20230110",
+    "fugashi>=1.2.2",
+    "unidic-lite>=1.0.8",
     "pytest>=8.0.0",
+    "pykakasi>=2.2.1",
 ]
 
 [project.scripts]

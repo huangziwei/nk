@@ -531,6 +531,8 @@ def _strip_html_to_text(soup: BeautifulSoup) -> str:
     # Remove rp/script/style
     for t in soup.find_all(["rp", "script", "style"]):
         t.decompose()
+    for t in soup.find_all("title"):
+        t.decompose()
     # Convert <br> to explicit newlines so they survive text extraction.
     for br in soup.find_all("br"):
         br.replace_with("\n")
@@ -597,6 +599,15 @@ def epub_to_txt(
                         if cand and cand not in title_candidates:
                             title_candidates.append(cand)
         title_seen = False
+        seen_line_keys: set[str] = set()
+
+        def _line_key(line: str) -> str:
+            stripped = line.strip().replace("\u3000", " ")
+            if not stripped:
+                return ""
+            key = stripped.replace(" ", "")
+            key = key.replace("【", "").replace("】", "")
+            return key
 
         pieces: list[str] = []
         for name in spine:
@@ -620,34 +631,43 @@ def epub_to_txt(
             _collapse_ruby_to_readings(soup)
             # 3) strip remaining html to text
             piece = _strip_html_to_text(soup)
-            if mode == "advanced" and nlp is not None:
-                piece = nlp.to_reading_text(piece)
-            if title_candidates:
-                filtered_lines: list[str] = []
-                skip_blank_after_title = False
-                for line in piece.splitlines():
-                    stripped_line = line.strip()
-                    if not stripped_line:
-                        if skip_blank_after_title:
-                            skip_blank_after_title = False
-                            continue
-                        filtered_lines.append(line)
-                        continue
-                    normalized_line = stripped_line.replace("\u3000", " ")
-                    if stripped_line in title_candidates or normalized_line in title_candidates:
-                        if title_seen:
-                            skip_blank_after_title = True
-                            continue
-                        title_seen = True
-                        filtered_lines.append(line)
-                        skip_blank_after_title = True
+            filtered_lines: list[str] = []
+            skip_blank_after_title = False
+            for line in piece.splitlines():
+                stripped_line = line.strip()
+                if not stripped_line:
+                    if skip_blank_after_title:
+                        skip_blank_after_title = False
                         continue
                     filtered_lines.append(line)
-                    skip_blank_after_title = False
-                piece = "\n".join(filtered_lines).strip()
-                piece = re.sub(r"\n{3,}", "\n\n", piece)
-                if not piece:
                     continue
+
+                normalized_line = stripped_line.replace("\u3000", " ")
+                is_title_line = bool(title_candidates) and (
+                    stripped_line in title_candidates
+                    or normalized_line in title_candidates
+                )
+
+                key = _line_key(line)
+                if is_title_line:
+                    if title_seen:
+                        skip_blank_after_title = True
+                        continue
+                    title_seen = True
+                    skip_blank_after_title = True
+                elif key and key in seen_line_keys:
+                    continue
+                else:
+                    skip_blank_after_title = False
+
+                filtered_lines.append(line)
+                if key:
+                    seen_line_keys.add(key)
+
+            piece = "\n".join(filtered_lines).strip()
+            piece = re.sub(r"\n{3,}", "\n\n", piece)
+            if mode == "advanced" and nlp is not None and piece:
+                piece = nlp.to_reading_text(piece)
             if not piece:
                 continue
             pieces.append(piece)

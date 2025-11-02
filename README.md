@@ -6,7 +6,7 @@ Convert Japanese EPUBs into TTS-friendly plain text.
 
 ```bash
 uv tool install git+https://github.com/huangziwei/nk
-nk path/to/book.epub              # advanced mode (default, requires SudachiPy)
+nk path/to/book.epub              # advanced mode (default, requires MeCab/fugashi)
 # optional: nk book.epub -o custom.txt
 # fast mode (ruby-only heuristics): nk book.epub --mode fast
 ```
@@ -20,10 +20,10 @@ nk path/to/book.epub              # advanced mode (default, requires SudachiPy)
 ## Modes & Requirements
 
 - `fast`: Uses only ruby annotations in the EPUB plus conservative heuristics. May miss unannotated kanji.
-- `advanced` (default): Requires `sudachipy` and `sudachidict_core`. Prefers verified ruby readings when they agree with Sudachi (or appear repeatedly), and falls back to Sudachi for everything else so every kanji is read.
+- `advanced` (default): Requires `fugashi` (MeCab) with UniDic and `pykakasi`. Prefers verified ruby readings when they agree with the dictionary (or appear repeatedly), and replaces every remaining kanji with katakana readings.
 
 Install the NLP dependencies with:
 
 ```bash
-uv pip install sudachipy sudachidict_core
+uv pip install "fugashi[unidic-lite]" pykakasi
 ```

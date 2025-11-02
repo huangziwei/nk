@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import unicodedata
+import warnings
 from dataclasses import dataclass
+from typing import Callable, Optional
 
 __all__ = [
     "NLPBackend",
@@ -30,6 +32,10 @@ def _is_cjk_char(ch: str) -> bool:
         or 0x2F800 <= code <= 0x2FA1F
         or ch in "々〆ヵヶ"
     )
+
+
+def _contains_cjk(text: str) -> bool:
+    return any(_is_cjk_char(ch) for ch in text)
 
 
 def _hiragana_to_katakana(text: str) -> str:
@@ -94,87 +100,146 @@ class _Token:
 
 
 class NLPBackend:
-    """Wrapper around SudachiPy (or compatible) for reading verification."""
+    """Fugashi-based backend for reading verification and kana conversion."""
 
     def __init__(self) -> None:
         try:
-            from sudachipy import dictionary, tokenizer as tk  # type: ignore
-        except ImportError as exc:  # pragma: no cover - optional dep
+            from fugashi import Tagger  # type: ignore
+        except ImportError as exc:
             raise NLPBackendUnavailableError(
-                "Advanced mode requires 'sudachipy' and 'sudachidict_core' to be installed."
+                "Advanced mode requires 'fugashi' (MeCab) to be installed."
             ) from exc
 
-        try:
-            self._tokenizer = dictionary.Dictionary().create()
-        except Exception as exc:  # pragma: no cover - optional dep
-            raise NLPBackendUnavailableError(
-                "SudachiPy dictionary load failed. Ensure 'sudachidict_core' is installed."
-            ) from exc
-
-        self._split_mode = tk.Tokenizer.SplitMode.C
+        self._tagger = Tagger()
+        self._kakasi_converter = self._build_kakasi_converter()
 
     def reading_variants(self, text: str) -> set[str]:
         tokens = self._tokenize(text)
         if not tokens:
             return set()
-        reading = "".join(token.reading for token in tokens if token.reading)
-        return {reading}
+        pieces: list[str] = []
+        for token in tokens:
+            if _contains_cjk(token.surface):
+                pieces.append(token.reading)
+            else:
+                pieces.append(token.surface)
+        return {"".join(pieces)}
 
     def to_reading_text(self, text: str) -> str:
         tokens = self._tokenize(text)
         if not tokens:
             return text
         pieces: list[str] = []
-        last = 0
+        pos = 0
         for token in tokens:
-            if token.start > last:
-                pieces.append(text[last:token.start])
-            if any(_is_cjk_char(ch) for ch in token.surface):
-                pieces.append(token.reading or token.surface)
+            if token.start > pos:
+                pieces.append(text[pos:token.start])
+            if _contains_cjk(token.surface):
+                pieces.append(token.reading)
             else:
                 pieces.append(token.surface)
-            last = token.end
-        if last < len(text):
-            pieces.append(text[last:])
+            pos = token.end
+        if pos < len(text):
+            pieces.append(text[pos:])
         return "".join(pieces)
 
     def _tokenize(self, text: str) -> list[_Token]:
-        if not text:
-            return []
-        try:
-            sudachi_tokens = self._tokenizer.tokenize(text, self._split_mode)
-        except Exception:  # pragma: no cover - Sudachi errors surface upstream
-            return []
-
         tokens: list[_Token] = []
-        running_index = 0
-        for tk in sudachi_tokens:
-            surface = tk.surface()
-            reading_form = tk.reading_form()
-            if reading_form == "*":
-                reading_form = surface
-            reading = _normalize_katakana(_hiragana_to_katakana(reading_form))
-
-            # SudachiPy 0.6 provides begin/end, but fall back to sequential offsets otherwise.
-            begin_attr = getattr(tk, "begin", None)
-            if callable(begin_attr):
-                start = begin_attr()
+        if not text:
+            return tokens
+        pos = 0
+        previous_reading = ""
+        for raw in self._tagger(text):
+            surface = raw.surface
+            if not surface:
+                continue
+            start = text.find(surface, pos)
+            if start == -1:
+                start = pos
+            if start > pos:
+                pos = start
+            reading = self._reading_for_token(raw, surface, previous_reading)
+            end = start + len(surface)
+            tokens.append(_Token(surface=surface, reading=reading, start=start, end=end))
+            pos = end
+            if _contains_cjk(surface) and reading:
+                previous_reading = reading
             else:
-                start = running_index
-
-            end_attr = getattr(tk, "end", None)
-            if callable(end_attr):
-                end = end_attr()
-            else:
-                end = start + len(surface)
-            running_index = end
-
-            tokens.append(
-                _Token(
-                    surface=surface,
-                    reading=reading,
-                    start=start,
-                    end=end,
-                )
-            )
+                previous_reading = ""
         return tokens
+
+    def _reading_for_token(self, token, surface: str, previous_reading: str) -> str:
+        reading = self._extract_reading(token)
+        if reading and not _contains_cjk(reading):
+            return reading
+        # Fallback: break surface into characters and resolve individually.
+        chars: list[str] = []
+        for ch in surface:
+            if _is_cjk_char(ch):
+                if ch == "々" and previous_reading:
+                    chars.append(previous_reading)
+                else:
+                    chars.append(self._reading_for_char(ch))
+            else:
+                chars.append(ch)
+        return "".join(chars)
+
+    def _reading_for_char(self, ch: str) -> str:
+        # Try re-tokenizing the single character to get dictionary reading.
+        for raw in self._tagger(ch):
+            reading = self._extract_reading(raw)
+            if reading and not _contains_cjk(reading):
+                return reading
+        if self._kakasi_converter is not None:
+            converted = self._kakasi_converter(ch)
+            if converted:
+                return _normalize_katakana(_hiragana_to_katakana(converted))
+        return ch
+
+    def _extract_reading(self, token) -> str:
+        feature = getattr(token, "feature", None)
+        value: Optional[str] = None
+        for attr in ("reading", "reading_form", "kana", "pron", "pronunciation"):
+            if feature is None:
+                break
+            attr_val = None
+            if hasattr(feature, attr):
+                attr_val = getattr(feature, attr)
+            else:
+                try:
+                    attr_val = feature[attr]
+                except Exception:  # pragma: no cover - feature object may not be subscriptable
+                    attr_val = None
+            if attr_val and attr_val != "*":
+                value = attr_val
+                break
+        if not value:
+            return ""
+        return _normalize_katakana(_hiragana_to_katakana(str(value)))
+
+    def _build_kakasi_converter(self) -> Optional[Callable[[str], str]]:
+        try:
+            from pykakasi import kakasi  # type: ignore
+        except ImportError as exc:
+            raise NLPBackendUnavailableError(
+                "Advanced mode requires 'pykakasi' for fallback readings."
+            ) from exc
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=DeprecationWarning)
+            kk = kakasi()
+            kk.setMode("J", "K")
+            kk.setMode("H", "K")
+            kk.setMode("K", "K")
+
+        def _convert(text: str) -> str:
+            try:
+                result = kk.convert(text)
+            except Exception:  # pragma: no cover - kakasi errors are rare
+                return text
+            if isinstance(result, list):
+                converted = "".join(item.get("kana") or item.get("orig", "") for item in result)
+                return converted or text
+            return str(result)
+
+        return _convert
