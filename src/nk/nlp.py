@@ -102,6 +102,7 @@ HONORIFIC_SUFFIX_SET = {
     "殿",
     "どの",
     "氏",
+    "君",
 }
 
 HONORIFIC_OVERRIDES = {
@@ -119,8 +120,14 @@ HONORIFIC_OVERRIDES = {
     "叔母": "オバ",
     "爺": "ジイ",
     "婆": "バア",
+    "義父": "ギフ",
+    "義母": "ギボ",
     "客": "キャク",
     "医者": "イシャ",
+}
+
+HONORIFIC_SUFFIX_REPLACEMENTS = {
+    "君": "ギミ",
 }
 
 
@@ -143,7 +150,12 @@ class NLPBackend:
                 "Advanced mode requires 'fugashi' (MeCab) to be installed."
             ) from exc
 
-        self._tagger = Tagger()
+        try:
+            import unidic  # type: ignore
+        except ImportError:
+            self._tagger = Tagger()
+        else:
+            self._tagger = Tagger(f"-d {unidic.DICDIR}")
         self._kakasi_converter = self._build_kakasi_converter()
 
     def reading_variants(self, text: str) -> set[str]:
@@ -184,6 +196,7 @@ class NLPBackend:
         pos = 0
         previous_surface = ""
         previous_reading = ""
+        previous_lemma = ""
         for idx, raw in enumerate(raw_tokens):
             surface = raw.surface
             if not surface:
@@ -200,6 +213,7 @@ class NLPBackend:
                 raw,
                 surface,
                 previous_surface,
+                previous_lemma,
                 next_surface,
                 previous_reading,
             )
@@ -209,9 +223,11 @@ class NLPBackend:
             if _contains_cjk(surface) and reading:
                 previous_surface = surface
                 previous_reading = reading
+                previous_lemma = self._extract_lemma(raw) or surface
             else:
                 previous_surface = surface
                 previous_reading = ""
+                previous_lemma = self._extract_lemma(raw) or surface
         return tokens
 
     def _reading_for_token(
@@ -219,17 +235,26 @@ class NLPBackend:
         token,
         surface: str,
         previous_surface: str,
+        previous_lemma: str,
         next_surface: str,
         previous_reading: str,
     ) -> str:
         lemma = self._extract_lemma(token)
         cleaned_surface = surface.strip()
-        if cleaned_surface in HONORIFIC_OVERRIDES and next_surface in HONORIFIC_SUFFIX_SET:
-            return HONORIFIC_OVERRIDES[cleaned_surface]
-        if previous_surface in HONORIFIC_PREFIX_SET and next_surface in HONORIFIC_SUFFIX_SET:
-            base = lemma or cleaned_surface
-            if base in HONORIFIC_OVERRIDES:
-                return HONORIFIC_OVERRIDES[base]
+        base = lemma or cleaned_surface
+        if base in HONORIFIC_OVERRIDES and next_surface in HONORIFIC_SUFFIX_SET:
+            return HONORIFIC_OVERRIDES[base]
+        if (
+            previous_surface in HONORIFIC_PREFIX_SET
+            and next_surface in HONORIFIC_SUFFIX_SET
+            and base in HONORIFIC_OVERRIDES
+        ):
+            return HONORIFIC_OVERRIDES[base]
+        if (
+            previous_lemma in HONORIFIC_OVERRIDES
+            and cleaned_surface in HONORIFIC_SUFFIX_REPLACEMENTS
+        ):
+            return HONORIFIC_SUFFIX_REPLACEMENTS[cleaned_surface]
         reading = self._extract_reading(token)
         if reading and not _contains_cjk(reading):
             return reading

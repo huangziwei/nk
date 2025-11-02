@@ -15,6 +15,7 @@ dependencies = [
     "unidic-lite>=1.0.8",
     "pytest>=8.0.0",
     "pykakasi>=2.2.1",
+    "unidic>=1.1.0",
 ]
 
 [project.scripts]
