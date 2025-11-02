@@ -13,6 +13,7 @@ dependencies = [
     "lxml>=6.0.2",
     "sudachipy>=0.6.8",
     "sudachidict_core>=20230110",
+    "pytest>=8.0.0",
 ]
 
 [project.scripts]

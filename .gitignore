@@ -6,6 +6,7 @@ dist/
 wheels/
 dev/
 data/
+tests/
 output/
 *.egg-info
 .DS*
