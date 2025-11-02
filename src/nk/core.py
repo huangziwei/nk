@@ -1,13 +1,25 @@
 from __future__ import annotations
 
 import re
+import warnings
 import unicodedata
 import xml.etree.ElementTree as ET
 import zipfile
 from collections import Counter, defaultdict
+from dataclasses import dataclass, field
 from pathlib import PurePosixPath
+from typing import TYPE_CHECKING, Literal
 
-from bs4 import BeautifulSoup, NavigableString, Tag  # type: ignore
+from bs4 import (
+    BeautifulSoup,
+    FeatureNotFound,
+    NavigableString,
+    Tag,
+    XMLParsedAsHTMLWarning,
+)  # type: ignore
+
+if TYPE_CHECKING:
+    from .nlp import NLPBackend
 
 HTML_EXTS = (".xhtml", ".html", ".htm")
 
@@ -48,6 +60,55 @@ BLOCK_LEVEL_TAGS = {
 # Tags that should force a break even when nested inside another block.
 FORCE_BREAK_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "li", "p", "dt", "dd", "tr"}
 
+PropagationMode = Literal["fast", "slow", "advanced"]
+
+
+@dataclass
+class _ReadingFlags:
+    has_hiragana: bool = False
+    has_latin: bool = False
+    has_middle_dot: bool = False
+    has_long_mark: bool = False
+
+
+@dataclass
+class _ReadingAccumulator:
+    counts: Counter[str] = field(default_factory=Counter)
+    flags: dict[str, _ReadingFlags] = field(default_factory=dict)
+    total: int = 0
+    single_kanji_only: bool | None = None
+
+    def register(self, base: str, reading: str, raw_reading: str, has_hiragana: bool) -> None:
+        self.total += 1
+        self.counts[reading] += 1
+        flags = self.flags.setdefault(reading, _ReadingFlags())
+        flags.has_hiragana = flags.has_hiragana or has_hiragana
+        flags.has_latin = flags.has_latin or any(
+            "LATIN" in unicodedata.name(ch, "") for ch in raw_reading
+        )
+        flags.has_middle_dot = flags.has_middle_dot or ("・" in raw_reading)
+        flags.has_long_mark = flags.has_long_mark or ("ー" in raw_reading)
+        single_occurrence = _is_single_kanji_base(base)
+        if self.single_kanji_only is None:
+            self.single_kanji_only = single_occurrence
+        else:
+            self.single_kanji_only = self.single_kanji_only and single_occurrence
+
+    def merge_from(self, other: _ReadingAccumulator) -> None:
+        self.counts.update(other.counts)
+        self.total += other.total
+        if other.single_kanji_only is not None:
+            if self.single_kanji_only is None:
+                self.single_kanji_only = other.single_kanji_only
+            else:
+                self.single_kanji_only = self.single_kanji_only and other.single_kanji_only
+        for reading, other_flags in other.flags.items():
+            flags = self.flags.setdefault(reading, _ReadingFlags())
+            flags.has_hiragana = flags.has_hiragana or other_flags.has_hiragana
+            flags.has_latin = flags.has_latin or other_flags.has_latin
+            flags.has_middle_dot = flags.has_middle_dot or other_flags.has_middle_dot
+            flags.has_long_mark = flags.has_long_mark or other_flags.has_long_mark
+
 
 def _is_cjk_char(ch: str) -> bool:
     if not ch:
@@ -57,6 +118,13 @@ def _is_cjk_char(ch: str) -> bool:
         0x4E00 <= code <= 0x9FFF  # CJK Unified Ideographs
         or 0x3400 <= code <= 0x4DBF  # Extension A
         or 0x20000 <= code <= 0x2A6DF  # Extension B
+        or 0x2A700 <= code <= 0x2B73F  # Extension C
+        or 0x2B740 <= code <= 0x2B81F  # Extension D
+        or 0x2B820 <= code <= 0x2CEAF  # Extension E
+        or 0x2CEB0 <= code <= 0x2EBEF  # Extension F
+        or 0x30000 <= code <= 0x3134F  # Extension G
+        or 0xF900 <= code <= 0xFAFF  # Compatibility Ideographs
+        or 0x2F800 <= code <= 0x2FA1F  # Compatibility Supplement
         or ch in "々〆ヵヶ"
     )
 
@@ -125,6 +193,14 @@ def _hiragana_to_katakana(text: str) -> str:
         else:
             result_chars.append(ch)
     return "".join(result_chars)
+
+
+def _normalize_katakana(text: str) -> str:
+    text = unicodedata.normalize("NFKC", text)
+    text = text.replace("ヂ", "ジ").replace("ヅ", "ズ")
+    text = text.replace("ヮ", "ワ").replace("ヵ", "カ").replace("ヶ", "ケ")
+    text = text.replace("ゕ", "カ").replace("ゖ", "ケ")
+    return text
 
 
 def _zip_read_text(zf: zipfile.ZipFile, name: str) -> str:
@@ -201,6 +277,44 @@ def _contains_cjk(s: str) -> bool:
     return False
 
 
+def _is_single_kanji_base(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return False
+    cjk_chars = [ch for ch in stripped if _is_cjk_char(ch)]
+    return len(cjk_chars) == 1 and len(stripped) == len(cjk_chars)
+
+
+def _soup_from_html(html: str) -> BeautifulSoup:
+    stripped = html.lstrip()
+    lower_head = stripped[:200].lower()
+    xmlish = stripped.startswith("<?xml") or (
+        "<html" in lower_head and "xmlns" in lower_head
+    )
+
+    if xmlish:
+        for parser in ("lxml-xml", "xml"):
+            try:
+                return BeautifulSoup(html, parser)
+            except FeatureNotFound:
+                continue
+            except Exception:
+                continue
+
+    for parser in ("html5lib", "lxml", "html.parser", "lxml-xml"):
+        try:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
+                return BeautifulSoup(html, parser)
+        except FeatureNotFound:
+            continue
+        except Exception:
+            continue
+
+    # Last resort without suppression; if this raises, propagate upstream.
+    return BeautifulSoup(html, "lxml-xml")
+
+
 def _ruby_base_text(ruby: Tag) -> str:
     """
     Extract base text from <ruby>, ignoring <rt>/<rp>. Supports legacy and <rb>.
@@ -241,37 +355,6 @@ def _is_hiragana_or_katakana(ch: str) -> bool:
     )
 
 
-def _collect_suffix(ruby: Tag) -> str:
-    suffix_chars: list[str] = []
-    for sibling in ruby.next_siblings:
-        if isinstance(sibling, NavigableString):
-            text = str(sibling)
-            idx = 0
-            while idx < len(text):
-                ch = text[idx]
-                if ch.isspace():
-                    idx += 1
-                    continue
-                if _is_hiragana_or_katakana(ch):
-                    suffix_chars.append(ch)
-                    idx += 1
-                    continue
-                return "".join(suffix_chars)
-            continue
-        if isinstance(sibling, Tag):
-            nested = "".join(sibling.stripped_strings)
-            if not nested:
-                continue
-            for ch in nested:
-                if _is_hiragana_or_katakana(ch):
-                    suffix_chars.append(ch)
-                else:
-                    return "".join(suffix_chars)
-            continue
-        break
-    return "".join(suffix_chars)
-
-
 def _is_kana_string(text: str) -> bool:
     for ch in text:
         if ch.isspace():
@@ -282,74 +365,111 @@ def _is_kana_string(text: str) -> bool:
     return True
 
 
-def _collect_reading_counts_from_soup(
-    soup: BeautifulSoup,
-) -> tuple[dict[str, Counter[str]], dict[str, dict[str, bool]]]:
-    counts: dict[str, Counter[str]] = defaultdict(Counter)
-    has_hiragana: dict[str, dict[str, bool]] = defaultdict(dict)
+def _collect_reading_counts_from_soup(soup: BeautifulSoup) -> dict[str, _ReadingAccumulator]:
+    accumulators: dict[str, _ReadingAccumulator] = defaultdict(_ReadingAccumulator)
     for ruby in soup.find_all("ruby"):
-        base = _normalize_ws(_ruby_base_text(ruby))
-        reading = _normalize_ws(_ruby_reading_text(ruby))
-        reading = unicodedata.normalize("NFKC", reading)
-        reading = _hiragana_to_katakana(reading)
-        if base and reading and _contains_cjk(base):
-            suffix = unicodedata.normalize("NFKC", _collect_suffix(ruby))
-            key = base + suffix
-            combined_reading = reading + suffix
-            if not _is_kana_string(combined_reading):
-                continue
-            counts[key][combined_reading] += 1
-            raw = _normalize_ws(_ruby_reading_text(ruby))
-            has_hira = any(0x3040 <= ord(ch) <= 0x309F for ch in raw)
-            flags = has_hiragana[key]
-            flags[combined_reading] = flags.get(combined_reading, False) or has_hira
-    return counts, has_hiragana
+        base_raw = _normalize_ws(_ruby_base_text(ruby))
+        if not base_raw:
+            continue
+        base_norm = unicodedata.normalize("NFKC", base_raw)
+        if not _contains_cjk(base_norm):
+            continue
+        reading_raw = _ruby_reading_text(ruby)
+        reading_norm = _normalize_ws(reading_raw)
+        reading_norm = unicodedata.normalize("NFKC", reading_norm)
+        reading_norm = _hiragana_to_katakana(reading_norm)
+        if not reading_norm or not _is_kana_string(reading_norm):
+            continue
+        has_hira = any(0x3040 <= ord(ch) <= 0x309F for ch in reading_raw)
+        accumulator = accumulators[base_norm]
+        accumulator.register(base_norm, reading_norm, reading_raw, has_hira)
+    return accumulators
+
+
+def _looks_like_translation(flags: _ReadingFlags, reading: str) -> bool:
+    if flags.has_latin or flags.has_middle_dot:
+        return True
+    if not flags.has_hiragana and flags.has_long_mark and len(reading) >= 4:
+        return True
+    return False
+
+
+def _reading_matches(candidate: str, variants: set[str]) -> bool:
+    if not variants:
+        return False
+    target = _normalize_katakana(candidate)
+    for variant in variants:
+        if target == _normalize_katakana(variant):
+            return True
+    return False
 
 
 def _select_reading_mapping(
-    read_counts: dict[str, Counter[str]],
-    reading_flags: dict[str, dict[str, bool]],
+    accumulators: dict[str, _ReadingAccumulator],
+    mode: PropagationMode,
+    nlp: "NLPBackend" | None,
 ) -> tuple[dict[str, str], dict[str, str]]:
-    unique_mapping: dict[str, str] = {}
-    common_mapping: dict[str, str] = {}
-    for base, counter in read_counts.items():
-        if not counter:
+    tier3: dict[str, str] = {}
+    tier2: dict[str, str] = {}
+    if mode == "advanced":
+        return tier3, tier2
+
+    for base, accumulator in accumulators.items():
+        if not accumulator.counts or accumulator.total < 2:
             continue
-        if len(counter) == 1:
-            chosen_reading = counter.most_common(1)[0][0]
-            total = sum(counter.values())
-            has_hira = reading_flags.get(base, {}).get(chosen_reading, False)
-            if total == 1 and not has_hira:
+        if accumulator.single_kanji_only:
+            continue
+        top_reading, top_count = accumulator.counts.most_common(1)[0]
+        total = accumulator.total
+        share = top_count / total
+        alt_share = max(
+            (count / total for reading, count in accumulator.counts.items() if reading != top_reading),
+            default=0.0,
+        )
+        flags = accumulator.flags.get(top_reading, _ReadingFlags())
+        if _looks_like_translation(flags, top_reading):
+            continue
+        if alt_share >= 0.3:
+            continue
+
+        if mode == "slow":
+            if nlp is None:
                 continue
-            unique_mapping[base] = chosen_reading
-        else:
-            most_common = counter.most_common()
-            top_reading, top_count = most_common[0]
-            second_count = most_common[1][1] if len(most_common) > 1 else 0
-            if top_count > second_count:
-                has_hira = reading_flags.get(base, {}).get(top_reading, False)
-                if top_count == 1 and not has_hira:
-                    continue
-                common_mapping[base] = top_reading
-    return unique_mapping, common_mapping
+            variants = nlp.reading_variants(base)
+            if not _reading_matches(top_reading, variants):
+                continue
+
+        if mode == "slow":
+            if share >= 0.98:
+                tier3[base] = top_reading
+            elif share >= 0.9 and total >= 4:
+                tier2[base] = top_reading
+        else:  # fast
+            if share >= 0.95:
+                tier3[base] = top_reading
+            elif share >= 0.9 and total >= 3:
+                tier2[base] = top_reading
+
+    return tier3, tier2
 
 
-def _build_book_mapping(zf: zipfile.ZipFile) -> tuple[dict[str, str], dict[str, str]]:
-    read_counts: dict[str, Counter[str]] = defaultdict(Counter)
-    reading_flags: dict[str, dict[str, bool]] = defaultdict(dict)
+def _build_book_mapping(
+    zf: zipfile.ZipFile,
+    mode: PropagationMode,
+    nlp: "NLPBackend" | None,
+) -> tuple[dict[str, str], dict[str, str]]:
+    if mode == "advanced":
+        return {}, {}
+    accumulators: dict[str, _ReadingAccumulator] = defaultdict(_ReadingAccumulator)
     for name in zf.namelist():
         if not name.lower().endswith(HTML_EXTS):
             continue
         html = _zip_read_text(zf, name)
-        soup = BeautifulSoup(html, "lxml-xml")
-        partial_counts, flags = _collect_reading_counts_from_soup(soup)
-        for base, counter in partial_counts.items():
-            read_counts[base].update(counter)
-        for base, readings in flags.items():
-            base_flags = reading_flags[base]
-            for reading, has_hira in readings.items():
-                base_flags[reading] = base_flags.get(reading, False) or has_hira
-    return _select_reading_mapping(read_counts, reading_flags)
+        soup = _soup_from_html(html)
+        partial = _collect_reading_counts_from_soup(soup)
+        for base, partial_acc in partial.items():
+            accumulators[base].merge_from(partial_acc)
+    return _select_reading_mapping(accumulators, mode, nlp)
 
 
 def _replace_outside_ruby_with_readings(soup: BeautifulSoup, mapping: dict[str, str]) -> None:
@@ -407,21 +527,42 @@ def _strip_html_to_text(soup: BeautifulSoup) -> str:
     return txt
 
 
-def epub_to_txt(inp_epub: str) -> str:
+def epub_to_txt(
+    inp_epub: str,
+    mode: PropagationMode = "fast",
+    nlp: "NLPBackend" | None = None,
+) -> str:
     """
-    Returns the final TXT as a single string.
+    Convert an EPUB into plain text with ruby expansion.
+
+    `fast` mode uses only in-book ruby evidence.
+    `slow` mode verifies ruby readings with an NLP backend before propagating.
+    `advanced` mode requires an NLP backend and replaces every kanji span with
+    dictionary readings.
     """
+    if mode not in ("fast", "slow", "advanced"):
+        raise ValueError(f"Unsupported mode '{mode}'. Expected 'fast', 'slow', or 'advanced'.")
+    if mode in ("slow", "advanced") and nlp is None:
+        raise ValueError("Slow and advanced modes require an NLP backend.")
     with zipfile.ZipFile(inp_epub, "r") as zf:
-        unique_mapping, common_mapping = _build_book_mapping(zf)
+        unique_mapping, common_mapping = _build_book_mapping(zf, mode, nlp)
         spine = _spine_items(zf)
         book_title = _get_book_title(zf)
+        title_candidates: list[str] = []
         if book_title:
-            title_variant = unicodedata.normalize(
-                "NFKC", _apply_mapping_to_plain_text(book_title, unique_mapping)
-            )
-            title_variant = _apply_mapping_to_plain_text(title_variant, common_mapping)
-        else:
-            title_variant = None
+            normalized_title = unicodedata.normalize("NFKC", book_title).strip()
+            if normalized_title:
+                title_candidates.append(normalized_title)
+                if mode == "advanced" and nlp is not None:
+                    title_candidates.append(nlp.to_reading_text(normalized_title).strip())
+                else:
+                    title_variant = unicodedata.normalize(
+                        "NFKC", _apply_mapping_to_plain_text(normalized_title, unique_mapping)
+                    )
+                    title_variant = _apply_mapping_to_plain_text(title_variant, common_mapping)
+                    variant_stripped = title_variant.strip()
+                    if variant_stripped and variant_stripped not in title_candidates:
+                        title_candidates.append(variant_stripped)
         title_seen = False
 
         pieces: list[str] = []
@@ -438,21 +579,22 @@ def epub_to_txt(inp_epub: str) -> str:
             if not name.lower().endswith(HTML_EXTS):
                 continue
             html = _zip_read_text(zf, name)
-            soup = BeautifulSoup(html, "lxml-xml")
-            # 1) propagate: replace base outside ruby using the global mapping
-            _replace_outside_ruby_with_readings(soup, unique_mapping)
-            _replace_outside_ruby_with_readings(soup, common_mapping)
+            soup = _soup_from_html(html)
+            if mode != "advanced":
+                # 1) propagate: replace base outside ruby using the global mapping
+                _replace_outside_ruby_with_readings(soup, unique_mapping)
+                _replace_outside_ruby_with_readings(soup, common_mapping)
             # 2) drop bases inside ruby, keep only readings
             _collapse_ruby_to_readings(soup)
             # 3) strip remaining html to text
             piece = _strip_html_to_text(soup)
-            if book_title:
+            if mode == "advanced" and nlp is not None:
+                piece = nlp.to_reading_text(piece)
+            if title_candidates:
                 filtered_lines: list[str] = []
                 for line in piece.splitlines():
                     stripped_line = line.strip()
-                    if stripped_line == book_title.strip() or (
-                        title_variant and stripped_line == title_variant.strip()
-                    ):
+                    if stripped_line and stripped_line in title_candidates:
                         if title_seen:
                             continue
                         title_seen = True

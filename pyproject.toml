@@ -20,6 +20,10 @@ nk = "nk.cli:main"
 dev = [
     "twine>=6.2.0",
 ]
+nlp = [
+    "sudachipy>=0.6.8",
+    "sudachidict_core>=20230110",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nk"]

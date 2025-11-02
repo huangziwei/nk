@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from .core import epub_to_txt
+from .nlp import NLPBackend, NLPBackendUnavailableError
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -19,6 +20,16 @@ def build_parser() -> argparse.ArgumentParser:
         "-o",
         "--output-name",
         help="Optional name for the output .txt (same folder as input)",
+    )
+    ap.add_argument(
+        "-m",
+        "--mode",
+        choices=["fast", "slow", "advanced"],
+        default="fast",
+        help=(
+            "Propagation strategy: 'fast' balances coverage with accuracy, 'slow' is stricter, "
+            "and 'advanced' disables propagation outside ruby for maximum safety."
+        ),
     )
     return ap
 
@@ -37,6 +48,13 @@ def main(argv: list[str] | None = None) -> int:
     if not inp_path.exists():
         raise FileNotFoundError(f"Input path not found: {inp_path}")
 
+    backend = None
+    if args.mode in ("slow", "advanced"):
+        try:
+            backend = NLPBackend()
+        except NLPBackendUnavailableError as exc:
+            raise SystemExit(str(exc)) from exc
+
     if inp_path.is_dir():
         if args.output_name:
             raise ValueError("Output name cannot be used when processing a directory.")
@@ -44,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
         if not epubs:
             raise FileNotFoundError(f"No .epub files found in directory: {inp_path}")
         for epub_path in epubs:
-            txt = epub_to_txt(str(epub_path))
+            txt = epub_to_txt(str(epub_path), mode=args.mode, nlp=backend)
             output_path = epub_path.with_suffix(".txt")
             output_path.write_text(txt, encoding="utf-8")
     else:
@@ -62,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             output_path = inp_path.with_suffix(".txt")
 
-        txt = epub_to_txt(str(inp_path))
+        txt = epub_to_txt(str(inp_path), mode=args.mode, nlp=backend)
         output_path.write_text(txt, encoding="utf-8")
     return 0
 
