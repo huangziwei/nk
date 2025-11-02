@@ -91,6 +91,39 @@ def _normalize_katakana(text: str) -> str:
     return "".join(chars)
 
 
+HONORIFIC_PREFIX_SET = {"お", "御", "ご"}
+HONORIFIC_SUFFIX_SET = {
+    "さん",
+    "さま",
+    "様",
+    "ちゃん",
+    "ちゃん。",
+    "ちゃん、",
+    "殿",
+    "どの",
+    "氏",
+}
+
+HONORIFIC_OVERRIDES = {
+    "父": "トウ",
+    "母": "カア",
+    "祖父": "ソフ",
+    "祖母": "ソボ",
+    "兄": "ニイ",
+    "姉": "ネエ",
+    "弟": "トウト",
+    "妹": "イモウト",
+    "伯父": "オジ",
+    "叔父": "オジ",
+    "伯母": "オバ",
+    "叔母": "オバ",
+    "爺": "ジイ",
+    "婆": "バア",
+    "客": "キャク",
+    "医者": "イシャ",
+}
+
+
 @dataclass
 class _Token:
     surface: str
@@ -147,9 +180,11 @@ class NLPBackend:
         tokens: list[_Token] = []
         if not text:
             return tokens
+        raw_tokens = list(self._tagger(text))
         pos = 0
+        previous_surface = ""
         previous_reading = ""
-        for raw in self._tagger(text):
+        for idx, raw in enumerate(raw_tokens):
             surface = raw.surface
             if not surface:
                 continue
@@ -158,17 +193,43 @@ class NLPBackend:
                 start = pos
             if start > pos:
                 pos = start
-            reading = self._reading_for_token(raw, surface, previous_reading)
+            next_surface = ""
+            if idx + 1 < len(raw_tokens):
+                next_surface = raw_tokens[idx + 1].surface
+            reading = self._reading_for_token(
+                raw,
+                surface,
+                previous_surface,
+                next_surface,
+                previous_reading,
+            )
             end = start + len(surface)
             tokens.append(_Token(surface=surface, reading=reading, start=start, end=end))
             pos = end
             if _contains_cjk(surface) and reading:
+                previous_surface = surface
                 previous_reading = reading
             else:
+                previous_surface = surface
                 previous_reading = ""
         return tokens
 
-    def _reading_for_token(self, token, surface: str, previous_reading: str) -> str:
+    def _reading_for_token(
+        self,
+        token,
+        surface: str,
+        previous_surface: str,
+        next_surface: str,
+        previous_reading: str,
+    ) -> str:
+        lemma = self._extract_lemma(token)
+        cleaned_surface = surface.strip()
+        if cleaned_surface in HONORIFIC_OVERRIDES and next_surface in HONORIFIC_SUFFIX_SET:
+            return HONORIFIC_OVERRIDES[cleaned_surface]
+        if previous_surface in HONORIFIC_PREFIX_SET and next_surface in HONORIFIC_SUFFIX_SET:
+            base = lemma or cleaned_surface
+            if base in HONORIFIC_OVERRIDES:
+                return HONORIFIC_OVERRIDES[base]
         reading = self._extract_reading(token)
         if reading and not _contains_cjk(reading):
             return reading
@@ -216,6 +277,17 @@ class NLPBackend:
         if not value:
             return ""
         return _normalize_katakana(_hiragana_to_katakana(str(value)))
+
+    def _extract_lemma(self, token) -> str | None:
+        feature = getattr(token, "feature", None)
+        if feature is None:
+            return None
+        if hasattr(feature, "lemma"):
+            return getattr(feature, "lemma") or None
+        try:
+            return feature["lemma"]  # type: ignore[index]
+        except Exception:
+            return None
 
     def _build_kakasi_converter(self) -> Optional[Callable[[str], str]]:
         try:
