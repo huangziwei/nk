@@ -10,5 +10,5 @@ tests/
 output/
 *.egg-info
 .DS*
-# Virtual environments
 .venv
+AGENTS.md
