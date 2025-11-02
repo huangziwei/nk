@@ -60,7 +60,7 @@ BLOCK_LEVEL_TAGS = {
 # Tags that should force a break even when nested inside another block.
 FORCE_BREAK_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "li", "p", "dt", "dd", "tr"}
 
-PropagationMode = Literal["fast", "slow", "advanced"]
+PropagationMode = Literal["fast", "advanced"]
 
 
 @dataclass
@@ -200,7 +200,35 @@ def _normalize_katakana(text: str) -> str:
     text = text.replace("ヂ", "ジ").replace("ヅ", "ズ")
     text = text.replace("ヮ", "ワ").replace("ヵ", "カ").replace("ヶ", "ケ")
     text = text.replace("ゕ", "カ").replace("ゖ", "ケ")
-    return text
+    small_map = {"ヤ": "ャ", "ユ": "ュ", "ヨ": "ョ"}
+    digraph_bases = {
+        "キ",
+        "ギ",
+        "シ",
+        "ジ",
+        "チ",
+        "ヂ",
+        "ニ",
+        "ヒ",
+        "ビ",
+        "ピ",
+        "ミ",
+        "リ",
+    }
+    chars: list[str] = []
+    idx = 0
+    while idx < len(text):
+        ch = text[idx]
+        if idx + 1 < len(text) and ch in digraph_bases:
+            nxt = text[idx + 1]
+            if nxt in small_map:
+                chars.append(ch)
+                chars.append(small_map[nxt])
+                idx += 2
+                continue
+        chars.append(ch)
+        idx += 1
+    return "".join(chars)
 
 
 def _zip_read_text(zf: zipfile.ZipFile, name: str) -> str:
@@ -378,6 +406,7 @@ def _collect_reading_counts_from_soup(soup: BeautifulSoup) -> dict[str, _Reading
         reading_norm = _normalize_ws(reading_raw)
         reading_norm = unicodedata.normalize("NFKC", reading_norm)
         reading_norm = _hiragana_to_katakana(reading_norm)
+        reading_norm = _normalize_katakana(reading_norm)
         if not reading_norm or not _is_kana_string(reading_norm):
             continue
         has_hira = any(0x3040 <= ord(ch) <= 0x309F for ch in reading_raw)
@@ -411,12 +440,11 @@ def _select_reading_mapping(
 ) -> tuple[dict[str, str], dict[str, str]]:
     tier3: dict[str, str] = {}
     tier2: dict[str, str] = {}
-    if mode == "advanced":
-        return tier3, tier2
 
     for base, accumulator in accumulators.items():
         if not accumulator.counts or accumulator.total < 2:
-            continue
+            if mode != "advanced":
+                continue
         if accumulator.single_kanji_only:
             continue
         top_reading, top_count = accumulator.counts.most_common(1)[0]
@@ -432,23 +460,22 @@ def _select_reading_mapping(
         if alt_share >= 0.3:
             continue
 
-        if mode == "slow":
-            if nlp is None:
+        if mode == "fast":
+            if total < 2:
                 continue
-            variants = nlp.reading_variants(base)
-            if not _reading_matches(top_reading, variants):
-                continue
-
-        if mode == "slow":
-            if share >= 0.98:
-                tier3[base] = top_reading
-            elif share >= 0.9 and total >= 4:
-                tier2[base] = top_reading
-        else:  # fast
             if share >= 0.95:
                 tier3[base] = top_reading
             elif share >= 0.9 and total >= 3:
                 tier2[base] = top_reading
+        else:  # advanced
+            if nlp is None:
+                continue
+            variants = nlp.reading_variants(base)
+            if _reading_matches(top_reading, variants):
+                tier3[base] = top_reading
+                continue
+            if total >= 3 and share >= 0.95:
+                tier3[base] = top_reading
 
     return tier3, tier2
 
@@ -458,8 +485,6 @@ def _build_book_mapping(
     mode: PropagationMode,
     nlp: "NLPBackend" | None,
 ) -> tuple[dict[str, str], dict[str, str]]:
-    if mode == "advanced":
-        return {}, {}
     accumulators: dict[str, _ReadingAccumulator] = defaultdict(_ReadingAccumulator)
     for name in zf.namelist():
         if not name.lower().endswith(HTML_EXTS):
@@ -498,6 +523,7 @@ def _collapse_ruby_to_readings(soup: BeautifulSoup) -> None:
     """
     for ruby in list(soup.find_all("ruby")):
         reading = _hiragana_to_katakana(_ruby_reading_text(ruby))
+        reading = _normalize_katakana(reading)
         ruby.replace_with(reading)
 
 
@@ -529,21 +555,23 @@ def _strip_html_to_text(soup: BeautifulSoup) -> str:
 
 def epub_to_txt(
     inp_epub: str,
-    mode: PropagationMode = "fast",
+    mode: PropagationMode = "advanced",
     nlp: "NLPBackend" | None = None,
 ) -> str:
     """
     Convert an EPUB into plain text with ruby expansion.
 
     `fast` mode uses only in-book ruby evidence.
-    `slow` mode verifies ruby readings with an NLP backend before propagating.
-    `advanced` mode requires an NLP backend and replaces every kanji span with
+    `advanced` mode verifies ruby readings with an NLP backend, keeps the ones
+    that match or dominate in-book evidence, and fills remaining kanji with
     dictionary readings.
     """
-    if mode not in ("fast", "slow", "advanced"):
-        raise ValueError(f"Unsupported mode '{mode}'. Expected 'fast', 'slow', or 'advanced'.")
-    if mode in ("slow", "advanced") and nlp is None:
-        raise ValueError("Slow and advanced modes require an NLP backend.")
+    if mode not in ("fast", "advanced"):
+        raise ValueError(f"Unsupported mode '{mode}'. Expected 'fast' or 'advanced'.")
+    if mode == "advanced" and nlp is None:
+        from .nlp import NLPBackend  # Local import to avoid mandatory dependency for fast mode.
+
+        nlp = NLPBackend()
     with zipfile.ZipFile(inp_epub, "r") as zf:
         unique_mapping, common_mapping = _build_book_mapping(zf, mode, nlp)
         spine = _spine_items(zf)
@@ -553,16 +581,17 @@ def epub_to_txt(
             normalized_title = unicodedata.normalize("NFKC", book_title).strip()
             if normalized_title:
                 title_candidates.append(normalized_title)
+                title_variant = unicodedata.normalize(
+                    "NFKC", _apply_mapping_to_plain_text(normalized_title, unique_mapping)
+                )
+                title_variant = _apply_mapping_to_plain_text(title_variant, common_mapping)
+                variant_stripped = title_variant.strip()
+                if variant_stripped and variant_stripped not in title_candidates:
+                    title_candidates.append(variant_stripped)
                 if mode == "advanced" and nlp is not None:
-                    title_candidates.append(nlp.to_reading_text(normalized_title).strip())
-                else:
-                    title_variant = unicodedata.normalize(
-                        "NFKC", _apply_mapping_to_plain_text(normalized_title, unique_mapping)
-                    )
-                    title_variant = _apply_mapping_to_plain_text(title_variant, common_mapping)
-                    variant_stripped = title_variant.strip()
-                    if variant_stripped and variant_stripped not in title_candidates:
-                        title_candidates.append(variant_stripped)
+                    advanced_title = nlp.to_reading_text(normalized_title).strip()
+                    if advanced_title and advanced_title not in title_candidates:
+                        title_candidates.append(advanced_title)
         title_seen = False
 
         pieces: list[str] = []
@@ -580,10 +609,9 @@ def epub_to_txt(
                 continue
             html = _zip_read_text(zf, name)
             soup = _soup_from_html(html)
-            if mode != "advanced":
-                # 1) propagate: replace base outside ruby using the global mapping
-                _replace_outside_ruby_with_readings(soup, unique_mapping)
-                _replace_outside_ruby_with_readings(soup, common_mapping)
+            # 1) propagate: replace base outside ruby using the global mapping
+            _replace_outside_ruby_with_readings(soup, unique_mapping)
+            _replace_outside_ruby_with_readings(soup, common_mapping)
             # 2) drop bases inside ruby, keep only readings
             _collapse_ruby_to_readings(soup)
             # 3) strip remaining html to text

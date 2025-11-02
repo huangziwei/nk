@@ -476,26 +476,24 @@ source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "lxml" },
+    { name = "sudachidict-core" },
+    { name = "sudachipy" },
 ]
 
 [package.optional-dependencies]
 dev = [
     { name = "twine" },
 ]
-nlp = [
-    { name = "sudachidict-core" },
-    { name = "sudachipy" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.14.2" },
     { name = "lxml", specifier = ">=6.0.2" },
-    { name = "sudachidict-core", marker = "extra == 'nlp'", specifier = ">=20230110" },
-    { name = "sudachipy", marker = "extra == 'nlp'", specifier = ">=0.6.8" },
+    { name = "sudachidict-core", specifier = ">=20230110" },
+    { name = "sudachipy", specifier = ">=0.6.8" },
     { name = "twine", marker = "extra == 'dev'", specifier = ">=6.2.0" },
 ]
-provides-extras = ["dev", "nlp"]
+provides-extras = ["dev"]
 
 [[package]]
 name = "packaging"

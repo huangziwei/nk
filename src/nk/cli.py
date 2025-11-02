@@ -24,11 +24,11 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "-m",
         "--mode",
-        choices=["fast", "slow", "advanced"],
-        default="fast",
+        choices=["advanced", "fast"],
+        default="advanced",
         help=(
-            "Propagation strategy: 'fast' balances coverage with accuracy, 'slow' is stricter, "
-            "and 'advanced' disables propagation outside ruby for maximum safety."
+            "Propagation strategy: 'advanced' (default) verifies ruby readings with Sudachi and "
+            "fills every kanji; 'fast' relies on ruby evidence only."
         ),
     )
     return ap
@@ -49,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
         raise FileNotFoundError(f"Input path not found: {inp_path}")
 
     backend = None
-    if args.mode in ("slow", "advanced"):
+    if args.mode == "advanced":
         try:
             backend = NLPBackend()
         except NLPBackendUnavailableError as exc:
