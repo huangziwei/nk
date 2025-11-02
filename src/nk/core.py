@@ -589,9 +589,13 @@ def epub_to_txt(
                 if variant_stripped and variant_stripped not in title_candidates:
                     title_candidates.append(variant_stripped)
                 if mode == "advanced" and nlp is not None:
-                    advanced_title = nlp.to_reading_text(normalized_title).strip()
-                    if advanced_title and advanced_title not in title_candidates:
-                        title_candidates.append(advanced_title)
+                    candidates = {
+                        nlp.to_reading_text(normalized_title).strip(),
+                        nlp.to_reading_text(variant_stripped or normalized_title).strip(),
+                    }
+                    for cand in candidates:
+                        if cand and cand not in title_candidates:
+                            title_candidates.append(cand)
         title_seen = False
 
         pieces: list[str] = []
@@ -620,14 +624,32 @@ def epub_to_txt(
                 piece = nlp.to_reading_text(piece)
             if title_candidates:
                 filtered_lines: list[str] = []
+                skip_blank_after_title = False
                 for line in piece.splitlines():
                     stripped_line = line.strip()
-                    if stripped_line and stripped_line in title_candidates:
+                    if not stripped_line:
+                        if skip_blank_after_title:
+                            skip_blank_after_title = False
+                            continue
+                        filtered_lines.append(line)
+                        continue
+                    normalized_line = stripped_line.replace("\u3000", " ")
+                    if stripped_line in title_candidates or normalized_line in title_candidates:
                         if title_seen:
+                            skip_blank_after_title = True
                             continue
                         title_seen = True
+                        filtered_lines.append(line)
+                        skip_blank_after_title = True
+                        continue
                     filtered_lines.append(line)
+                    skip_blank_after_title = False
                 piece = "\n".join(filtered_lines).strip()
+                piece = re.sub(r"\n{3,}", "\n\n", piece)
+                if not piece:
+                    continue
+            if not piece:
+                continue
             pieces.append(piece)
 
         return "\n\n".join(pieces).strip()
