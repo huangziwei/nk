@@ -110,6 +110,13 @@ class _ReadingAccumulator:
             flags.has_long_mark = flags.has_long_mark or other_flags.has_long_mark
 
 
+@dataclass
+class ChapterText:
+    source: str
+    title: str | None
+    text: str
+
+
 def _is_cjk_char(ch: str) -> bool:
     if not ch:
         return False
@@ -555,27 +562,25 @@ def _strip_html_to_text(soup: BeautifulSoup) -> str:
     return txt
 
 
-def epub_to_txt(
+def epub_to_chapter_texts(
     inp_epub: str,
     mode: PropagationMode = "advanced",
     nlp: "NLPBackend" | None = None,
-) -> str:
+) -> list[ChapterText]:
     """
-    Convert an EPUB into plain text with ruby expansion.
+    Convert an EPUB into chapterized text segments with ruby expansion.
 
-    `fast` mode uses only in-book ruby evidence.
-    `advanced` mode verifies ruby readings with an NLP backend, keeps the ones
-    that match or dominate in-book evidence, and fills remaining kanji with
-    dictionary readings.
+    Returns the processed spine items in order as ChapterText objects.
     """
     if mode not in ("fast", "advanced"):
         raise ValueError(f"Unsupported mode '{mode}'. Expected 'fast' or 'advanced'.")
-    if mode == "advanced" and nlp is None:
+    backend = nlp
+    if mode == "advanced" and backend is None:
         from .nlp import NLPBackend  # Local import to avoid mandatory dependency for fast mode.
 
-        nlp = NLPBackend()
+        backend = NLPBackend()
     with zipfile.ZipFile(inp_epub, "r") as zf:
-        unique_mapping, common_mapping = _build_book_mapping(zf, mode, nlp)
+        unique_mapping, common_mapping = _build_book_mapping(zf, mode, backend)
         spine = _spine_items(zf)
         book_title = _get_book_title(zf)
         title_candidates: list[str] = []
@@ -590,10 +595,10 @@ def epub_to_txt(
                 variant_stripped = title_variant.strip()
                 if variant_stripped and variant_stripped not in title_candidates:
                     title_candidates.append(variant_stripped)
-                if mode == "advanced" and nlp is not None:
+                if mode == "advanced" and backend is not None:
                     candidates = {
-                        nlp.to_reading_text(normalized_title).strip(),
-                        nlp.to_reading_text(variant_stripped or normalized_title).strip(),
+                        backend.to_reading_text(normalized_title).strip(),
+                        backend.to_reading_text(variant_stripped or normalized_title).strip(),
                     }
                     for cand in candidates:
                         if cand and cand not in title_candidates:
@@ -609,7 +614,7 @@ def epub_to_txt(
             key = key.replace("【", "").replace("】", "")
             return key
 
-        pieces: list[str] = []
+        chapters: list[ChapterText] = []
         for name in spine:
             if name not in zf.namelist():
                 # Some spines use relative paths; try to resolve simply
@@ -633,6 +638,8 @@ def epub_to_txt(
             piece = _strip_html_to_text(soup)
             filtered_lines: list[str] = []
             skip_blank_after_title = False
+            has_content_in_piece = False
+            first_non_blank_original: str | None = None
             for line in piece.splitlines():
                 stripped_line = line.strip()
                 if not stripped_line:
@@ -649,13 +656,14 @@ def epub_to_txt(
                 )
 
                 key = _line_key(line)
+                is_first_content_line = not has_content_in_piece and bool(stripped_line)
                 if is_title_line:
                     if title_seen:
                         skip_blank_after_title = True
                         continue
                     title_seen = True
                     skip_blank_after_title = True
-                elif key and key in seen_line_keys:
+                elif key and key in seen_line_keys and not is_first_content_line:
                     continue
                 else:
                     skip_blank_after_title = False
@@ -663,16 +671,47 @@ def epub_to_txt(
                 filtered_lines.append(line)
                 if key:
                     seen_line_keys.add(key)
+                if stripped_line and first_non_blank_original is None:
+                    first_non_blank_original = line
+                if stripped_line:
+                    has_content_in_piece = True
 
-            piece = "\n".join(filtered_lines).strip()
-            piece = re.sub(r"\n{3,}", "\n\n", piece)
-            if mode == "advanced" and nlp is not None and piece:
-                piece = nlp.to_reading_text(piece)
-            if not piece:
+            preserved_line = first_non_blank_original.strip() if first_non_blank_original else None
+            piece_text = "\n".join(filtered_lines)
+            piece_text = re.sub(r"\n{3,}", "\n\n", piece_text)
+            piece_text = piece_text.strip()
+            if mode == "advanced" and backend is not None and piece_text:
+                piece_text = backend.to_reading_text(piece_text).strip()
+            if not piece_text:
                 continue
-            pieces.append(piece)
+            if preserved_line:
+                chapter_title = preserved_line
+            else:
+                chapter_title = next(
+                    (line.strip() for line in piece_text.splitlines() if line.strip()),
+                    None,
+                )
+            chapters.append(ChapterText(source=name, title=chapter_title, text=piece_text))
 
-        return "\n\n".join(pieces).strip()
+        return chapters
 
 
-__all__ = ["epub_to_txt"]
+def epub_to_txt(
+    inp_epub: str,
+    mode: PropagationMode = "advanced",
+    nlp: "NLPBackend" | None = None,
+) -> str:
+    """
+    Convert an EPUB into plain text with ruby expansion.
+
+    `fast` mode uses only in-book ruby evidence.
+    `advanced` mode verifies ruby readings with an NLP backend, keeps the ones
+    that match or dominate in-book evidence, and fills remaining kanji with
+    dictionary readings.
+    """
+    chapters = epub_to_chapter_texts(inp_epub, mode=mode, nlp=nlp)
+    combined = "\n\n".join(chapter.text for chapter in chapters).strip()
+    return combined
+
+
+__all__ = ["ChapterText", "epub_to_chapter_texts", "epub_to_txt"]
