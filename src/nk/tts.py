@@ -17,6 +17,11 @@ from urllib.parse import urlparse
 
 import requests
 
+try:
+    import simpleaudio as _simpleaudio
+except ImportError:  # pragma: no cover - optional dependency
+    _simpleaudio = None
+
 
 class VoiceVoxError(RuntimeError):
     """Raised when the VoiceVox engine returns an unexpected response."""
@@ -245,6 +250,15 @@ def _ffmpeg_escape_path(path: Path) -> str:
     return f"'{escaped}'"
 
 
+def _play_chunk_simpleaudio(chunk_path: Path) -> None:
+    if _simpleaudio is None:
+        raise RuntimeError(
+            "simpleaudio is required for live playback. Install with `pip install simpleaudio`."
+        )
+    wave_obj = _simpleaudio.WaveObject.from_wave_file(str(chunk_path))
+    return wave_obj.play()
+
+
 def _synthesize_target_with_client(
     target: TTSTarget,
     client: VoiceVoxClient,
@@ -256,13 +270,16 @@ def _synthesize_target_with_client(
     progress: Callable[[dict[str, object]], None] | None,
     cache_base: Path | None,
     keep_cache: bool,
+    live_playback: bool = False,
+    playback_callback: Callable[[Path], None] | None = None,
+    live_prebuffer: int = 2,
 ) -> Path | None:
     cache_dir = _target_cache_dir(cache_base, target)
     marker_path = cache_dir / ".complete"
+    progress_path = cache_dir / ".progress"
 
-    if target.output.exists() and not overwrite:
+    if target.output.exists() and not overwrite and not live_playback:
         if cache_dir.exists() and not marker_path.exists():
-            # Incomplete run; discard stale output and resume.
             target.output.unlink(missing_ok=True)
         else:
             _emit_progress(
@@ -273,6 +290,7 @@ def _synthesize_target_with_client(
                 source=target.source,
                 output=target.output,
                 reason="exists",
+                live=live_playback,
             )
             if cache_dir.exists() and not keep_cache:
                 shutil.rmtree(cache_dir, ignore_errors=True)
@@ -287,6 +305,7 @@ def _synthesize_target_with_client(
             total=total,
             source=target.source,
             reason="empty",
+            live=live_playback,
         )
         return None
 
@@ -299,6 +318,7 @@ def _synthesize_target_with_client(
             total=total,
             source=target.source,
             reason="no_chunks",
+            live=live_playback,
         )
         return None
 
@@ -311,68 +331,84 @@ def _synthesize_target_with_client(
         source=target.source,
         output=target.output,
         chunk_count=chunk_count,
+        live=live_playback,
     )
 
-    marker_path.unlink(missing_ok=True)
     cache_dir.mkdir(parents=True, exist_ok=True)
+    marker_path.unlink(missing_ok=True)
+    last_played = 0
+    if live_playback and progress_path.exists():
+        try:
+            last_played = int(progress_path.read_text(encoding="utf-8").strip() or "0")
+        except ValueError:
+            last_played = 0
 
-    if chunk_count == 1:
+    prebuffer_threshold = max(1, min(live_prebuffer, chunk_count)) if live_playback else 0
+    playback_started = last_played >= prebuffer_threshold if live_playback else False
+    chunk_paths: dict[int, Path] = {}
+    chunk_files: list[Path] = []
+    last_play_object = None
+
+    for chunk_index, chunk in enumerate(chunks, start=1):
         _emit_progress(
             progress,
             "chunk_start",
             index=index,
             total=total,
-            chunk_index=1,
-            chunk_count=1,
+            chunk_index=chunk_index,
+            chunk_count=chunk_count,
             source=target.source,
+            live=live_playback,
         )
-        chunk_path = _chunk_cache_path(cache_dir, 1, chunks[0])
-        if chunk_path.exists():
-            wav_bytes = chunk_path.read_bytes()
-        else:
-            wav_bytes = client.synthesize_wav(chunks[0])
-            chunk_path.write_bytes(wav_bytes)
-        wav_bytes_to_mp3(
-            wav_bytes,
-            target.output,
-            ffmpeg_path=ffmpeg_path,
-            overwrite=overwrite,
-        )
-        if cache_dir.exists():
-            if keep_cache:
-                marker_path.write_text("1", encoding="utf-8")
-            else:
-                shutil.rmtree(cache_dir, ignore_errors=True)
-    else:
-        chunk_files: list[Path] = []
-        for chunk_index, chunk in enumerate(chunks, start=1):
-            _emit_progress(
-                progress,
-                "chunk_start",
-                index=index,
-                total=total,
-                chunk_index=chunk_index,
-                chunk_count=chunk_count,
-                source=target.source,
-            )
-            chunk_path = _chunk_cache_path(cache_dir, chunk_index, chunk)
-            if chunk_path.exists():
-                chunk_files.append(chunk_path)
-                continue
+        chunk_path = _chunk_cache_path(cache_dir, chunk_index, chunk)
+        if not chunk_path.exists():
             wav_bytes = client.synthesize_wav(chunk)
             chunk_path.write_bytes(wav_bytes)
-            chunk_files.append(chunk_path)
-        _merge_wavs_to_mp3(
-            chunk_files,
-            target.output,
-            ffmpeg_path=ffmpeg_path,
-            overwrite=overwrite,
-        )
-        if cache_dir.exists():
-            if keep_cache:
-                marker_path.write_text(str(chunk_count), encoding="utf-8")
-            else:
-                shutil.rmtree(cache_dir, ignore_errors=True)
+
+        chunk_files.append(chunk_path)
+        if live_playback:
+            if chunk_index <= last_played:
+                chunk_paths.pop(chunk_index, None)
+                continue
+            chunk_paths[chunk_index] = chunk_path
+            if not playback_started and chunk_index >= prebuffer_threshold:
+                playback_started = True
+            if playback_started:
+                while (last_played + 1) in chunk_paths:
+                    next_index = last_played + 1
+                    next_path = chunk_paths.pop(next_index)
+                    if last_play_object is not None:
+                        last_play_object.wait_done()
+                    last_play_object = playback_callback(next_path)
+                    last_played = next_index
+                    progress_path.write_text(str(last_played), encoding="utf-8")
+
+    if live_playback:
+        if chunk_paths:
+            for next_index in sorted(chunk_paths):
+                if next_index <= last_played:
+                    continue
+                next_path = chunk_paths[next_index]
+                if last_play_object is not None:
+                    last_play_object.wait_done()
+                last_play_object = playback_callback(next_path)
+                last_played = next_index
+                progress_path.write_text(str(last_played), encoding="utf-8")
+        if last_play_object is not None:
+            last_play_object.wait_done()
+
+    _merge_wavs_to_mp3(
+        chunk_files,
+        target.output,
+        ffmpeg_path=ffmpeg_path,
+        overwrite=overwrite,
+    )
+    progress_path.unlink(missing_ok=True)
+    if cache_dir.exists():
+        if keep_cache:
+            marker_path.write_text(str(chunk_count), encoding="utf-8")
+        else:
+            shutil.rmtree(cache_dir, ignore_errors=True)
 
     _emit_progress(
         progress,
@@ -382,6 +418,7 @@ def _synthesize_target_with_client(
         source=target.source,
         output=target.output,
         chunk_count=chunk_count,
+        live=live_playback,
     )
     return target.output
 
@@ -672,6 +709,9 @@ def synthesize_texts_to_mp3(
     jobs: int = 1,
     cache_dir: Path | None = None,
     keep_cache: bool = False,
+    live_playback: bool = False,
+    playback_callback: Callable[[Path], None] | None = None,
+    live_prebuffer: int = 2,
     progress: Callable[[dict[str, object]], None] | None = None,
 ) -> list[Path]:
     """
@@ -684,6 +724,11 @@ def synthesize_texts_to_mp3(
 
     effective_jobs = _effective_jobs(jobs, total_targets)
     cache_base = Path(cache_dir).expanduser() if cache_dir is not None else None
+    if live_playback:
+        if playback_callback is None:
+            raise ValueError("playback_callback must be provided when live_playback=True.")
+        effective_jobs = 1
+        live_prebuffer = max(1, live_prebuffer)
     generated: list[Path | None]
 
     if effective_jobs == 1:
@@ -706,6 +751,9 @@ def synthesize_texts_to_mp3(
                     progress=progress,
                     cache_base=cache_base,
                     keep_cache=keep_cache,
+                    live_playback=live_playback,
+                    playback_callback=playback_callback,
+                    live_prebuffer=live_prebuffer,
                 )
                 if produced is not None:
                     results.append(produced)
@@ -734,6 +782,9 @@ def synthesize_texts_to_mp3(
                 progress=progress,
                 cache_base=cache_base,
                 keep_cache=keep_cache,
+                live_playback=live_playback,
+                playback_callback=playback_callback,
+                live_prebuffer=live_prebuffer,
             )
             return idx, produced
         finally:

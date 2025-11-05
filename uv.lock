@@ -550,6 +550,8 @@ dependencies = [
     { name = "lxml" },
     { name = "pykakasi" },
     { name = "pytest" },
+    { name = "requests" },
+    { name = "simpleaudio" },
     { name = "unidic" },
     { name = "unidic-lite" },
 ]
@@ -566,6 +568,8 @@ requires-dist = [
     { name = "lxml", specifier = ">=6.0.2" },
     { name = "pykakasi", specifier = ">=2.2.1" },
     { name = "pytest", specifier = ">=8.0.0" },
+    { name = "requests", specifier = ">=2.32.3" },
+    { name = "simpleaudio", specifier = ">=1.0.4" },
     { name = "twine", marker = "extra == 'dev'", specifier = ">=6.2.0" },
     { name = "unidic", specifier = ">=1.1.0" },
     { name = "unidic-lite", specifier = ">=1.0.8" },
@@ -730,6 +734,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/31/9f/11ef35cf1027c1339
 wheels = [
     { url = "https://files.pythonhosted.org/packages/91/ff/2e2eed29e02c14a5cb6c57f09b2d5b40e65d6cc71f45b52e0be295ccbc2f/secretstorage-3.4.0-py3-none-any.whl", hash = "sha256:0e3b6265c2c63509fb7415717607e4b2c9ab767b7f344a57473b779ca13bd02e", size = 15272, upload-time = "2025-09-09T16:42:12.744Z" },
 ]
+
+[[package]]
+name = "simpleaudio"
+version = "1.0.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/1b/4dc29653733202b68c09d9c6ca085cf67ac54859ee860647ef21ac1ff3dc/simpleaudio-1.0.4.tar.gz", hash = "sha256:691c88649243544db717e7edf6a9831df112104e1aefb5f6038a5d071e8cf41d", size = 2042564, upload-time = "2019-11-29T03:56:28.965Z" }
 
 [[package]]
 name = "soupsieve"

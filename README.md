@@ -50,6 +50,7 @@ Convert Japanese EPUBs into TTS-friendly plain text.
 - Use `--pause` (seconds) to stretch trailing silence per chunk when you need clearer separation between sentences.
 - Pass `--jobs` to enable parallel chapter synthesis (default auto-selects a small worker pool).
 - nk caches synthesized WAV chunks under `.nk-tts-cache/` (or `--cache-dir`) so you can stop and resume mid-chapter; rerun the same command without `--overwrite` and nk reuses any completed chunks. Add `--keep-cache` if you want to retain the WAVs after success.
+- `--live` streams each chunk directly through your speakers (requires `pip install simpleaudio`); caches still update so you can pause and resume playback later. Tune `--live-prebuffer` (default 2 chunks) if you want more headroom before playback starts. Live mode runs chapters sequentially (equivalent to `--jobs 1`) so your audio never overlaps.
 
 ### Installing VoiceVox (macOS example)
 

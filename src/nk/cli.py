@@ -13,6 +13,8 @@ from .tts import (
     VoiceVoxError,
     VoiceVoxRuntimeError,
     VoiceVoxUnavailableError,
+    _play_chunk_simpleaudio,
+    _simpleaudio,
     discover_voicevox_runtime,
     managed_voicevox_runtime,
     resolve_text_targets,
@@ -132,6 +134,22 @@ def build_tts_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Retain cached WAV chunks after successful synthesis.",
     )
+    ap.add_argument(
+        "--live",
+        action="store_true",
+        help="Stream synthesized audio chunk-by-chunk instead of writing MP3 files.",
+    )
+    ap.add_argument(
+        "--live-prebuffer",
+        type=int,
+        default=2,
+        help="Number of chunks to buffer before starting live playback (default: 2).",
+    )
+    ap.add_argument(
+        "--live-start",
+        type=int,
+        help="Chapter index to start live playback from (1-based).",
+    )
     return ap
 
 
@@ -206,6 +224,7 @@ def _run_tts(args: argparse.Namespace) -> int:
         source = event.get("source")
         output = event.get("output")
         chunk_count = event.get("chunk_count")
+        live = bool(event.get("live"))
         if isinstance(source, Path):
             source_name = source.name
         else:
@@ -227,7 +246,11 @@ def _run_tts(args: argparse.Namespace) -> int:
                 )
         elif event_type == "target_done":
             output_str = str(output) if output is not None else ""
-            print(f"[{index}/{total}] {source_name} -> {output_str}", flush=True)
+            if live:
+                status = "live playback done"
+                print(f"[{index}/{total}] {source_name} -> {status}", flush=True)
+            else:
+                print(f"[{index}/{total}] {source_name} -> {output_str}", flush=True)
         elif event_type == "target_skipped":
             reason = event.get("reason", "skipped")
             print(f"[{index}/{total}] {source_name} skipped ({reason})", flush=True)
@@ -239,6 +262,14 @@ def _run_tts(args: argparse.Namespace) -> int:
 
     runtime_path = runtime_hint or auto_runtime
     cache_base = Path(args.cache_dir).expanduser() if args.cache_dir else None
+    live_mode = bool(args.live)
+    playback_fn = None
+    if live_mode:
+        if _simpleaudio is None:
+            raise SystemExit(
+                "Live playback requires the `simpleaudio` package. Install it with `pip install simpleaudio`."
+            )
+        playback_fn = _play_chunk_simpleaudio
 
     try:
         with managed_voicevox_runtime(
@@ -246,8 +277,20 @@ def _run_tts(args: argparse.Namespace) -> int:
             args.engine_url,
             readiness_timeout=args.engine_runtime_wait,
         ):
+            live_targets = targets
+            if live_mode and args.live_start:
+                start_idx = max(1, args.live_start)
+                if start_idx > len(targets):
+                    raise SystemExit(
+                        f"--live-start {start_idx} exceeds total targets ({len(targets)})."
+                    )
+                live_targets = targets[start_idx - 1 :]
+                print(
+                    f"Skipping {start_idx - 1} chapters; starting live playback at index {start_idx}.",
+                    flush=True,
+                )
             generated = synthesize_texts_to_mp3(
-                targets,
+                live_targets,
                 speaker_id=args.speaker,
                 base_url=args.engine_url,
                 ffmpeg_path=args.ffmpeg,
@@ -257,6 +300,9 @@ def _run_tts(args: argparse.Namespace) -> int:
                 jobs=args.jobs,
                 cache_dir=cache_base,
                 keep_cache=args.keep_cache,
+                live_playback=live_mode,
+                playback_callback=playback_fn,
+                live_prebuffer=max(1, args.live_prebuffer),
                 progress=_progress_printer,
             )
     except (
@@ -268,6 +314,11 @@ def _run_tts(args: argparse.Namespace) -> int:
         ValueError,
     ) as exc:
         raise SystemExit(str(exc)) from exc
+
+    if live_mode:
+        if not printed_progress["value"]:
+            print("No audio played (all targets skipped).")
+        return 0
 
     if not generated:
         print("No audio generated (all input texts were empty).")
