@@ -13,6 +13,7 @@ dependencies = [
     "lxml>=6.0.2",
     "fugashi>=1.2.2",
     "unidic-lite>=1.0.8",
+    "requests>=2.32.3",
     "pytest>=8.0.0",
     "pykakasi>=2.2.1",
     "unidic>=1.1.0",
