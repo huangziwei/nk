@@ -18,6 +18,8 @@ dependencies = [
     "pykakasi>=2.2.1",
     "unidic>=1.1.0",
     "simpleaudio>=1.0.4",
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.0",
 ]
 
 [project.scripts]

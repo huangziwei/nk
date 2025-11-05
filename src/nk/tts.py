@@ -401,7 +401,7 @@ def _synthesize_target_with_client(
         chunk_files,
         target.output,
         ffmpeg_path=ffmpeg_path,
-        overwrite=overwrite,
+        overwrite=overwrite or live_playback,
     )
     progress_path.unlink(missing_ok=True)
     if cache_dir.exists():

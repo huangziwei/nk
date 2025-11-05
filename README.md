@@ -111,7 +111,24 @@ nk tts output/ --live --live-prebuffer 3 --live-start 5
 
 ---
 
-## 8. Troubleshooting
+## 8. Web playback service (`nk web`)
+
+Serve your chapterized books over HTTP and stream them from a phone or tablet on the same network.
+
+1. Chapterize your EPUBs if you haven’t already: `nk my_book.epub --chapterized` (creates `output/my_book/*.txt`).
+2. Start the server on your Mac:
+   ```bash
+   nk web output/ --host 0.0.0.0 --port 2046
+   ```
+   Options mirror `nk tts` (speaker, engine runtime, cache directory, etc.).
+3. On your phone, open Safari and visit `http://<your-mac-ip>:2046`.
+4. Tap a book → choose a chapter → press play. You can resume or restart individual chapters, and Safari will stream the MP3 while nk continues synthesising and caching in the background.
+
+> The web service uses the same chunk cache/resume logic as the CLI. Stopping playback mid-chapter and tapping “Resume” picks up exactly where you left off. A final MP3 is written when playback completes.
+
+---
+
+## 9. Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
@@ -123,7 +140,7 @@ nk tts output/ --live --live-prebuffer 3 --live-start 5
 
 ---
 
-## 9. Command reference
+## 10. Command reference
 
 ```
 # EPUB → TXT
@@ -140,6 +157,9 @@ nk tts book.txt|directory [--speaker N]
 
 # Live playback (still writes MP3s)
 nk tts chapters/ --live [--live-prebuffer N] [--live-start M]
+
+# Web service (browse + stream)
+nk web output/ [--host HOST] [--port PORT] [--speaker N] [...]
 
 # Environment: NK_VOICEVOX_RUNTIME=/absolute/path/to/run
 ```

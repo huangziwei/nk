@@ -6,6 +6,8 @@ import sys
 import unicodedata
 from pathlib import Path, PurePosixPath
 
+import uvicorn
+
 from .core import ChapterText, epub_to_chapter_texts, epub_to_txt
 from .nlp import NLPBackend, NLPBackendUnavailableError
 from .tts import (
@@ -20,6 +22,7 @@ from .tts import (
     resolve_text_targets,
     synthesize_texts_to_mp3,
 )
+from .web import WebConfig, create_app
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -149,6 +152,75 @@ def build_tts_parser() -> argparse.ArgumentParser:
         "--live-start",
         type=int,
         help="Chapter index to start live playback from (1-based).",
+    )
+    return ap
+
+
+def build_web_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        description="Serve chapterized text as a browser-based VoiceVox player.",
+    )
+    ap.add_argument(
+        "root",
+        help="Directory containing chapterized .txt files (one subdirectory per book).",
+    )
+    ap.add_argument(
+        "--host",
+        default="0.0.0.0",
+        help="Host interface for the web server (default: 0.0.0.0).",
+    )
+    ap.add_argument(
+        "--port",
+        type=int,
+        default=2046,
+        help="Port for the web server (default: 2046).",
+    )
+    ap.add_argument(
+        "--speaker",
+        type=int,
+        default=2,
+        help="VoiceVox speaker ID to use (default: 2).",
+    )
+    ap.add_argument(
+        "--engine-url",
+        default="http://127.0.0.1:50021",
+        help="Base URL for the VoiceVox engine (default: http://127.0.0.1:50021).",
+    )
+    ap.add_argument(
+        "--engine-runtime",
+        help="Path to the VoiceVox runtime executable or its directory.",
+    )
+    ap.add_argument(
+        "--engine-runtime-wait",
+        type=float,
+        default=30.0,
+        help="Seconds to wait for an auto-started VoiceVox engine (default: 30).",
+    )
+    ap.add_argument(
+        "--ffmpeg",
+        default="ffmpeg",
+        help="Path to ffmpeg executable (default: ffmpeg).",
+    )
+    ap.add_argument(
+        "--pause",
+        type=float,
+        default=0.4,
+        help="Trailing silence per chunk in seconds (default: 0.4).",
+    )
+    ap.add_argument(
+        "--cache-dir",
+        help="Directory to persist chunk caches (default: alongside output).",
+    )
+    ap.add_argument(
+        "--keep-cache",
+        action="store_true",
+        help="Retain cached WAV chunks after playback completes.",
+    )
+    ap.add_argument(
+        "--live-prebuffer",
+        type=int,
+        default=2,
+        help="Chunks to buffer before live playback begins (default: 2).",
     )
     return ap
 
@@ -329,6 +401,28 @@ def _run_tts(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_web(args: argparse.Namespace) -> None:
+    root = Path(args.root).expanduser().resolve()
+    cache_dir = Path(args.cache_dir).expanduser().resolve() if args.cache_dir else None
+    engine_runtime = Path(args.engine_runtime).expanduser().resolve() if args.engine_runtime else None
+
+    config = WebConfig(
+        root=root,
+        speaker=args.speaker,
+        engine_url=args.engine_url,
+        engine_runtime=engine_runtime,
+        engine_wait=args.engine_runtime_wait,
+        ffmpeg_path=args.ffmpeg,
+        pause=args.pause,
+        cache_dir=cache_dir,
+        keep_cache=args.keep_cache,
+        live_prebuffer=args.live_prebuffer,
+    )
+
+    app = create_app(config)
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
@@ -337,6 +431,11 @@ def main(argv: list[str] | None = None) -> int:
         tts_parser = build_tts_parser()
         tts_args = tts_parser.parse_args(argv[1:])
         return _run_tts(tts_args)
+    if argv and argv[0] == "web":
+        web_parser = build_web_parser()
+        web_args = web_parser.parse_args(argv[1:])
+        _run_web(web_args)
+        return 0
 
     parser = build_parser()
     if not argv:
