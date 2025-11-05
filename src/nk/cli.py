@@ -66,8 +66,8 @@ def build_tts_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--speaker",
         type=int,
-        default=23,
-        help="VoiceVox speaker ID to use (default: 23).",
+        default=2,
+        help="VoiceVox speaker ID to use (default: 2).",
     )
     ap.add_argument(
         "--engine-url",
@@ -104,6 +104,15 @@ def build_tts_parser() -> argparse.ArgumentParser:
         help=(
             "Seconds to wait for an auto-started VoiceVox engine to become ready "
             "(default: 30)."
+        ),
+    )
+    ap.add_argument(
+        "--pause",
+        type=float,
+        default=0.4,
+        help=(
+            "Seconds of trailing silence to request per chunk (VoiceVox postPhonemeLength). "
+            "Set to 0 to keep the engine default."
         ),
     )
     return ap
@@ -217,6 +226,7 @@ def _run_tts(args: argparse.Namespace) -> int:
                 ffmpeg_path=args.ffmpeg,
                 overwrite=args.overwrite,
                 timeout=args.timeout,
+                post_phoneme_length=max(args.pause, 0.0) if args.pause is not None else None,
                 progress=_progress_printer,
             )
     except (

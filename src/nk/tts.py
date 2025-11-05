@@ -279,12 +279,15 @@ class VoiceVoxClient:
     def __init__(
         self,
         base_url: str = "http://127.0.0.1:50021",
-        speaker_id: int = 23,
+        speaker_id: int = 2,
         timeout: float = 30.0,
+        *,
+        post_phoneme_length: float | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.speaker_id = speaker_id
         self.timeout = timeout
+        self.post_phoneme_length = post_phoneme_length
         self._session = requests.Session()
 
     def synthesize_wav(self, text: str) -> bytes:
@@ -311,6 +314,13 @@ class VoiceVoxClient:
             query_payload = query_resp.json()
         except json.JSONDecodeError as exc:
             raise VoiceVoxError("VoiceVox returned invalid JSON for /audio_query") from exc
+
+        if self.post_phoneme_length is not None and self.post_phoneme_length >= 0:
+            payload_value = float(query_payload.get("postPhonemeLength", 0.0))
+            query_payload["postPhonemeLength"] = max(
+                payload_value,
+                float(self.post_phoneme_length),
+            )
 
         try:
             synth_resp = self._session.post(
@@ -461,11 +471,12 @@ def _merge_wavs_to_mp3(
 def synthesize_texts_to_mp3(
     targets: Iterable[TTSTarget],
     *,
-    speaker_id: int = 23,
+    speaker_id: int = 2,
     base_url: str = "http://127.0.0.1:50021",
     ffmpeg_path: str = "ffmpeg",
     overwrite: bool = False,
     timeout: float = 30.0,
+    post_phoneme_length: float | None = None,
     progress: Callable[[dict[str, object]], None] | None = None,
 ) -> list[Path]:
     """
@@ -474,7 +485,12 @@ def synthesize_texts_to_mp3(
     target_list = list(targets)
     total_targets = len(target_list)
 
-    client = VoiceVoxClient(base_url=base_url, speaker_id=speaker_id, timeout=timeout)
+    client = VoiceVoxClient(
+        base_url=base_url,
+        speaker_id=speaker_id,
+        timeout=timeout,
+        post_phoneme_length=post_phoneme_length,
+    )
     generated: list[Path] = []
     try:
         for index, target in enumerate(target_list, start=1):

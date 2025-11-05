@@ -41,11 +41,13 @@ Convert Japanese EPUBs into TTS-friendly plain text.
 ## TTS with VoiceVox
 
 - `nk tts path/to/texts` renders `.txt` files into MP3s via a running VoiceVox HTTP engine (default `http://127.0.0.1:50021`).
+- Default speaker is 四国めたん・セリフ (ID 2); pass `--speaker` for another preset.
 - nk auto-detects bundled VoiceVox releases under `~/opt/voicevox/**`; override with `--engine-runtime` (or `NK_VOICEVOX_RUNTIME`) to point at a custom install. nk launches the engine on demand, waits for readiness, and tears it down when finished.
   ```bash
   nk tts out/book.txt --engine-runtime "$HOME/opt/voicevox/macos-x64"
   ```
 - Adjust `--engine-runtime-wait` if the engine takes longer than 30 seconds to load models.
+- Use `--pause` (seconds) to stretch trailing silence per chunk when you need clearer separation between sentences.
 
 ### Installing VoiceVox (macOS example)
 
