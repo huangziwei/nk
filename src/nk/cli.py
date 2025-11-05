@@ -115,6 +115,12 @@ def build_tts_parser() -> argparse.ArgumentParser:
             "Set to 0 to keep the engine default."
         ),
     )
+    ap.add_argument(
+        "--jobs",
+        type=int,
+        default=0,
+        help="Parallel synthesis workers (default: auto).",
+    )
     return ap
 
 
@@ -189,22 +195,31 @@ def _run_tts(args: argparse.Namespace) -> int:
         source = event.get("source")
         output = event.get("output")
         chunk_count = event.get("chunk_count")
+        if isinstance(source, Path):
+            source_name = source.name
+        else:
+            source_name = str(source) if source is not None else ""
         if event_type == "target_start":
-            name = source.name if isinstance(source, Path) else str(source)
-            chunk_info = f" ({chunk_count} chunks)" if isinstance(chunk_count, int) and chunk_count > 1 else ""
-            print(f"[{index}/{total}] {name}{chunk_info}", flush=True)
+            chunk_info = (
+                f" ({chunk_count} chunks)"
+                if isinstance(chunk_count, int) and chunk_count > 1
+                else ""
+            )
+            print(f"[{index}/{total}] {source_name}{chunk_info}", flush=True)
         elif event_type == "chunk_start":
             chunk_index = event.get("chunk_index")
             chunk_total = event.get("chunk_count")
             if isinstance(chunk_total, int) and chunk_total > 1:
-                print(f"  chunk {chunk_index}/{chunk_total}", flush=True)
+                print(
+                    f"[{index}/{total}] chunk {chunk_index}/{chunk_total} ({source_name})",
+                    flush=True,
+                )
         elif event_type == "target_done":
-            path = output if isinstance(output, Path) else output
-            print(f"  -> {path}", flush=True)
+            output_str = str(output) if output is not None else ""
+            print(f"[{index}/{total}] {source_name} -> {output_str}", flush=True)
         elif event_type == "target_skipped":
             reason = event.get("reason", "skipped")
-            name = source.name if isinstance(source, Path) else str(source)
-            print(f"[{index}/{total}] {name} skipped ({reason})", flush=True)
+            print(f"[{index}/{total}] {source_name} skipped ({reason})", flush=True)
 
     runtime_hint = args.engine_runtime
     auto_runtime = None
@@ -227,6 +242,7 @@ def _run_tts(args: argparse.Namespace) -> int:
                 overwrite=args.overwrite,
                 timeout=args.timeout,
                 post_phoneme_length=max(args.pause, 0.0) if args.pause is not None else None,
+                jobs=args.jobs,
                 progress=_progress_printer,
             )
     except (

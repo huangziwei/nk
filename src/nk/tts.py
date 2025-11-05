@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import subprocess
@@ -193,6 +194,121 @@ def _emit_progress(
     data = {"event": event}
     data.update(payload)
     progress(data)
+
+
+def _effective_jobs(requested: int, total: int) -> int:
+    if total <= 1:
+        return 1
+    jobs = requested
+    if jobs <= 0:
+        cpu = os.cpu_count() or 1
+        jobs = max(1, cpu // 2)
+        jobs = min(jobs, 4)
+        if jobs <= 0:
+            jobs = 1
+    jobs = max(1, jobs)
+    return min(jobs, total)
+
+
+def _synthesize_target_with_client(
+    target: TTSTarget,
+    client: VoiceVoxClient,
+    *,
+    index: int,
+    total: int,
+    ffmpeg_path: str,
+    overwrite: bool,
+    progress: Callable[[dict[str, object]], None] | None,
+) -> Path | None:
+    text = target.source.read_text(encoding="utf-8").strip()
+    if not text:
+        _emit_progress(
+            progress,
+            "target_skipped",
+            index=index,
+            total=total,
+            source=target.source,
+            reason="empty",
+        )
+        return None
+
+    chunks = _split_text_on_breaks(text)
+    if not chunks:
+        _emit_progress(
+            progress,
+            "target_skipped",
+            index=index,
+            total=total,
+            source=target.source,
+            reason="no_chunks",
+        )
+        return None
+
+    chunk_count = len(chunks)
+    _emit_progress(
+        progress,
+        "target_start",
+        index=index,
+        total=total,
+        source=target.source,
+        output=target.output,
+        chunk_count=chunk_count,
+    )
+
+    if chunk_count == 1:
+        _emit_progress(
+            progress,
+            "chunk_start",
+            index=index,
+            total=total,
+            chunk_index=1,
+            chunk_count=1,
+            source=target.source,
+        )
+        wav_bytes = client.synthesize_wav(chunks[0])
+        wav_bytes_to_mp3(
+            wav_bytes,
+            target.output,
+            ffmpeg_path=ffmpeg_path,
+            overwrite=overwrite,
+        )
+    else:
+        temp_wavs: list[Path] = []
+        try:
+            for chunk_index, chunk in enumerate(chunks, start=1):
+                _emit_progress(
+                    progress,
+                    "chunk_start",
+                    index=index,
+                    total=total,
+                    chunk_index=chunk_index,
+                    chunk_count=chunk_count,
+                    source=target.source,
+                )
+                wav_bytes = client.synthesize_wav(chunk)
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                    tmp.write(wav_bytes)
+                    temp_wavs.append(Path(tmp.name))
+            _merge_wavs_to_mp3(
+                temp_wavs,
+                target.output,
+                ffmpeg_path=ffmpeg_path,
+                overwrite=overwrite,
+            )
+        finally:
+            for tmp in temp_wavs:
+                tmp.unlink(missing_ok=True)
+
+    _emit_progress(
+        progress,
+        "target_done",
+        index=index,
+        total=total,
+        source=target.source,
+        output=target.output,
+        chunk_count=chunk_count,
+    )
+    return target.output
 
 
 def _wait_for_voicevox_ready(
@@ -477,6 +593,7 @@ def synthesize_texts_to_mp3(
     overwrite: bool = False,
     timeout: float = 30.0,
     post_phoneme_length: float | None = None,
+    jobs: int = 1,
     progress: Callable[[dict[str, object]], None] | None = None,
 ) -> list[Path]:
     """
@@ -484,102 +601,66 @@ def synthesize_texts_to_mp3(
     """
     target_list = list(targets)
     total_targets = len(target_list)
+    if not target_list:
+        return []
 
-    client = VoiceVoxClient(
-        base_url=base_url,
-        speaker_id=speaker_id,
-        timeout=timeout,
-        post_phoneme_length=post_phoneme_length,
-    )
-    generated: list[Path] = []
-    try:
-        for index, target in enumerate(target_list, start=1):
-            text = target.source.read_text(encoding="utf-8").strip()
-            if not text:
-                _emit_progress(
-                    progress,
-                    "target_skipped",
+    effective_jobs = _effective_jobs(jobs, total_targets)
+    generated: list[Path | None]
+
+    if effective_jobs == 1:
+        client = VoiceVoxClient(
+            base_url=base_url,
+            speaker_id=speaker_id,
+            timeout=timeout,
+            post_phoneme_length=post_phoneme_length,
+        )
+        try:
+            results: list[Path] = []
+            for index, target in enumerate(target_list, start=1):
+                produced = _synthesize_target_with_client(
+                    target,
+                    client,
                     index=index,
                     total=total_targets,
-                    source=target.source,
-                    reason="empty",
-                )
-                continue
-            chunks = _split_text_on_breaks(text)
-            if not chunks:
-                _emit_progress(
-                    progress,
-                    "target_skipped",
-                    index=index,
-                    total=total_targets,
-                    source=target.source,
-                    reason="no_chunks",
-                )
-                continue
-
-            chunk_count = len(chunks)
-            _emit_progress(
-                progress,
-                "target_start",
-                index=index,
-                total=total_targets,
-                source=target.source,
-                output=target.output,
-                chunk_count=chunk_count,
-            )
-
-            if chunk_count == 1:
-                _emit_progress(
-                    progress,
-                    "chunk_start",
-                    index=index,
-                    total=total_targets,
-                    chunk_index=1,
-                    chunk_count=1,
-                )
-                wav_bytes = client.synthesize_wav(chunks[0])
-                wav_bytes_to_mp3(
-                    wav_bytes,
-                    target.output,
                     ffmpeg_path=ffmpeg_path,
                     overwrite=overwrite,
+                    progress=progress,
                 )
-            else:
-                temp_wavs: list[Path] = []
-                try:
-                    for chunk_index, chunk in enumerate(chunks, start=1):
-                        _emit_progress(
-                            progress,
-                            "chunk_start",
-                            index=index,
-                            total=total_targets,
-                            chunk_index=chunk_index,
-                            chunk_count=chunk_count,
-                        )
-                        wav_bytes = client.synthesize_wav(chunk)
-                        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                            tmp.write(wav_bytes)
-                            temp_wavs.append(Path(tmp.name))
-                    _merge_wavs_to_mp3(
-                        temp_wavs,
-                        target.output,
-                        ffmpeg_path=ffmpeg_path,
-                        overwrite=overwrite,
-                    )
-                finally:
-                    for tmp in temp_wavs:
-                        tmp.unlink(missing_ok=True)
+                if produced is not None:
+                    results.append(produced)
+        finally:
+            client.close()
+        return results
 
-            _emit_progress(
-                progress,
-                "target_done",
-                index=index,
+    generated = [None] * total_targets
+
+    def _worker(payload: tuple[int, TTSTarget]) -> tuple[int, Path | None]:
+        idx, target = payload
+        client = VoiceVoxClient(
+            base_url=base_url,
+            speaker_id=speaker_id,
+            timeout=timeout,
+            post_phoneme_length=post_phoneme_length,
+        )
+        try:
+            produced = _synthesize_target_with_client(
+                target,
+                client,
+                index=idx + 1,
                 total=total_targets,
-                source=target.source,
-                output=target.output,
-                chunk_count=chunk_count,
+                ffmpeg_path=ffmpeg_path,
+                overwrite=overwrite,
+                progress=progress,
             )
-            generated.append(target.output)
-    finally:
-        client.close()
-    return generated
+            return idx, produced
+        finally:
+            client.close()
+
+    with ThreadPoolExecutor(max_workers=effective_jobs) as executor:
+        futures = [executor.submit(_worker, (idx, target)) for idx, target in enumerate(target_list)]
+        for future in futures:
+            order, produced = future.result()
+            if produced is not None:
+                generated[order] = produced
+
+    return [path for path in generated if path is not None]
