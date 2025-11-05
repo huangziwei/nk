@@ -1,74 +1,145 @@
 # nk
 
-Convert Japanese EPUBs into TTS-friendly plain text.
+Convert Japanese EPUBs into TTS-ready text and narrate them with VoiceVox on macOS.
 
-## Usage
+---
 
-1. Install the CLI (uv keeps it isolated):
+## 1. Prerequisites (macOS)
 
-   ```bash
-   uv tool install git+https://github.com/huangziwei/nk
-   ```
+```bash
+brew install p7zip ffmpeg jq          # system tools used by nk / VoiceVox
+```
 
-2. Install the NLP dependencies (full UniDic for best accuracy):
+> The `simpleaudio` package needed for `--live` playback ships with nk via `pyproject.toml`; `uv tool install` pulls it in automatically.
 
-   ```bash
-   uv pip install fugashi pykakasi unidic
-   python -m unidic download
-   ```
+## 2. Install nk and Python dependencies
 
-   > Prefer a lighter download? Replace `unidic` with `"fugashi[unidic-lite]"`. Accuracy will drop on rare words, but setup is faster.
+```bash
+uv tool install git+https://github.com/huangziwei/nk
+uv run python -m unidic download
+```
 
-3. Convert books:
+## 3. Install the VoiceVox engine
 
-   ```bash
-   nk path/to/book.epub              # advanced mode (default)
-   nk book.epub --mode fast          # ruby-only heuristics
-   nk book.epub -o custom.txt        # custom output name
-   ```
+1. Download `voicevox_engine-macos-x64-*.7z.001` from the [VoiceVox engine releases](https://github.com/VOICEVOX/voicevox_engine/releases).
+2. Extract and prepare the runtime:
 
-## What to Expect
+```bash
+mkdir -p "$HOME/opt/voicevox"
+cd "$HOME/Downloads"
+7z x voicevox_engine-macos-x64-<VERSION>.7z.001 -o"$HOME/opt/voicevox"
 
-- Plain text written next to the source EPUB in reading order
-- Kanji bases stripped; ruby readings propagated and converted to katakana (strictness depends on `--mode`)
-- HTML, styling, and duplicate title noise removed
+cd "$HOME/opt/voicevox/macos-x64"
+chmod +x run
+```
 
-## Modes & Requirements
+nk auto-detects installs under `~/opt/voicevox/**`. If you keep the engine elsewhere, either pass `--engine-runtime /path/to/run` or export `NK_VOICEVOX_RUNTIME` in your shell. You can test manually with `./run --host 127.0.0.1 --port 50021`, but nk will launch and stop it for you.
 
-- `fast`: Uses only ruby annotations in the EPUB plus conservative heuristics. May miss unannotated kanji.
-- `advanced` (default): Requires `fugashi` (MeCab) with UniDic and `pykakasi`. Prefers verified ruby readings when they agree with the dictionary (or appear repeatedly), and replaces every remaining kanji with katakana readings.
+---
 
-## TTS with VoiceVox
+## 4. Convert EPUB → TTS-friendly text
 
-- `nk tts path/to/texts` renders `.txt` files into MP3s via a running VoiceVox HTTP engine (default `http://127.0.0.1:50021`).
-- Default speaker is 四国めたん・セリフ (ID 2); pass `--speaker` for another preset.
-- nk auto-detects bundled VoiceVox releases under `~/opt/voicevox/**`; override with `--engine-runtime` (or `NK_VOICEVOX_RUNTIME`) to point at a custom install. nk launches the engine on demand, waits for readiness, and tears it down when finished.
-  ```bash
-  nk tts out/book.txt --engine-runtime "$HOME/opt/voicevox/macos-x64"
-  ```
-- Adjust `--engine-runtime-wait` if the engine takes longer than 30 seconds to load models.
-- Use `--pause` (seconds) to stretch trailing silence per chunk when you need clearer separation between sentences.
-- Pass `--jobs` to enable parallel chapter synthesis (default auto-selects a small worker pool).
-- nk caches synthesized WAV chunks under `.nk-tts-cache/` (or `--cache-dir`) so you can stop and resume mid-chapter; rerun the same command without `--overwrite` and nk reuses any completed chunks. Add `--keep-cache` if you want to retain the WAVs after success.
-- `--live` streams each chunk directly through your speakers (requires `pip install simpleaudio`); caches still update so you can pause and resume playback later. Tune `--live-prebuffer` (default 2 chunks) if you want more headroom before playback starts. Live mode runs chapters sequentially (equivalent to `--jobs 1`) so your audio never overlaps.
+```bash
+# Advanced mode (default): dictionary-verified ruby propagation
+nk my_book.epub
 
-### Installing VoiceVox (macOS example)
+# Fast mode: ruby evidence only
+nk my_book.epub --mode fast
 
-1. Install prerequisites (7-Zip for extracting the release archive, ffmpeg for MP3 encoding):
-   ```bash
-   brew install p7zip ffmpeg jq
-   ```
-2. Download the latest macOS VoiceVox engine archive from the [official releases](https://github.com/VOICEVOX/voicevox_engine/releases). The macOS build ships as split `.7z` files.
-3. Extract the payload into `~/opt/voicevox` (create the directory if it does not exist):
-   ```bash
-   mkdir -p "$HOME/opt/voicevox"
-   cd "$HOME/Downloads"
-   7z x voicevox_engine-macos-x64-<VERSION>.7z.001 -o"$HOME/opt/voicevox"
-   ```
-4. Mark the launcher executable and test it manually (optional—nk will start it for you):
-   ```bash
-   cd "$HOME/opt/voicevox/macos-x64"
-   chmod +x run
-   ./run --host 127.0.0.1 --port 50021
-   ```
-5. Stop the engine (Ctrl+C) once you see it listening; nk will take it from there. If you keep VoiceVox in a custom location, add `export NK_VOICEVOX_RUNTIME=/path/to/run` to your shell profile so nk can find it.
+# Custom output name or per-chapter output
+nk my_book.epub -o custom_name.txt
+nk shelf/ --chapterized
+```
+
+Expect katakana-only output next to the source EPUB with duplicate titles stripped and line breaks preserved. Advanced mode consumes `fugashi + UniDic + pykakasi`; fast mode requires no additional NLP setup.
+
+---
+
+## 5. Generate MP3s with VoiceVox
+
+```bash
+# Basic run (nk auto-starts VoiceVox at 127.0.0.1:50021)
+nk tts output/
+
+# Custom speaker, engine location, and parallelism
+nk tts output/chapters --speaker 20 \
+                       --engine-runtime "$HOME/opt/voicevox/macos-x64" \
+                       --jobs 3
+```
+
+**Useful options**
+
+| Option | Purpose |
+| --- | --- |
+| `--speaker N` | VoiceVox speaker ID (default 2, 四国めたん・セリフ). |
+| `--pause SECONDS` | Trailing silence per chunk (default 0.4 s). |
+| `--jobs N` | Parallel chapters (auto = half your cores, max 4). |
+| `--engine-runtime PATH` | Point at a custom VoiceVox install or the `run` binary. |
+| `--cache-dir DIR` | Store chunk caches elsewhere. |
+| `--keep-cache` | Leave chunk WAVs on disk after MP3 synthesis. |
+| `--overwrite` | Regenerate MP3s even if they already exist. |
+
+**Resume after interruption** – nk caches every chunk under `.nk-tts-cache/<chapter-hash>/`. If you stop midway, rerun the same command (omit `--overwrite`) and synthesis resumes from the last unfinished chunk or merge. Delete MP3s (or use `--overwrite`) to regenerate everything.
+
+---
+
+## 6. Live playback (`--live`)
+
+Stream chapters through your speakers while nk keeps synthesising chunks and writing MP3s in the background.
+
+```bash
+# Stream all chapters sequentially
+nk tts output/ --live
+
+# Buffer more chunks and jump to chapter 5
+nk tts output/ --live --live-prebuffer 3 --live-start 5
+```
+
+- `--live-prebuffer N` (default 2) buffers N chunks before playback begins, then keeps synthesising ahead.
+- `--live-start M` begins streaming at chapter index `M` (1-based), skipping earlier files.
+- Live mode runs chapters sequentially (equivalent to `--jobs 1`) so audio stays ordered while synthesis continues ahead in the background.
+- Stopping mid-chapter? nk records the last played chunk in `.progress`; rerun the command and playback resumes from there (it replays the interrupted chunk for continuity).
+- MP3s are still written when playback finishes. Combine with `--keep-cache` if you also want to preserve the chunk WAVs.
+
+---
+
+## 7. VoiceVox tips
+
+- Increase `--engine-runtime-wait` if the engine needs extra time to load models.
+- Pass `--pause 0` to keep the engine’s default trailing silence.
+- Override `NK_VOICEVOX_RUNTIME` or use `--engine-runtime` if nk can’t find your install.
+
+---
+
+## 8. Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| `simpleaudio` missing | Install it: `pip install simpleaudio`. |
+| VoiceVox unavailable | Ensure `~/opt/voicevox/.../run` exists or pass `--engine-runtime`. |
+| MP3 skipped | Remove the file or add `--overwrite`. |
+| Need a clean slate | Delete `.nk-tts-cache/` (or run with `--overwrite`). |
+| Want to inspect chunks | Use `--keep-cache` to leave WAVs in `.nk-tts-cache/<chapter-hash>/`. |
+
+---
+
+## 9. Command reference
+
+```
+# EPUB → TXT
+nk book.epub [--mode advanced|fast] [--chapterized] [-o output.txt]
+
+# TXT → MP3 (batch)
+nk tts book.txt|directory [--speaker N]
+                          [--engine-runtime PATH]
+                          [--jobs N]
+                          [--pause SECONDS]
+                          [--cache-dir DIR]
+                          [--keep-cache]
+                          [--overwrite]
+
+# Live playback (still writes MP3s)
+nk tts chapters/ --live [--live-prebuffer N] [--live-start M]
+
+# Environment: NK_VOICEVOX_RUNTIME=/absolute/path/to/run
+```
