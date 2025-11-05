@@ -402,6 +402,18 @@ def _is_kana_string(text: str) -> bool:
 
 def _collect_reading_counts_from_soup(soup: BeautifulSoup) -> dict[str, _ReadingAccumulator]:
     accumulators: dict[str, _ReadingAccumulator] = defaultdict(_ReadingAccumulator)
+    def _previous_significant_sibling(tag: Tag):
+        prev = tag.previous_sibling
+        while isinstance(prev, NavigableString) and not prev.strip():
+            prev = prev.previous_sibling
+        return prev
+
+    def _next_significant_sibling(tag: Tag):
+        nxt = tag.next_sibling
+        while isinstance(nxt, NavigableString) and not nxt.strip():
+            nxt = nxt.next_sibling
+        return nxt
+
     for ruby in soup.find_all("ruby"):
         base_raw = _normalize_ws(_ruby_base_text(ruby))
         if not base_raw:
@@ -419,6 +431,52 @@ def _collect_reading_counts_from_soup(soup: BeautifulSoup) -> dict[str, _Reading
         has_hira = any(0x3040 <= ord(ch) <= 0x309F for ch in reading_raw)
         accumulator = accumulators[base_norm]
         accumulator.register(base_norm, reading_norm, reading_raw, has_hira)
+
+        if not _is_single_kanji_base(base_norm):
+            continue
+
+        prev = _previous_significant_sibling(ruby)
+        if isinstance(prev, Tag) and prev.name == "ruby":
+            prev_base = _normalize_ws(_ruby_base_text(prev))
+            prev_base_norm = unicodedata.normalize("NFKC", prev_base)
+            if prev_base and _is_single_kanji_base(prev_base_norm):
+                continue
+
+        group: list[Tag] = [ruby]
+        next_tag = _next_significant_sibling(ruby)
+        while isinstance(next_tag, Tag) and next_tag.name == "ruby":
+            next_base_raw = _normalize_ws(_ruby_base_text(next_tag))
+            if not next_base_raw:
+                break
+            next_base_norm = unicodedata.normalize("NFKC", next_base_raw)
+            if not _is_single_kanji_base(next_base_norm):
+                break
+            group.append(next_tag)
+            next_tag = _next_significant_sibling(next_tag)
+
+        if len(group) <= 1:
+            continue
+
+        combined_base_raw = "".join(_normalize_ws(_ruby_base_text(tag)) for tag in group)
+        combined_base_norm = unicodedata.normalize("NFKC", combined_base_raw)
+        combined_reading_raw = "".join(_ruby_reading_text(tag) for tag in group)
+        combined_reading_norm = _normalize_ws(combined_reading_raw)
+        combined_reading_norm = unicodedata.normalize("NFKC", combined_reading_norm)
+        combined_reading_norm = _hiragana_to_katakana(combined_reading_norm)
+        combined_reading_norm = _normalize_katakana(combined_reading_norm)
+        if not combined_reading_norm or not _is_kana_string(combined_reading_norm):
+            continue
+        combined_has_hira = any(
+            any(0x3040 <= ord(ch) <= 0x309F for ch in _ruby_reading_text(tag))
+            for tag in group
+        )
+        compound_acc = accumulators[combined_base_norm]
+        compound_acc.register(
+            combined_base_norm,
+            combined_reading_norm,
+            combined_reading_raw,
+            combined_has_hira,
+        )
     return accumulators
 
 
