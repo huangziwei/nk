@@ -220,6 +220,18 @@ def _synthesize_target_with_client(
     overwrite: bool,
     progress: Callable[[dict[str, object]], None] | None,
 ) -> Path | None:
+    if target.output.exists() and not overwrite:
+        _emit_progress(
+            progress,
+            "target_skipped",
+            index=index,
+            total=total,
+            source=target.source,
+            output=target.output,
+            reason="exists",
+        )
+        return target.output
+
     text = target.source.read_text(encoding="utf-8").strip()
     if not text:
         _emit_progress(

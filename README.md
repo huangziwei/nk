@@ -49,6 +49,7 @@ Convert Japanese EPUBs into TTS-friendly plain text.
 - Adjust `--engine-runtime-wait` if the engine takes longer than 30 seconds to load models.
 - Use `--pause` (seconds) to stretch trailing silence per chunk when you need clearer separation between sentences.
 - Pass `--jobs` to enable parallel chapter synthesis (default auto-selects a small worker pool).
+- Resume a cancelled run by rerunning the same command *without* `--overwrite`; nk now skips chapters whose MP3s already exist, so only unfinished files synthesize again.
 
 ### Installing VoiceVox (macOS example)
 
