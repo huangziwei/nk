@@ -121,6 +121,17 @@ def build_tts_parser() -> argparse.ArgumentParser:
         default=0,
         help="Parallel synthesis workers (default: auto).",
     )
+    ap.add_argument(
+        "--cache-dir",
+        help=(
+            "Directory to persist chunk WAV caches for resume (default: .nk-tts-cache next to outputs)."
+        ),
+    )
+    ap.add_argument(
+        "--keep-cache",
+        action="store_true",
+        help="Retain cached WAV chunks after successful synthesis.",
+    )
     return ap
 
 
@@ -227,6 +238,7 @@ def _run_tts(args: argparse.Namespace) -> int:
         auto_runtime = discover_voicevox_runtime(args.engine_url)
 
     runtime_path = runtime_hint or auto_runtime
+    cache_base = Path(args.cache_dir).expanduser() if args.cache_dir else None
 
     try:
         with managed_voicevox_runtime(
@@ -243,6 +255,8 @@ def _run_tts(args: argparse.Namespace) -> int:
                 timeout=args.timeout,
                 post_phoneme_length=max(args.pause, 0.0) if args.pause is not None else None,
                 jobs=args.jobs,
+                cache_dir=cache_base,
+                keep_cache=args.keep_cache,
                 progress=_progress_printer,
             )
     except (

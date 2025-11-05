@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import contextlib
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import json
 import os
+import re
+import shutil
 import subprocess
 import tempfile
 import time
@@ -210,6 +213,38 @@ def _effective_jobs(requested: int, total: int) -> int:
     return min(jobs, total)
 
 
+_CACHE_SANITIZE_RE = re.compile(r"[^0-9A-Za-z._-]+")
+
+
+def _slugify_cache_component(text: str) -> str:
+    slug = _CACHE_SANITIZE_RE.sub("_", text)
+    slug = slug.strip("._-")
+    return slug[:64]
+
+
+def _target_cache_dir(cache_base: Path | None, target: TTSTarget) -> Path:
+    base_candidate = (
+        cache_base if cache_base is not None else target.output.parent / ".nk-tts-cache"
+    )
+    base_path = Path(base_candidate)
+    if not base_path.is_absolute():
+        base_path = (Path.cwd() / base_path).resolve()
+    stem_slug = _slugify_cache_component(target.output.stem)
+    source_fingerprint = hashlib.sha1(str(target.source).encode("utf-8")).hexdigest()[:10]
+    name = f"{stem_slug}-{source_fingerprint}" if stem_slug else source_fingerprint
+    return base_path / name
+
+
+def _chunk_cache_path(cache_dir: Path, index: int, chunk_text: str) -> Path:
+    digest = hashlib.sha1(chunk_text.encode("utf-8")).hexdigest()[:10]
+    return cache_dir / f"{index:05d}_{digest}.wav"
+
+
+def _ffmpeg_escape_path(path: Path) -> str:
+    escaped = path.as_posix().replace("'", "'\\''")
+    return f"'{escaped}'"
+
+
 def _synthesize_target_with_client(
     target: TTSTarget,
     client: VoiceVoxClient,
@@ -219,18 +254,29 @@ def _synthesize_target_with_client(
     ffmpeg_path: str,
     overwrite: bool,
     progress: Callable[[dict[str, object]], None] | None,
+    cache_base: Path | None,
+    keep_cache: bool,
 ) -> Path | None:
+    cache_dir = _target_cache_dir(cache_base, target)
+    marker_path = cache_dir / ".complete"
+
     if target.output.exists() and not overwrite:
-        _emit_progress(
-            progress,
-            "target_skipped",
-            index=index,
-            total=total,
-            source=target.source,
-            output=target.output,
-            reason="exists",
-        )
-        return target.output
+        if cache_dir.exists() and not marker_path.exists():
+            # Incomplete run; discard stale output and resume.
+            target.output.unlink(missing_ok=True)
+        else:
+            _emit_progress(
+                progress,
+                "target_skipped",
+                index=index,
+                total=total,
+                source=target.source,
+                output=target.output,
+                reason="exists",
+            )
+            if cache_dir.exists() and not keep_cache:
+                shutil.rmtree(cache_dir, ignore_errors=True)
+            return target.output
 
     text = target.source.read_text(encoding="utf-8").strip()
     if not text:
@@ -267,6 +313,9 @@ def _synthesize_target_with_client(
         chunk_count=chunk_count,
     )
 
+    marker_path.unlink(missing_ok=True)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
     if chunk_count == 1:
         _emit_progress(
             progress,
@@ -277,39 +326,53 @@ def _synthesize_target_with_client(
             chunk_count=1,
             source=target.source,
         )
-        wav_bytes = client.synthesize_wav(chunks[0])
+        chunk_path = _chunk_cache_path(cache_dir, 1, chunks[0])
+        if chunk_path.exists():
+            wav_bytes = chunk_path.read_bytes()
+        else:
+            wav_bytes = client.synthesize_wav(chunks[0])
+            chunk_path.write_bytes(wav_bytes)
         wav_bytes_to_mp3(
             wav_bytes,
             target.output,
             ffmpeg_path=ffmpeg_path,
             overwrite=overwrite,
         )
+        if cache_dir.exists():
+            if keep_cache:
+                marker_path.write_text("1", encoding="utf-8")
+            else:
+                shutil.rmtree(cache_dir, ignore_errors=True)
     else:
-        temp_wavs: list[Path] = []
-        try:
-            for chunk_index, chunk in enumerate(chunks, start=1):
-                _emit_progress(
-                    progress,
-                    "chunk_start",
-                    index=index,
-                    total=total,
-                    chunk_index=chunk_index,
-                    chunk_count=chunk_count,
-                    source=target.source,
-                )
-                wav_bytes = client.synthesize_wav(chunk)
-                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                    tmp.write(wav_bytes)
-                    temp_wavs.append(Path(tmp.name))
-            _merge_wavs_to_mp3(
-                temp_wavs,
-                target.output,
-                ffmpeg_path=ffmpeg_path,
-                overwrite=overwrite,
+        chunk_files: list[Path] = []
+        for chunk_index, chunk in enumerate(chunks, start=1):
+            _emit_progress(
+                progress,
+                "chunk_start",
+                index=index,
+                total=total,
+                chunk_index=chunk_index,
+                chunk_count=chunk_count,
+                source=target.source,
             )
-        finally:
-            for tmp in temp_wavs:
-                tmp.unlink(missing_ok=True)
+            chunk_path = _chunk_cache_path(cache_dir, chunk_index, chunk)
+            if chunk_path.exists():
+                chunk_files.append(chunk_path)
+                continue
+            wav_bytes = client.synthesize_wav(chunk)
+            chunk_path.write_bytes(wav_bytes)
+            chunk_files.append(chunk_path)
+        _merge_wavs_to_mp3(
+            chunk_files,
+            target.output,
+            ffmpeg_path=ffmpeg_path,
+            overwrite=overwrite,
+        )
+        if cache_dir.exists():
+            if keep_cache:
+                marker_path.write_text(str(chunk_count), encoding="utf-8")
+            else:
+                shutil.rmtree(cache_dir, ignore_errors=True)
 
     _emit_progress(
         progress,
@@ -561,7 +624,8 @@ def _merge_wavs_to_mp3(
 
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as list_file:
         for wav_path in wav_paths:
-            list_file.write(f"file '{wav_path.as_posix()}'\n")
+            absolute = wav_path.resolve()
+            list_file.write(f"file {_ffmpeg_escape_path(absolute)}\n")
         concat_list = Path(list_file.name)
     try:
         cmd = [
@@ -606,6 +670,8 @@ def synthesize_texts_to_mp3(
     timeout: float = 30.0,
     post_phoneme_length: float | None = None,
     jobs: int = 1,
+    cache_dir: Path | None = None,
+    keep_cache: bool = False,
     progress: Callable[[dict[str, object]], None] | None = None,
 ) -> list[Path]:
     """
@@ -617,6 +683,7 @@ def synthesize_texts_to_mp3(
         return []
 
     effective_jobs = _effective_jobs(jobs, total_targets)
+    cache_base = Path(cache_dir).expanduser() if cache_dir is not None else None
     generated: list[Path | None]
 
     if effective_jobs == 1:
@@ -637,6 +704,8 @@ def synthesize_texts_to_mp3(
                     ffmpeg_path=ffmpeg_path,
                     overwrite=overwrite,
                     progress=progress,
+                    cache_base=cache_base,
+                    keep_cache=keep_cache,
                 )
                 if produced is not None:
                     results.append(produced)
@@ -663,6 +732,8 @@ def synthesize_texts_to_mp3(
                 ffmpeg_path=ffmpeg_path,
                 overwrite=overwrite,
                 progress=progress,
+                cache_base=cache_base,
+                keep_cache=keep_cache,
             )
             return idx, produced
         finally:
