@@ -377,9 +377,9 @@ def _synthesize_target_with_client(
                 while (last_played + 1) in chunk_paths:
                     next_index = last_played + 1
                     next_path = chunk_paths.pop(next_index)
-                    if last_play_object is not None:
+                    if last_play_object is not None and hasattr(last_play_object, "wait_done"):
                         last_play_object.wait_done()
-                    last_play_object = playback_callback(next_path)
+                    last_play_object = playback_callback(next_path) if playback_callback else None
                     last_played = next_index
                     progress_path.write_text(str(last_played), encoding="utf-8")
 
@@ -394,7 +394,7 @@ def _synthesize_target_with_client(
                 last_play_object = playback_callback(next_path)
                 last_played = next_index
                 progress_path.write_text(str(last_played), encoding="utf-8")
-        if last_play_object is not None:
+        if last_play_object is not None and hasattr(last_play_object, "wait_done"):
             last_play_object.wait_done()
 
     _merge_wavs_to_mp3(
