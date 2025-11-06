@@ -13,6 +13,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Iterator
+import threading
 from urllib.parse import urlparse
 
 import requests
@@ -270,10 +271,14 @@ def _synthesize_target_with_client(
     progress: Callable[[dict[str, object]], None] | None,
     cache_base: Path | None,
     keep_cache: bool,
+    cancel_event: threading.Event | None = None,
     live_playback: bool = False,
     playback_callback: Callable[[Path], None] | None = None,
     live_prebuffer: int = 2,
 ) -> Path | None:
+    if cancel_event and cancel_event.is_set():
+        raise KeyboardInterrupt
+
     cache_dir = _target_cache_dir(cache_base, target)
     marker_path = cache_dir / ".complete"
     progress_path = cache_dir / ".progress"
@@ -350,6 +355,8 @@ def _synthesize_target_with_client(
     last_play_object = None
 
     for chunk_index, chunk in enumerate(chunks, start=1):
+        if cancel_event and cancel_event.is_set():
+            raise KeyboardInterrupt
         _emit_progress(
             progress,
             "chunk_start",
@@ -414,6 +421,9 @@ def _synthesize_target_with_client(
         metadata["track"] = track_number
     if total:
         metadata["tracktotal"] = str(total)
+
+    if cancel_event and cancel_event.is_set():
+        raise KeyboardInterrupt
 
     _merge_wavs_to_mp3(
         chunk_files,
@@ -738,6 +748,7 @@ def synthesize_texts_to_mp3(
     playback_callback: Callable[[Path], None] | None = None,
     live_prebuffer: int = 2,
     progress: Callable[[dict[str, object]], None] | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> list[Path]:
     """
     Synthesize each target text file into an MP3 and return the generated paths.
@@ -766,20 +777,28 @@ def synthesize_texts_to_mp3(
         try:
             results: list[Path] = []
             for index, target in enumerate(target_list, start=1):
-                produced = _synthesize_target_with_client(
-                    target,
-                    client,
-                    index=index,
-                    total=total_targets,
-                    ffmpeg_path=ffmpeg_path,
-                    overwrite=overwrite,
-                    progress=progress,
-                    cache_base=cache_base,
-                    keep_cache=keep_cache,
-                    live_playback=live_playback,
-                    playback_callback=playback_callback,
-                    live_prebuffer=live_prebuffer,
-                )
+                if cancel_event and cancel_event.is_set():
+                    break
+                try:
+                    produced = _synthesize_target_with_client(
+                        target,
+                        client,
+                        index=index,
+                        total=total_targets,
+                        ffmpeg_path=ffmpeg_path,
+                        overwrite=overwrite,
+                        progress=progress,
+                        cache_base=cache_base,
+                        keep_cache=keep_cache,
+                        cancel_event=cancel_event,
+                        live_playback=live_playback,
+                        playback_callback=playback_callback,
+                        live_prebuffer=live_prebuffer,
+                    )
+                except KeyboardInterrupt:
+                    if cancel_event:
+                        cancel_event.set()
+                    raise
                 if produced is not None:
                     results.append(produced)
         finally:
@@ -790,6 +809,8 @@ def synthesize_texts_to_mp3(
 
     def _worker(payload: tuple[int, TTSTarget]) -> tuple[int, Path | None]:
         idx, target = payload
+        if cancel_event and cancel_event.is_set():
+            return idx, None
         client = VoiceVoxClient(
             base_url=base_url,
             speaker_id=speaker_id,
@@ -797,20 +818,28 @@ def synthesize_texts_to_mp3(
             post_phoneme_length=post_phoneme_length,
         )
         try:
-            produced = _synthesize_target_with_client(
-                target,
-                client,
-                index=idx + 1,
-                total=total_targets,
-                ffmpeg_path=ffmpeg_path,
-                overwrite=overwrite,
-                progress=progress,
-                cache_base=cache_base,
-                keep_cache=keep_cache,
-                live_playback=live_playback,
-                playback_callback=playback_callback,
-                live_prebuffer=live_prebuffer,
-            )
+            if cancel_event and cancel_event.is_set():
+                return idx, None
+            try:
+                produced = _synthesize_target_with_client(
+                    target,
+                    client,
+                    index=idx + 1,
+                    total=total_targets,
+                    ffmpeg_path=ffmpeg_path,
+                    overwrite=overwrite,
+                    progress=progress,
+                    cache_base=cache_base,
+                    keep_cache=keep_cache,
+                    cancel_event=cancel_event,
+                    live_playback=live_playback,
+                    playback_callback=playback_callback,
+                    live_prebuffer=live_prebuffer,
+                )
+            except KeyboardInterrupt:
+                if cancel_event:
+                    cancel_event.set()
+                raise
             return idx, produced
         finally:
             client.close()
@@ -818,8 +847,21 @@ def synthesize_texts_to_mp3(
     with ThreadPoolExecutor(max_workers=effective_jobs) as executor:
         futures = [executor.submit(_worker, (idx, target)) for idx, target in enumerate(target_list)]
         for future in futures:
-            order, produced = future.result()
+            if cancel_event and cancel_event.is_set():
+                break
+            try:
+                order, produced = future.result()
+            except KeyboardInterrupt:
+                if cancel_event:
+                    cancel_event.set()
+                for f in futures:
+                    f.cancel()
+                raise
             if produced is not None:
                 generated[order] = produced
+        if cancel_event and cancel_event.is_set():
+            for f in futures:
+                if not f.done():
+                    f.cancel()
 
     return [path for path in generated if path is not None]

@@ -424,7 +424,9 @@ def _run_tts(args: argparse.Namespace) -> int:
                     if info is not None:
                         task_id = info["task_id"]
                         total = info["total"]
-                        if isinstance(output, Path):
+                        if isinstance(total, int) and total > 0:
+                            detail = f"{total}/{total} chunks"
+                        elif isinstance(output, Path):
                             detail = self._truncate(output.name, 28)
                         elif output:
                             detail = self._truncate(str(output), 28)
@@ -458,6 +460,7 @@ def _run_tts(args: argparse.Namespace) -> int:
                 self.progress.stop()
 
     progress_handler = _RichProgress(enabled=not live_mode, total=total_targets)
+    cancel_event = threading.Event()
 
     def _fallback_print(event: dict[str, object]) -> None:
         printed_progress["value"] = True
@@ -556,7 +559,12 @@ def _run_tts(args: argparse.Namespace) -> int:
                 playback_callback=playback_fn,
                 live_prebuffer=max(1, args.live_prebuffer),
                 progress=_progress_printer,
+                cancel_event=cancel_event,
             )
+    except KeyboardInterrupt:
+        cancel_event.set()
+        print("\nInterrupted. Stopping immediately.", flush=True)
+        return 130
     except (
         VoiceVoxUnavailableError,
         VoiceVoxError,
