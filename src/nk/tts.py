@@ -229,16 +229,82 @@ def _slugify_cache_component(text: str) -> str:
 
 
 def _target_cache_dir(cache_base: Path | None, target: TTSTarget) -> Path:
+    """
+    Determine the cache directory for a TTS target, preferring any existing cache
+    layout (legacy or current) so interrupted runs can resume seamlessly.
+    """
     base_candidate = (
         cache_base if cache_base is not None else target.output.parent / ".nk-tts-cache"
     )
     base_path = Path(base_candidate)
     if not base_path.is_absolute():
         base_path = (Path.cwd() / base_path).resolve()
+
     stem_slug = _slugify_cache_component(target.output.stem)
-    source_fingerprint = hashlib.sha1(str(target.source).encode("utf-8")).hexdigest()[:10]
-    name = f"{stem_slug}-{source_fingerprint}" if stem_slug else source_fingerprint
-    return base_path / name
+
+    try:
+        canonical_source = target.source.resolve(strict=False)
+    except OSError:
+        canonical_source = target.source.absolute()
+    canonical_key = canonical_source.as_posix()
+
+    def _compose_name(slug: str, fingerprint: str) -> str:
+        return f"{slug}-{fingerprint}" if slug else fingerprint
+
+    def _score(path: Path) -> tuple[int, int, int]:
+        complete = (path / ".complete").is_file()
+        progress = (path / ".progress").is_file()
+        chunk_count = sum(1 for _ in path.glob("*.wav"))
+        return (1 if complete else 0, 1 if progress else 0, chunk_count)
+
+    candidate_keys: list[str] = [canonical_key]
+
+    text_source_str = str(target.source)
+    if text_source_str not in candidate_keys:
+        candidate_keys.append(text_source_str)
+
+    def _append_relative(base: Path) -> None:
+        try:
+            rel = canonical_source.relative_to(base)
+        except ValueError:
+            return
+        relative_key = rel.as_posix()
+        if relative_key and relative_key not in candidate_keys:
+            candidate_keys.append(relative_key)
+
+    _append_relative(Path.cwd())
+    _append_relative(target.output.parent)
+    if target.output.parent.parent != target.output.parent:
+        _append_relative(target.output.parent.parent)
+
+    candidate_dirs: list[Path] = []
+    priority: dict[Path, int] = {}
+    for index, key in enumerate(candidate_keys):
+        fingerprint = hashlib.sha1(key.encode("utf-8")).hexdigest()[:10]
+        candidate = base_path / _compose_name(stem_slug, fingerprint)
+        if candidate in priority:
+            continue
+        candidate_dirs.append(candidate)
+        priority[candidate] = -index
+
+    existing = [path for path in candidate_dirs if path.exists()]
+    if existing:
+        return max(existing, key=lambda path: (_score(path), priority[path]))
+
+    if stem_slug:
+        prefixed_dirs = [
+            path
+            for path in base_path.glob(f"{stem_slug}-*")
+            if path.is_dir()
+        ]
+        if prefixed_dirs:
+            return max(prefixed_dirs, key=_score)
+
+    if candidate_dirs:
+        return candidate_dirs[0]
+
+    fingerprint = hashlib.sha1(canonical_key.encode("utf-8")).hexdigest()[:10]
+    return base_path / _compose_name(stem_slug, fingerprint)
 
 
 def _chunk_cache_path(cache_dir: Path, index: int, chunk_text: str) -> Path:
