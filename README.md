@@ -7,16 +7,15 @@ Convert Japanese EPUBs into TTS-ready text and narrate them with VoiceVox on mac
 ## 1. Prerequisites (macOS)
 
 ```bash
-brew install p7zip ffmpeg jq          # system tools used by nk / VoiceVox
+brew install p7zip ffmpeg jq
 ```
-
-> The `simpleaudio` package needed for `--live` playback ships with nk via `pyproject.toml`; `uv tool install` pulls it in automatically.
 
 ## 2. Install nk and Python dependencies
 
 ```bash
-uv tool install git+https://github.com/huangziwei/nk
-uv run python -m unidic download
+git clone https://github.com/huangziwei/nk
+uv sync
+python -m unidic download
 ```
 
 ## 3. Install the VoiceVox engine
