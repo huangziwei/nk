@@ -398,7 +398,12 @@ INDEX_HTML = """<!DOCTYPE html>
 
         const open = document.createElement('button');
         open.textContent = 'Open chapters';
-        open.onclick = () => handlePromise(loadChapters(book));
+        open.onclick = () => handlePromise(loadChapters(book).then(() => {
+          const panel = document.getElementById('chapters-panel');
+          if (panel) {
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }));
         card.appendChild(open);
 
         booksGrid.appendChild(card);
