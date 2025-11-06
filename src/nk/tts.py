@@ -397,11 +397,27 @@ def _synthesize_target_with_client(
         if last_play_object is not None and hasattr(last_play_object, "wait_done"):
             last_play_object.wait_done()
 
+    book_title = target.output.parent.name
+    chapter_id = target.source.stem
+    track_number = None
+    first_segment = chapter_id.split("_", 1)[0]
+    if first_segment.isdigit():
+        track_number = str(int(first_segment))
+
+    metadata: dict[str, str] = {
+        "title": chapter_id,
+        "artist": book_title,
+        "album": book_title,
+    }
+    if track_number is not None:
+        metadata["track"] = track_number
+
     _merge_wavs_to_mp3(
         chunk_files,
         target.output,
         ffmpeg_path=ffmpeg_path,
         overwrite=overwrite or live_playback,
+        metadata=metadata,
     )
     progress_path.unlink(missing_ok=True)
     if cache_dir.exists():
@@ -649,6 +665,7 @@ def _merge_wavs_to_mp3(
     *,
     ffmpeg_path: str,
     overwrite: bool,
+    metadata: dict[str, str] | None = None,
 ) -> None:
     """
     Merge multiple WAV files into a single MP3 using the ffmpeg concat demuxer.
@@ -678,8 +695,13 @@ def _merge_wavs_to_mp3(
             "libmp3lame",
             "-qscale:a",
             "2",
-            str(output_path),
         ]
+        if metadata:
+            for key, value in metadata.items():
+                if not value:
+                    continue
+                cmd.extend(["-metadata", f"{key}={value}"])
+        cmd.append(str(output_path))
         try:
             subprocess.run(
                 cmd,
