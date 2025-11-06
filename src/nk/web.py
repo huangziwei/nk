@@ -34,7 +34,7 @@ class WebConfig:
     ffmpeg_path: str = "ffmpeg"
     pause: float = 0.4
     cache_dir: Path | None = None
-    keep_cache: bool = False
+    keep_cache: bool = True
     live_prebuffer: int = 2
 
 
@@ -785,13 +785,14 @@ def create_app(config: WebConfig) -> FastAPI:
                 pass
 
             class StreamHandle:
-                __slots__ = ("done",)
+                __slots__ = ("_done",)
 
                 def __init__(self, done: threading.Event) -> None:
-                    self.done = done
+                    self._done = done
 
                 def wait_done(self) -> None:
-                    self.done.wait()
+                    # Streaming handles playback scheduling; synthesis should not block.
+                    return
 
             def playback_callback(chunk_path: Path):
                 if stop_event.is_set():
