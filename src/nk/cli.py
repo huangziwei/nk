@@ -6,8 +6,18 @@ import shutil
 import sys
 import unicodedata
 from pathlib import Path, PurePosixPath
+import threading
 
 import uvicorn
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 
 from .core import ChapterText, epub_to_chapter_texts, epub_to_txt
 from .nlp import NLPBackend, NLPBackendUnavailableError
@@ -309,9 +319,147 @@ def _run_tts(args: argparse.Namespace) -> int:
     except (FileNotFoundError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
 
+    live_mode = bool(args.live)
+    total_targets = len(targets)
     printed_progress = {"value": False}
 
-    def _progress_printer(event: dict[str, object]) -> None:
+    class _RichProgress:
+        def __init__(self, enabled: bool, total: int) -> None:
+            self.console = Console(stderr=True)
+            self.enabled = enabled and total > 0 and self.console.is_terminal
+            self.lock = threading.Lock()
+            self.task_by_key: dict[str, dict[str, object]] = {}
+            if not self.enabled:
+                self.progress: Progress | None = None
+                self.overall_task = None
+                return
+            self.progress = Progress(
+                TextColumn("{task.description}", justify="left"),
+                BarColumn(bar_width=None),
+                TaskProgressColumn(),
+                TimeElapsedColumn(),
+                TimeRemainingColumn(),
+                TextColumn("{task.fields[detail]}", justify="left"),
+                console=self.console,
+                auto_refresh=True,
+                transient=False,
+            )
+            self.progress.start()
+            self.overall_task = self.progress.add_task("All chapters", total=total, detail="")
+
+        @staticmethod
+        def _truncate(text: str, width: int = 24) -> str:
+            text = text.strip()
+            if len(text) <= width:
+                return text
+            return text[: max(0, width - 1)] + "…"
+
+        def _source_label(self, source: object) -> tuple[str, str]:
+            if isinstance(source, Path):
+                return str(source.resolve()), source.name
+            if source is None:
+                return "", ""
+            text = str(source)
+            return text, text
+
+        def _format_label(self, raw: str) -> str:
+            if not raw:
+                return "chapter"
+            name = raw
+            if "." in name:
+                name = Path(name).stem
+            name = name.replace("_", " ")
+            prefix = ""
+            remainder = name
+            parts = name.split(maxsplit=1)
+            if parts and parts[0].isdigit():
+                prefix = parts[0]
+                remainder = parts[1] if len(parts) > 1 else ""
+            remainder = remainder.strip()
+            if remainder:
+                remainder = self._truncate(remainder, 18)
+                label = f"{prefix} {remainder}".strip()
+            else:
+                label = prefix or self._truncate(name, 20)
+            return label or "chapter"
+
+        def handle(self, event: dict[str, object]) -> bool:
+            if not self.enabled or bool(event.get("live")) or self.progress is None:
+                return False
+            event_type = event.get("event")
+            key, raw_label = self._source_label(event.get("source"))
+            label = self._format_label(raw_label)
+            chunk_count = event.get("chunk_count")
+            chunk_index = event.get("chunk_index")
+            output = event.get("output")
+            reason = event.get("reason")
+            with self.lock:
+                if event_type == "target_start":
+                    total = chunk_count if isinstance(chunk_count, int) and chunk_count > 0 else None
+                    desc = label
+                    task_id = self.progress.add_task(desc, total=total, detail="")
+                    self.task_by_key[key] = {
+                        "task_id": task_id,
+                        "total": total,
+                    }
+                elif event_type == "chunk_start":
+                    info = self.task_by_key.get(key)
+                    if info is not None:
+                        task_id = info["task_id"]
+                        total = info["total"]
+                        if total is None and isinstance(chunk_count, int) and chunk_count > 0:
+                            total = chunk_count
+                            info["total"] = total
+                            self.progress.update(task_id, total=total)
+                        if isinstance(chunk_index, int):
+                            completed = chunk_index
+                            if total is not None:
+                                completed = min(completed, total)
+                                detail = f"{chunk_index}/{total} chunks"
+                            else:
+                                detail = f"chunk {chunk_index}"
+                            self.progress.update(task_id, completed=completed, detail=detail)
+                elif event_type == "target_done":
+                    info = self.task_by_key.pop(key, None)
+                    if info is not None:
+                        task_id = info["task_id"]
+                        total = info["total"]
+                        if isinstance(output, Path):
+                            detail = self._truncate(output.name, 28)
+                        elif output:
+                            detail = self._truncate(str(output), 28)
+                        else:
+                            detail = "completed"
+                        if total is not None:
+                            self.progress.update(task_id, completed=total, detail=detail)
+                        else:
+                            current = self.progress.tasks[task_id].completed
+                            self.progress.update(task_id, completed=current, detail=detail)
+                        self.progress.stop_task(task_id)
+                    if self.overall_task is not None:
+                        self.progress.advance(self.overall_task, 1)
+                elif event_type == "target_skipped":
+                    info = self.task_by_key.pop(key, None)
+                    if info is not None:
+                        task_id = info["task_id"]
+                        detail = f"skipped ({reason})" if reason else "skipped"
+                        self.progress.update(task_id, detail=detail)
+                        self.progress.stop_task(task_id)
+                    if self.overall_task is not None:
+                        self.progress.advance(self.overall_task, 1)
+                else:
+                    return False
+            return True
+
+        def close(self) -> None:
+            if not self.enabled or self.progress is None:
+                return
+            with self.lock:
+                self.progress.stop()
+
+    progress_handler = _RichProgress(enabled=not live_mode, total=total_targets)
+
+    def _fallback_print(event: dict[str, object]) -> None:
         printed_progress["value"] = True
         event_type = event.get("event")
         index = event.get("index")
@@ -350,6 +498,14 @@ def _run_tts(args: argparse.Namespace) -> int:
             reason = event.get("reason", "skipped")
             print(f"[{index}/{total}] {source_name} skipped ({reason})", flush=True)
 
+    def _progress_printer(event: dict[str, object]) -> None:
+        handled = progress_handler.handle(event)
+        if handled:
+            if event.get("event") in {"target_start", "target_done", "target_skipped"}:
+                printed_progress["value"] = True
+            return
+        _fallback_print(event)
+
     runtime_hint = args.engine_runtime
     auto_runtime = None
     if not runtime_hint:
@@ -357,7 +513,6 @@ def _run_tts(args: argparse.Namespace) -> int:
 
     runtime_path = runtime_hint or auto_runtime
     cache_base = Path(args.cache_dir).expanduser() if args.cache_dir else None
-    live_mode = bool(args.live)
     playback_fn = None
     if live_mode:
         if _simpleaudio is None:
@@ -365,6 +520,8 @@ def _run_tts(args: argparse.Namespace) -> int:
                 "Live playback requires the `simpleaudio` package. Install it with `pip install simpleaudio`."
             )
         playback_fn = _play_chunk_simpleaudio
+
+    generated: list[Path] = []
 
     try:
         with managed_voicevox_runtime(
@@ -409,6 +566,8 @@ def _run_tts(args: argparse.Namespace) -> int:
         ValueError,
     ) as exc:
         raise SystemExit(str(exc)) from exc
+    finally:
+        progress_handler.close()
 
     if live_mode:
         if not printed_progress["value"]:

@@ -338,6 +338,16 @@ INDEX_HTML = """<!DOCTYPE html>
       autoAdvance: false,
     };
 
+    function updateMediaSession(chapter) {
+      if (!('mediaSession' in navigator) || !chapter || !state.currentBook) return;
+      const chapterLabel = `${String(chapter.index).padStart(3, '0')} ${state.currentBook.title}`;
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: chapterLabel,
+        artist: state.currentBook.title,
+        album: state.currentBook.title,
+      });
+    }
+
     function handlePromise(promise) {
       promise.catch(err => {
         if (err && err.name === 'AbortError') return;
@@ -578,6 +588,7 @@ INDEX_HTML = """<!DOCTYPE html>
       player.pause();
       player.src = playUrl;
       player.load();
+      updateMediaSession(chapter);
       try {
         await player.play();
         statusLine.textContent = 'Playing';

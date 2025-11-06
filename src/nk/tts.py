@@ -399,18 +399,21 @@ def _synthesize_target_with_client(
 
     book_title = target.output.parent.name
     chapter_id = target.source.stem
-    track_number = None
+    track_number: str | None = None
     first_segment = chapter_id.split("_", 1)[0]
     if first_segment.isdigit():
         track_number = str(int(first_segment))
 
+    display_number = track_number.zfill(3) if track_number is not None else f"{index:03d}"
     metadata: dict[str, str] = {
-        "title": chapter_id,
+        "title": f"{display_number} {book_title}",
         "artist": book_title,
         "album": book_title,
     }
     if track_number is not None:
         metadata["track"] = track_number
+    if total:
+        metadata["tracktotal"] = str(total)
 
     _merge_wavs_to_mp3(
         chunk_files,
