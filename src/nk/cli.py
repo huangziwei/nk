@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import shutil
 import sys
 import unicodedata
 from pathlib import Path, PurePosixPath
@@ -62,6 +63,7 @@ def build_tts_parser() -> argparse.ArgumentParser:
     )
     ap.add_argument(
         "input_path",
+        nargs="?",
         help="Path to a .txt file or directory containing .txt files.",
     )
     ap.add_argument(
@@ -152,6 +154,11 @@ def build_tts_parser() -> argparse.ArgumentParser:
         "--live-start",
         type=int,
         help="Chapter index to start live playback from (1-based).",
+    )
+    ap.add_argument(
+        "--clear-cache",
+        action="store_true",
+        help="Clear nk chunk caches under the provided path (or current directory if omitted).",
     )
     return ap
 
@@ -279,6 +286,22 @@ def _write_chapter_files(output_dir: Path, chapters: list[ChapterText]) -> None:
 
 
 def _run_tts(args: argparse.Namespace) -> int:
+    if args.clear_cache:
+        search_root = Path(args.input_path or ".").expanduser().resolve()
+        cleared = False
+        for cache_dir in sorted(search_root.rglob(".nk-tts-cache")):
+            if cache_dir.is_dir():
+                shutil.rmtree(cache_dir, ignore_errors=True)
+                cleared = True
+        if not cleared:
+            print(f"No .nk-tts-cache directories found under {search_root}")
+        else:
+            print(f"Cleared caches under {search_root}")
+        return 0
+
+    if args.input_path is None:
+        raise SystemExit("Input path is required unless --clear-cache is used.")
+
     input_path = Path(args.input_path)
     output_dir = Path(args.output_dir) if args.output_dir else None
     try:

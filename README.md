@@ -99,6 +99,7 @@ nk tts output/ --live --live-prebuffer 3 --live-start 5
 - Live mode runs chapters sequentially (equivalent to `--jobs 1`) so audio stays ordered while synthesis continues ahead in the background.
 - Stopping mid-chapter? nk records the last played chunk in `.progress`; rerun the command and playback resumes from there (it replays the interrupted chunk for continuity).
 - MP3s are still written when playback finishes. Combine with `--keep-cache` if you also want to preserve the chunk WAVs.
+- Need to reclaim disk space? `nk tts --clear-cache [path]` removes `.nk-tts-cache/` folders under the given path (defaults to the current directory). Use this after long runs if you didn’t enable `--keep-cache`.
 
 ---
 
