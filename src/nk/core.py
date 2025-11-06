@@ -662,15 +662,6 @@ def epub_to_chapter_texts(
                         if cand and cand not in title_candidates:
                             title_candidates.append(cand)
         title_seen = False
-        seen_line_keys: set[str] = set()
-
-        def _line_key(line: str) -> str:
-            stripped = line.strip().replace("\u3000", " ")
-            if not stripped:
-                return ""
-            key = stripped.replace(" ", "")
-            key = key.replace("【", "").replace("】", "")
-            return key
 
         chapters: list[ChapterText] = []
         for name in spine:
@@ -713,22 +704,16 @@ def epub_to_chapter_texts(
                     or normalized_line in title_candidates
                 )
 
-                key = _line_key(line)
-                is_first_content_line = not has_content_in_piece and bool(stripped_line)
                 if is_title_line:
                     if title_seen:
                         skip_blank_after_title = True
                         continue
                     title_seen = True
                     skip_blank_after_title = True
-                elif key and key in seen_line_keys and not is_first_content_line:
-                    continue
                 else:
                     skip_blank_after_title = False
 
                 filtered_lines.append(line)
-                if key:
-                    seen_line_keys.add(key)
                 if stripped_line and first_non_blank_original is None:
                     first_non_blank_original = line
                 if stripped_line:
