@@ -115,6 +115,7 @@ class ChapterText:
     source: str
     title: str | None
     text: str
+    original_title: str | None = None
 
 
 def _is_cjk_char(ch: str) -> bool:
@@ -537,13 +538,12 @@ def _select_reading_mapping(
             default=0.0,
         )
         flags = accumulator.flags.get(top_reading, _ReadingFlags())
+        if _looks_like_ascii_word(base):
+            tier3[base] = top_reading
+            continue
         if _looks_like_translation(flags, top_reading):
             continue
         if alt_share >= 0.3:
-            continue
-
-        if _looks_like_ascii_word(base):
-            tier3[base] = top_reading
             continue
 
         if mode == "fast":
@@ -576,6 +576,7 @@ def _build_book_mapping(
         if not name.lower().endswith(HTML_EXTS):
             continue
         html = _zip_read_text(zf, name)
+        original_plain_text = _strip_html_to_text(_soup_from_html(html))
         soup = _soup_from_html(html)
         partial = _collect_reading_counts_from_soup(soup)
         for base, partial_acc in partial.items():
@@ -698,6 +699,7 @@ def epub_to_chapter_texts(
             if not name.lower().endswith(HTML_EXTS):
                 continue
             html = _zip_read_text(zf, name)
+            original_plain_text = _strip_html_to_text(_soup_from_html(html))
             soup = _soup_from_html(html)
             # 1) propagate: replace base outside ruby using the global mapping
             _replace_outside_ruby_with_readings(soup, unique_mapping)
@@ -740,22 +742,36 @@ def epub_to_chapter_texts(
                 if stripped_line:
                     has_content_in_piece = True
 
-            preserved_line = first_non_blank_original.strip() if first_non_blank_original else None
-            piece_text = "\n".join(filtered_lines)
-            piece_text = re.sub(r"\n{3,}", "\n\n", piece_text)
-            piece_text = piece_text.strip()
+            preserved_line_raw = first_non_blank_original.strip() if first_non_blank_original else None
+            raw_piece_text = "\n".join(filtered_lines)
+            raw_piece_text = re.sub(r"\n{3,}", "\n\n", raw_piece_text)
+            raw_piece_text = raw_piece_text.strip()
+            piece_text = raw_piece_text
             if mode == "advanced" and backend is not None and piece_text:
                 piece_text = backend.to_reading_text(piece_text).strip()
             if not piece_text:
                 continue
-            if preserved_line:
-                chapter_title = preserved_line
-            else:
-                chapter_title = next(
-                    (line.strip() for line in piece_text.splitlines() if line.strip()),
+            original_title = next(
+                (line.strip() for line in original_plain_text.splitlines() if line.strip()),
+                None,
+            )
+            if original_title is None:
+                original_title = preserved_line_raw or next(
+                    (line.strip() for line in raw_piece_text.splitlines() if line.strip()),
                     None,
                 )
-            chapters.append(ChapterText(source=name, title=chapter_title, text=piece_text))
+            processed_title = next(
+                (line.strip() for line in piece_text.splitlines() if line.strip()),
+                None,
+            )
+            chapters.append(
+                ChapterText(
+                    source=name,
+                    title=processed_title,
+                    text=piece_text,
+                    original_title=original_title,
+                )
+            )
 
         return chapters
 

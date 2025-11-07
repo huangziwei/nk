@@ -296,8 +296,9 @@ def _slugify_for_filename(text: str) -> str:
 def _chapter_basename(index: int, chapter: ChapterText, used_names: set[str]) -> str:
     prefix = f"{index + 1:03d}"
     candidates: list[str] = []
-    if chapter.title:
-        slug = _slugify_for_filename(chapter.title)
+    title_source = chapter.original_title or chapter.title
+    if title_source:
+        slug = _slugify_for_filename(title_source)
         if slug:
             candidates.append(slug)
     source_stem = PurePosixPath(chapter.source).stem
