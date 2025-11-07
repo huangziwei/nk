@@ -704,7 +704,10 @@ def epub_to_chapter_texts(
             if not name.lower().endswith(HTML_EXTS):
                 continue
             html = _zip_read_text(zf, name)
-            original_plain_text = _strip_html_to_text(_soup_from_html(html))
+            original_soup = _soup_from_html(html)
+            for rt in original_soup.find_all("rt"):
+                rt.decompose()
+            original_plain_text = _strip_html_to_text(original_soup)
             soup = _soup_from_html(html)
             # 1) propagate: replace base outside ruby using the global mapping
             _replace_outside_ruby_with_readings(soup, unique_mapping)
