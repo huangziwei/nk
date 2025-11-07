@@ -24,6 +24,7 @@ dependencies = [
     "wsgidav[pam]>=4.3.3",
     "cheroot>=11.1.1",
     "six>=1.17.0",
+    "watchdog>=6.0.0",
 ]
 
 [project.scripts]

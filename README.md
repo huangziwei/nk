@@ -41,15 +41,17 @@ nk auto-detects installs under `~/opt/voicevox/**`. If you keep the engine elsew
 ## 4. Convert EPUB → TTS-friendly text
 
 ```bash
-# Advanced mode (default): dictionary-verified ruby propagation
+# Default (per-chapter .txt files)
 nk my_book.epub
 
 # Fast mode: ruby evidence only
 nk my_book.epub --mode fast
 
-# Custom output name or per-chapter output
-nk my_book.epub -o custom_name.txt
-nk shelf/ --chapterized
+# Batch chapterize an entire shelf of EPUBs
+nk shelf/
+
+# Single-file export (legacy behavior)
+nk my_book.epub --single-file -o custom_name.txt
 ```
 
 Expect katakana-only output next to the source EPUB with duplicate titles stripped and line breaks preserved. Advanced mode consumes `fugashi + UniDic 3.1.1 + pykakasi`; fast mode requires no additional NLP setup.
@@ -119,7 +121,7 @@ nk tts output/ --live --live-prebuffer 3 --live-start 5
 
 Serve your chapterized books over HTTP and stream them from a phone or tablet on the same network.
 
-1. Chapterize your EPUBs if you haven’t already: `nk my_book.epub --chapterized` (creates `output/my_book/*.txt`).
+1. Chapterize your EPUBs if you haven’t already: `nk my_book.epub` (creates `output/my_book/*.txt` by default).
 2. Start the server on your Mac:
    ```bash
    nk web output/ --host 0.0.0.0 --port 2046
@@ -147,8 +149,8 @@ Serve your chapterized books over HTTP and stream them from a phone or tablet on
 ## 10. Command reference
 
 ```
-# EPUB → TXT
-nk book.epub [--mode advanced|fast] [--chapterized] [-o output.txt]
+# EPUB → TXT (per-chapter by default)
+nk book.epub [--mode advanced|fast] [--single-file] [-o output.txt]
 
 # TXT → MP3 (batch)
 nk tts book.txt|directory [--speaker N]
@@ -178,5 +180,6 @@ nk tools unidic-status
 - `install-unidic` downloads/extracts the official `unidic-cwj-3.1.1-full.zip` archive **into the current virtualenv** and sets it as the default dictionary for fugashi.
 - `unidic-status` prints the managed path and any `NK_UNIDIC_DIR` override so you can confirm which dictionary is active.
 
-- `nk dav` exposes only `.mp3` files via WebDAV using your macOS login (PAM). Point clients such as Flacbox at `http://<your-mac-ip>:PORT/` to stream your nk library without copying files.
+- `nk dav` exposes only `.mp3` files via WebDAV using your macOS login (PAM) and mirrors new MP3s as they are added under `books/`. Point clients such as Flacbox at `http://<your-mac-ip>:PORT/` to stream your nk library without copying files.
+> Note: `-o/--output-name` is only honored when `--single-file` is provided.
 ```

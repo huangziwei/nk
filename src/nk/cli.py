@@ -12,6 +12,8 @@ from pathlib import Path, PurePosixPath
 import threading
 
 import uvicorn
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -65,9 +67,9 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     ap.add_argument(
-        "--chapterized",
+        "--single-file",
         action="store_true",
-        help="Emit per-chapter .txt files (follows EPUB spine order).",
+        help="Emit a single combined .txt (legacy mode). Default outputs per-chapter files.",
     )
     return ap
 
@@ -766,8 +768,9 @@ def main(argv: list[str] | None = None) -> int:
     inp_path = Path(args.input_path)
     if not inp_path.exists():
         raise FileNotFoundError(f"Input path not found: {inp_path}")
-    if args.chapterized and args.output_name:
-        raise ValueError("Output name cannot be used with --chapterized.")
+    emit_chapterized = not args.single_file
+    if emit_chapterized and args.output_name:
+        raise ValueError("Output name can only be used with --single-file.")
 
     backend = None
     if args.mode == "advanced":
@@ -783,7 +786,7 @@ def main(argv: list[str] | None = None) -> int:
         if not epubs:
             raise FileNotFoundError(f"No .epub files found in directory: {inp_path}")
         for epub_path in epubs:
-            if args.chapterized:
+            if emit_chapterized:
                 chapters = epub_to_chapter_texts(str(epub_path), mode=args.mode, nlp=backend)
                 output_dir = epub_path.with_suffix("")
                 _write_chapter_files(output_dir, chapters)
@@ -795,7 +798,7 @@ def main(argv: list[str] | None = None) -> int:
         if inp_path.suffix.lower() != ".epub":
             raise ValueError(f"Input must be an .epub file or directory: {inp_path}")
 
-        if args.chapterized:
+        if emit_chapterized:
             chapters = epub_to_chapter_texts(str(inp_path), mode=args.mode, nlp=backend)
             output_dir = inp_path.with_suffix("")
             _write_chapter_files(output_dir, chapters)
@@ -843,6 +846,7 @@ def _run_dav(args: argparse.Namespace) -> int:
         shutil.rmtree(view_root, ignore_errors=True)
         raise SystemExit(f"WsgiDAV is required for `nk dav`. Install dependencies and retry. ({exc})")
 
+    view_root, observer = _prepare_mp3_view(root)
     provider = FilesystemProvider(str(view_root))
     config = {
         "host": args.host,
@@ -876,25 +880,99 @@ def _run_dav(args: argparse.Namespace) -> int:
     finally:
         if hasattr(server, "stop"):
             server.stop()
+        if observer is not None:
+            observer.stop()
+            observer.join()
         shutil.rmtree(view_root, ignore_errors=True)
     return 0
 
 
-def _prepare_mp3_view(root: Path) -> Path:
+def _prepare_mp3_view(root: Path) -> tuple[Path, Observer | None]:
     temp_root = Path(tempfile.mkdtemp(prefix="nk-dav-"))
     mp3_paths = sorted(p for p in root.rglob("*.mp3") if p.is_file())
     if not mp3_paths:
         shutil.rmtree(temp_root, ignore_errors=True)
         raise SystemExit(f"No .mp3 files found under {root}")
     for mp3 in mp3_paths:
-        rel = mp3.relative_to(root)
-        destination = temp_root / rel
-        destination.parent.mkdir(parents=True, exist_ok=True)
+        _mirror_mp3(root, temp_root, mp3)
+    observer: Observer | None = None
+    try:
+        observer = Observer()
+        handler = _Mp3ViewEventHandler(root, temp_root)
+        observer.schedule(handler, str(root), recursive=True)
+        observer.start()
+    except Exception:
+        observer = None
+    return temp_root, observer
+
+
+def _mirror_mp3(source_root: Path, view_root: Path, mp3_path: Path) -> None:
+    try:
+        rel = mp3_path.relative_to(source_root)
+    except ValueError:
+        return
+    destination = view_root / rel
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists():
+        destination.unlink()
+    try:
+        os.link(mp3_path, destination)
+    except OSError:
+        shutil.copy2(mp3_path, destination)
+
+
+def _remove_from_view(source_root: Path, view_root: Path, path: Path) -> None:
+    try:
+        rel = path.relative_to(source_root)
+    except ValueError:
+        return
+    target = view_root / rel
+    if target.is_dir():
+        shutil.rmtree(target, ignore_errors=True)
+    else:
+        target.unlink(missing_ok=True)
+
+
+class _Mp3ViewEventHandler(FileSystemEventHandler):
+    def __init__(self, source_root: Path, view_root: Path) -> None:
+        self.source_root = source_root
+        self.view_root = view_root
+
+    def on_created(self, event) -> None:  # type: ignore[override]
+        src_path = Path(event.src_path)
+        if event.is_directory:
+            rel = self._relative(src_path)
+            if rel is not None:
+                (self.view_root / rel).mkdir(parents=True, exist_ok=True)
+            return
+        if src_path.suffix.lower() == ".mp3":
+            _mirror_mp3(self.source_root, self.view_root, src_path)
+
+    def on_modified(self, event) -> None:  # type: ignore[override]
+        src_path = Path(event.src_path)
+        if not event.is_directory and src_path.suffix.lower() == ".mp3":
+            _mirror_mp3(self.source_root, self.view_root, src_path)
+
+    def on_deleted(self, event) -> None:  # type: ignore[override]
+        src_path = Path(event.src_path)
+        _remove_from_view(self.source_root, self.view_root, src_path)
+
+    def on_moved(self, event) -> None:  # type: ignore[override]
+        src_path = Path(event.src_path)
+        dest_path = Path(event.dest_path)
+        _remove_from_view(self.source_root, self.view_root, src_path)
+        if event.is_directory:
+            rel = self._relative(dest_path)
+            if rel is not None:
+                (self.view_root / rel).mkdir(parents=True, exist_ok=True)
+        elif dest_path.suffix.lower() == ".mp3":
+            _mirror_mp3(self.source_root, self.view_root, dest_path)
+
+    def _relative(self, path: Path) -> Path | None:
         try:
-            os.link(mp3, destination)
-        except OSError:
-            shutil.copy2(mp3, destination)
-    return temp_root
+            return path.relative_to(self.source_root)
+        except ValueError:
+            return None
 
 
 def _resolve_local_ip(host: str) -> str:
