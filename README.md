@@ -165,6 +165,9 @@ nk tts chapters/ --live [--live-prebuffer N] [--live-start M]
 # Web service (browse + stream)
 nk web output/ [--host HOST] [--port PORT] [--speaker N] [...]
 
+# WebDAV share (Flacbox, etc.)
+nk dav books/ [--host HOST] [--port PORT] [--auth pam-login]
+
 # Environment: NK_VOICEVOX_RUNTIME=/absolute/path/to/run
 
 # UniDic helper commands
@@ -174,4 +177,6 @@ nk tools unidic-status
 
 - `install-unidic` downloads/extracts the official `unidic-cwj-3.1.1-full.zip` archive **into the current virtualenv** and sets it as the default dictionary for fugashi.
 - `unidic-status` prints the managed path and any `NK_UNIDIC_DIR` override so you can confirm which dictionary is active.
+
+- `nk dav` exposes only `.mp3` files via WebDAV using your macOS login (PAM). Point clients such as Flacbox at `http://<your-mac-ip>:PORT/` to stream your nk library without copying files.
 ```

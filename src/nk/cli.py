@@ -4,7 +4,9 @@ import argparse
 import os
 import re
 import shutil
+import socket
 import sys
+import tempfile
 import unicodedata
 from pathlib import Path, PurePosixPath
 import threading
@@ -177,6 +179,34 @@ def build_tts_parser() -> argparse.ArgumentParser:
         "--clear-cache",
         action="store_true",
         help="Clear nk chunk caches under the provided path (or current directory if omitted).",
+    )
+    return ap
+
+
+def build_dav_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        description="Serve nk-generated MP3 files over WebDAV (ideal for Flacbox).",
+    )
+    ap.add_argument(
+        "root",
+        help="Directory containing chapterized books (only .mp3 files will be exposed).",
+    )
+    ap.add_argument(
+        "--host",
+        default="0.0.0.0",
+        help="Host interface for the WebDAV server (default: 0.0.0.0).",
+    )
+    ap.add_argument(
+        "--port",
+        type=int,
+        default=1990,
+        help="Port for the WebDAV server (default: 1990).",
+    )
+    ap.add_argument(
+        "--auth",
+        choices=["pam-login"],
+        default="pam-login",
+        help="Authentication backend (default: pam-login, uses your macOS login).",
     )
     return ap
 
@@ -644,6 +674,16 @@ def _run_tts(args: argparse.Namespace) -> int:
     return 0
 
 
+def _slice_targets_by_index(targets: list[TTSTarget], start_index: int | None) -> list[TTSTarget]:
+    if not targets:
+        raise ValueError("No chapters available for synthesis.")
+    if start_index is None or start_index <= 1:
+        return targets
+    if start_index > len(targets):
+        raise ValueError(f"--start-index {start_index} exceeds total chapters ({len(targets)}).")
+    return targets[start_index - 1 :]
+
+
 def _run_tools(args: argparse.Namespace) -> int:
     if not args.tool_cmd:
         raise SystemExit("A tools subcommand is required. Use --help for options.")
@@ -707,6 +747,10 @@ def main(argv: list[str] | None = None) -> int:
         web_args = web_parser.parse_args(argv[1:])
         _run_web(web_args)
         return 0
+    if argv and argv[0] == "dav":
+        dav_parser = build_dav_parser()
+        dav_args = dav_parser.parse_args(argv[1:])
+        return _run_dav(dav_args)
     if argv and argv[0] == "tools":
         tools_parser = build_tools_parser()
         tools_args = tools_parser.parse_args(argv[1:])
@@ -784,3 +828,81 @@ def _slice_targets_by_index(targets: list[TTSTarget], start_index: int | None) -
             f"--start-index {start_index} exceeds total chapters ({len(targets)})."
         )
     return targets[start_index - 1 :]
+def _run_dav(args: argparse.Namespace) -> int:
+    root = Path(args.root).expanduser().resolve()
+    if not root.exists() or not root.is_dir():
+        raise SystemExit(f"Books root not found: {root}")
+
+    view_root = _prepare_mp3_view(root)
+    try:
+        from cheroot import wsgi as cheroot_wsgi
+        from wsgidav.fs_dav_provider import FilesystemProvider
+        from wsgidav.wsgidav_app import WsgiDAVApp
+        from wsgidav.dc.pam_dc import PAMDomainController
+    except ImportError as exc:
+        shutil.rmtree(view_root, ignore_errors=True)
+        raise SystemExit(f"WsgiDAV is required for `nk dav`. Install dependencies and retry. ({exc})")
+
+    provider = FilesystemProvider(str(view_root))
+    config = {
+        "host": args.host,
+        "port": args.port,
+        "provider_mapping": {"/": provider},
+        "simple_dc": {"user_mapping": {"*": True}},
+        "http_authenticator": {
+            "domain_controller": PAMDomainController,
+            "accept_basic": True,
+            "accept_digest": False,
+            "default_to_digest": False,
+            "trusted_auth_header": None,
+        },
+        "dir_browser": {"enable": True, "davmount": False, "msmount": False},
+        "logging": {"enable_loggers": []},
+    }
+    app = WsgiDAVApp(config)
+    server = cheroot_wsgi.Server((args.host, args.port), app)
+
+    public_ip = _resolve_local_ip(args.host)
+    url = f"http://{public_ip}:{args.port}/"
+    print(f"Serving MP3 view of {root}")
+    print(f"Only .mp3 files are exposed. Temporary view: {view_root}")
+    print(f"WebDAV URL: {url}")
+    print("Authentication: macOS login (PAM). Press Ctrl+C to stop.\n")
+
+    try:
+        server.start()
+    except KeyboardInterrupt:
+        print("\nStopping nk dav...")
+    finally:
+        if hasattr(server, "stop"):
+            server.stop()
+        shutil.rmtree(view_root, ignore_errors=True)
+    return 0
+
+
+def _prepare_mp3_view(root: Path) -> Path:
+    temp_root = Path(tempfile.mkdtemp(prefix="nk-dav-"))
+    mp3_paths = sorted(p for p in root.rglob("*.mp3") if p.is_file())
+    if not mp3_paths:
+        shutil.rmtree(temp_root, ignore_errors=True)
+        raise SystemExit(f"No .mp3 files found under {root}")
+    for mp3 in mp3_paths:
+        rel = mp3.relative_to(root)
+        destination = temp_root / rel
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.symlink(mp3, destination)
+        except OSError:
+            shutil.copy2(mp3, destination)
+    return temp_root
+
+
+def _resolve_local_ip(host: str) -> str:
+    if host not in {"", "0.0.0.0"}:
+        return host
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("8.8.8.8", 80))
+            return sock.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
