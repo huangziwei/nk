@@ -221,6 +221,15 @@ def _effective_jobs(requested: int, total: int) -> int:
 
 _CACHE_SANITIZE_RE = re.compile(r"[^0-9A-Za-z._-]+")
 
+_MAX_CHARS_PER_CHUNK = 600
+_SENTENCE_BREAKS = (
+    "\n",
+    "。", "！", "？", "!", "?", "…", "‼", "⁉", "⁈", "．", "｡", "．",
+)
+_CLAUSE_BREAKS = (
+    "、", "，", "､", ",", ";", "；", ":", "：", "・", "—", "─",
+)
+
 
 def _slugify_cache_component(text: str) -> str:
     slug = _CACHE_SANITIZE_RE.sub("_", text)
@@ -727,15 +736,55 @@ def _split_text_on_breaks(text: str) -> list[str]:
             if current:
                 chunk = "\n".join(current).strip()
                 if chunk:
-                    chunks.append(chunk)
+                    chunks.extend(_split_chunk_if_needed(chunk))
                 current = []
             continue
         current.append(line)
     if current:
         chunk = "\n".join(current).strip()
         if chunk:
-            chunks.append(chunk)
+            chunks.extend(_split_chunk_if_needed(chunk))
     return chunks
+
+
+def _split_chunk_if_needed(chunk: str) -> list[str]:
+    if not chunk:
+        return []
+    if len(chunk) <= _MAX_CHARS_PER_CHUNK:
+        return [chunk]
+    segments: list[str] = []
+    remaining = chunk
+    while len(remaining) > _MAX_CHARS_PER_CHUNK:
+        cut = _preferred_chunk_cut_index(remaining, _MAX_CHARS_PER_CHUNK)
+        head = remaining[:cut].rstrip()
+        if head:
+            segments.append(head)
+        remaining = remaining[cut:].lstrip()
+        if not remaining:
+            break
+    if remaining:
+        tail = remaining.strip()
+        if tail:
+            segments.append(tail)
+    return segments
+
+
+def _preferred_chunk_cut_index(text: str, limit: int) -> int:
+    def _best_index(separators: tuple[str, ...]) -> tuple[int, int] | None:
+        best: tuple[int, int] | None = None
+        for sep in separators:
+            idx = text.rfind(sep, 0, limit)
+            if idx > 0:
+                end = idx + len(sep)
+                if best is None or end > best[0] + best[1]:
+                    best = (idx, len(sep))
+        return best
+
+    for candidates in (_SENTENCE_BREAKS, _CLAUSE_BREAKS):
+        match = _best_index(candidates)
+        if match is not None:
+            return match[0] + match[1]
+    return max(1, limit)
 
 
 def _merge_wavs_to_mp3(
