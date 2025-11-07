@@ -15,8 +15,10 @@ brew install p7zip ffmpeg jq
 ```bash
 git clone https://github.com/huangziwei/nk
 uv sync
-python -m unidic download
+nk tools install-unidic
 ```
+
+> `nk tools install-unidic` downloads UniDic 3.1.1 (~1.8 GB) directly into `.venv/share/nk/unidic/` and points fugashi at it. Re-run the command if you recreate the virtualenv or supply `--zip /path/to/unidic-cwj-3.1.1-full.zip` for offline installs. Check the detected path any time with `nk tools unidic-status`.
 
 ## 3. Install the VoiceVox engine
 
@@ -50,7 +52,7 @@ nk my_book.epub -o custom_name.txt
 nk shelf/ --chapterized
 ```
 
-Expect katakana-only output next to the source EPUB with duplicate titles stripped and line breaks preserved. Advanced mode consumes `fugashi + UniDic + pykakasi`; fast mode requires no additional NLP setup.
+Expect katakana-only output next to the source EPUB with duplicate titles stripped and line breaks preserved. Advanced mode consumes `fugashi + UniDic 3.1.1 + pykakasi`; fast mode requires no additional NLP setup.
 
 ---
 
@@ -162,4 +164,14 @@ nk tts chapters/ --live [--live-prebuffer N] [--live-start M]
 nk web output/ [--host HOST] [--port PORT] [--speaker N] [...]
 
 # Environment: NK_VOICEVOX_RUNTIME=/absolute/path/to/run
+
+# UniDic helper commands
+
+```
+nk tools install-unidic [--zip /path/to/unidic-cwj-3.1.1-full.zip]
+nk tools unidic-status
+```
+
+- `install-unidic` downloads/extracts the official `unidic-cwj-3.1.1-full.zip` archive **into the current virtualenv** and sets it as the default dictionary for fugashi.
+- `unidic-status` prints the managed path and any `NK_UNIDIC_DIR` override so you can confirm which dictionary is active.
 ```

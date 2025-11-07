@@ -5,6 +5,8 @@ import warnings
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+from .tools import get_unidic_dicdir
+
 __all__ = [
     "NLPBackend",
     "NLPBackendUnavailableError",
@@ -150,12 +152,16 @@ class NLPBackend:
                 "Advanced mode requires 'fugashi' (MeCab) to be installed."
             ) from exc
 
-        try:
-            import unidic  # type: ignore
-        except ImportError:
-            self._tagger = Tagger()
+        dicdir = get_unidic_dicdir()
+        if dicdir:
+            self._tagger = Tagger(f"-d {dicdir}")
         else:
-            self._tagger = Tagger(f"-d {unidic.DICDIR}")
+            warnings.warn(
+                "UniDic 3.1.1 not detected; falling back to the default MeCab dictionary.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            self._tagger = Tagger()
         self._kakasi_converter = self._build_kakasi_converter()
 
     def reading_variants(self, text: str) -> set[str]:

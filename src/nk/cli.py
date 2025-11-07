@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import shutil
 import sys
@@ -21,6 +22,7 @@ from rich.progress import (
 
 from .core import ChapterText, epub_to_chapter_texts, epub_to_txt
 from .nlp import NLPBackend, NLPBackendUnavailableError
+from .tools import DEFAULT_UNIDIC_URL, UniDicInstallError, ensure_unidic_installed, resolve_managed_unidic
 from .tts import (
     FFmpegError,
     VoiceVoxError,
@@ -239,6 +241,37 @@ def build_web_parser() -> argparse.ArgumentParser:
         default=2,
         help="Chunks to buffer before live playback begins (default: 2).",
     )
+    return ap
+
+
+def build_tools_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(description="nk helper utilities")
+    subparsers = ap.add_subparsers(dest="tool_cmd")
+
+    install = subparsers.add_parser(
+        "install-unidic",
+        help="Download and register UniDic 3.1.1 inside the current virtualenv.",
+    )
+    install.add_argument(
+        "--zip",
+        help="Path to a previously downloaded unidic-cwj-3.1.1 zip archive.",
+    )
+    install.add_argument(
+        "--url",
+        default=DEFAULT_UNIDIC_URL,
+        help="Download URL for the UniDic archive (default: %(default)s).",
+    )
+    install.add_argument(
+        "--force",
+        action="store_true",
+        help="Reinstall even if the requested version already exists.",
+    )
+
+    status = subparsers.add_parser(
+        "unidic-status",
+        help="Show the currently detected UniDic dictionary path.",
+    )
+
     return ap
 
 
@@ -591,6 +624,34 @@ def _run_tts(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_tools(args: argparse.Namespace) -> int:
+    if not args.tool_cmd:
+        raise SystemExit("A tools subcommand is required. Use --help for options.")
+
+    if args.tool_cmd == "install-unidic":
+        try:
+            status = ensure_unidic_installed(url=args.url, zip_path=args.zip, force=args.force)
+        except UniDicInstallError as exc:
+            raise SystemExit(str(exc)) from exc
+        print(f"UniDic {status.version} installed at {status.path}")
+        print("Set NK_UNIDIC_DIR to override or rerun this command to reinstall.")
+        return 0
+
+    if args.tool_cmd == "unidic-status":
+        status = resolve_managed_unidic()
+        if status.path and (status.path / "dicrc").exists():
+            print(f"Managed UniDic path: {status.path}")
+            print(f"Version: {status.version or 'unknown'}")
+        else:
+            print("No managed UniDic installation detected. Use 'nk tools install-unidic'.")
+        env_dir = os.environ.get("NK_UNIDIC_DIR")
+        if env_dir:
+            print(f"NK_UNIDIC_DIR is set to: {env_dir}")
+        return 0
+
+    raise SystemExit(f"Unknown tools subcommand: {args.tool_cmd}")
+
+
 def _run_web(args: argparse.Namespace) -> None:
     root = Path(args.root).expanduser().resolve()
     cache_dir = Path(args.cache_dir).expanduser().resolve() if args.cache_dir else None
@@ -626,6 +687,10 @@ def main(argv: list[str] | None = None) -> int:
         web_args = web_parser.parse_args(argv[1:])
         _run_web(web_args)
         return 0
+    if argv and argv[0] == "tools":
+        tools_parser = build_tools_parser()
+        tools_args = tools_parser.parse_args(argv[1:])
+        return _run_tools(tools_args)
 
     parser = build_parser()
     if not argv:
