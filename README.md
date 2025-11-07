@@ -167,10 +167,8 @@ nk web output/ [--host HOST] [--port PORT] [--speaker N] [...]
 
 # UniDic helper commands
 
-```
 nk tools install-unidic [--zip /path/to/unidic-cwj-3.1.1-full.zip]
 nk tools unidic-status
-```
 
 - `install-unidic` downloads/extracts the official `unidic-cwj-3.1.1-full.zip` archive **into the current virtualenv** and sets it as the default dictionary for fugashi.
 - `unidic-status` prints the managed path and any `NK_UNIDIC_DIR` override so you can confirm which dictionary is active.
