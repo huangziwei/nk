@@ -77,6 +77,7 @@ def ensure_unidic_installed(
         return UniDicStatus(version=UNIDIC_VERSION, path=target_dir, managed=True)
 
     archive_path = Path(zip_path) if zip_path else None
+    downloaded = False
     if archive_path is not None and not archive_path.is_file():
         raise UniDicInstallError(f"Archive not found: {archive_path}")
 
@@ -84,6 +85,7 @@ def ensure_unidic_installed(
         if url is None:
             raise UniDicInstallError("No download URL provided for UniDic installation.")
         archive_path = _download_unidic_archive(url, root)
+        downloaded = True
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
@@ -95,6 +97,9 @@ def ensure_unidic_installed(
             shutil.rmtree(target_dir)
         target_dir.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(dic_root), str(target_dir))
+
+    if downloaded:
+        archive_path.unlink(missing_ok=True)
 
     _write_marker(marker, target_dir)
     return UniDicStatus(version=UNIDIC_VERSION, path=target_dir, managed=True)
