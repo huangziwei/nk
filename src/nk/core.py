@@ -160,6 +160,11 @@ def _apply_mapping_with_pattern(
             next_ch = text[end] if end < len(text) else ""
             if (_is_cjk_char(prev_ch) and prev_ch != "\n") or _is_cjk_char(next_ch):
                 return base
+            if base.isascii() and base.isalnum():
+                if (prev_ch.isascii() and prev_ch.isalnum()) or (
+                    next_ch.isascii() and next_ch.isalnum()
+                ):
+                    return base
         return mapping[base]
 
     return pattern.sub(repl, text)
