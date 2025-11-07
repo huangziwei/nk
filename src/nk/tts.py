@@ -221,7 +221,7 @@ def _effective_jobs(requested: int, total: int) -> int:
 
 _CACHE_SANITIZE_RE = re.compile(r"[^0-9A-Za-z._-]+")
 
-_MAX_CHARS_PER_CHUNK = 600
+_MAX_CHARS_PER_CHUNK = 360
 _SENTENCE_BREAKS = (
     "\n",
     "。", "！", "？", "!", "?", "…", "‼", "⁉", "⁈", "．", "｡", "．",
