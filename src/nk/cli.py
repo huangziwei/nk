@@ -13,7 +13,7 @@ import threading
 
 import uvicorn
 from watchdog.events import FileSystemEventHandler
-from watchdog.observers import Observer
+from watchdog.observers.polling import PollingObserver
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -887,17 +887,14 @@ def _run_dav(args: argparse.Namespace) -> int:
     return 0
 
 
-def _prepare_mp3_view(root: Path) -> tuple[Path, Observer | None]:
+def _prepare_mp3_view(root: Path) -> tuple[Path, PollingObserver | None]:
     temp_root = Path(tempfile.mkdtemp(prefix="nk-dav-"))
     mp3_paths = sorted(p for p in root.rglob("*.mp3") if p.is_file())
-    if not mp3_paths:
-        shutil.rmtree(temp_root, ignore_errors=True)
-        raise SystemExit(f"No .mp3 files found under {root}")
     for mp3 in mp3_paths:
         _mirror_mp3(root, temp_root, mp3)
-    observer: Observer | None = None
+    observer: PollingObserver | None = None
     try:
-        observer = Observer()
+        observer = PollingObserver()
         handler = _Mp3ViewEventHandler(root, temp_root)
         observer.schedule(handler, str(root), recursive=True)
         observer.start()
