@@ -75,12 +75,14 @@ nk tts output/chapters --speaker 20 \
 | `--speaker N` | VoiceVox speaker ID (default 2, 四国めたん・セリフ). |
 | `--pause SECONDS` | Trailing silence per chunk (default 0.4 s). |
 | `--jobs N` | Parallel chapters (default: 1, pass 0 for auto up to 4 workers). |
+| `--start-index M` | Skip the first `M-1` chapters and begin synthesis at chapter `M`. |
 | `--engine-runtime PATH` | Point at a custom VoiceVox install or the `run` binary. |
 | `--cache-dir DIR` | Store chunk caches elsewhere. |
 | `--keep-cache` | Leave chunk WAVs on disk after MP3 synthesis. |
 | `--overwrite` | Regenerate MP3s even if they already exist. |
 
 **Resume after interruption** – nk caches every chunk under `.nk-tts-cache/<chapter-hash>/`. If you stop midway, rerun the same command (omit `--overwrite`) and synthesis resumes from the last unfinished chunk or merge. Delete MP3s (or use `--overwrite`) to regenerate everything.
+- **Skip ahead** – add `--start-index N` to begin at chapter `N` without touching earlier files (helpful when you only need to regenerate later chapters).
 
 ---
 

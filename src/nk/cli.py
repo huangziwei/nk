@@ -25,6 +25,7 @@ from .nlp import NLPBackend, NLPBackendUnavailableError
 from .tools import DEFAULT_UNIDIC_URL, UniDicInstallError, ensure_unidic_installed, resolve_managed_unidic
 from .tts import (
     FFmpegError,
+    TTSTarget,
     VoiceVoxError,
     VoiceVoxRuntimeError,
     VoiceVoxUnavailableError,
@@ -139,6 +140,11 @@ def build_tts_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         help="Parallel synthesis workers (default: 1; use 0 for auto).",
+    )
+    ap.add_argument(
+        "--start-index",
+        type=int,
+        help="Start synthesizing from this 1-based chapter index (skips earlier chapters unless --overwrite).",
     )
     ap.add_argument(
         "--cache-dir",
@@ -352,6 +358,19 @@ def _run_tts(args: argparse.Namespace) -> int:
         targets = resolve_text_targets(input_path, output_dir)
     except (FileNotFoundError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
+
+    total_targets = len(targets)
+    if total_targets == 0:
+        raise SystemExit("No .txt files found for synthesis.")
+
+    if args.start_index is not None:
+        try:
+            targets = _slice_targets_by_index(targets, args.start_index)
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+        if args.start_index > 1:
+            skipped = min(total_targets, args.start_index - 1)
+            print(f"Skipping {skipped} chapters; starting synthesis at index {args.start_index}.")
 
     live_mode = bool(args.live)
     total_targets = len(targets)
@@ -755,3 +774,13 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+def _slice_targets_by_index(targets: list[TTSTarget], start_index: int | None) -> list[TTSTarget]:
+    if not targets:
+        raise ValueError("No chapters available for synthesis.")
+    if start_index is None or start_index <= 1:
+        return targets
+    if start_index > len(targets):
+        raise ValueError(
+            f"--start-index {start_index} exceeds total chapters ({len(targets)})."
+        )
+    return targets[start_index - 1 :]
