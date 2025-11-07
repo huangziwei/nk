@@ -891,7 +891,7 @@ def _prepare_mp3_view(root: Path) -> Path:
         destination = temp_root / rel
         destination.parent.mkdir(parents=True, exist_ok=True)
         try:
-            os.symlink(mp3, destination)
+            os.link(mp3, destination)
         except OSError:
             shutil.copy2(mp3, destination)
     return temp_root
