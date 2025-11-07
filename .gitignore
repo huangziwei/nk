@@ -13,3 +13,5 @@ output/
 .venv
 AGENTS.md
 books/
+*.mp3
+*.wav

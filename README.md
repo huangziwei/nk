@@ -74,7 +74,7 @@ nk tts output/chapters --speaker 20 \
 | --- | --- |
 | `--speaker N` | VoiceVox speaker ID (default 2, 四国めたん・セリフ). |
 | `--pause SECONDS` | Trailing silence per chunk (default 0.4 s). |
-| `--jobs N` | Parallel chapters (auto = half your cores, max 4). |
+| `--jobs N` | Parallel chapters (default: 1, pass 0 for auto up to 4 workers). |
 | `--engine-runtime PATH` | Point at a custom VoiceVox install or the `run` binary. |
 | `--cache-dir DIR` | Store chunk caches elsewhere. |
 | `--keep-cache` | Leave chunk WAVs on disk after MP3 synthesis. |

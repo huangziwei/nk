@@ -137,8 +137,8 @@ def build_tts_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--jobs",
         type=int,
-        default=0,
-        help="Parallel synthesis workers (default: auto).",
+        default=1,
+        help="Parallel synthesis workers (default: 1; use 0 for auto).",
     )
     ap.add_argument(
         "--cache-dir",
