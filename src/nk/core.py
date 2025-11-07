@@ -312,6 +312,23 @@ def _contains_cjk(s: str) -> bool:
     return False
 
 
+def _looks_like_ascii_word(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return False
+    has_alpha = False
+    for ch in stripped:
+        if ch.isalpha() and ch.isascii():
+            has_alpha = True
+        elif ch.isdigit() and ch.isascii():
+            continue
+        elif ch in {"-", "_", "'", "’", "・"}:
+            continue
+        else:
+            return False
+    return has_alpha
+
+
 def _is_single_kanji_base(text: str) -> bool:
     stripped = text.strip()
     if not stripped:
@@ -419,7 +436,7 @@ def _collect_reading_counts_from_soup(soup: BeautifulSoup) -> dict[str, _Reading
         if not base_raw:
             continue
         base_norm = unicodedata.normalize("NFKC", base_raw)
-        if not _contains_cjk(base_norm):
+        if not (_contains_cjk(base_norm) or _looks_like_ascii_word(base_norm)):
             continue
         reading_raw = _ruby_reading_text(ruby)
         reading_norm = _normalize_ws(reading_raw)
@@ -525,6 +542,10 @@ def _select_reading_mapping(
         if alt_share >= 0.3:
             continue
 
+        if _looks_like_ascii_word(base):
+            tier3[base] = top_reading
+            continue
+
         if mode == "fast":
             if total < 2:
                 continue
@@ -574,7 +595,7 @@ def _replace_outside_ruby_with_readings(soup: BeautifulSoup, mapping: dict[str, 
         parent = node.parent.name if isinstance(node.parent, Tag) else None
         if parent in ("script", "style", "rt", "rp", "ruby"):
             continue
-        text = str(node)
+        text = unicodedata.normalize("NFKC", str(node))
         if not text.strip():
             continue
         new_text = _apply_mapping_with_pattern(text, mapping, pat)
