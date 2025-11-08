@@ -66,6 +66,9 @@ Each chapterized book now carries a `.nk-book.json` manifest plus an extracted (
 # Basic run (nk auto-starts VoiceVox at 127.0.0.1:50021)
 nk tts output/
 
+# One-shot: chapterize + synthesize directly from an EPUB
+nk tts books/novel.epub --mode fast --speaker 20
+
 # Custom speaker, engine location, and parallelism
 nk tts output/chapters --speaker 20 \
                        --engine-runtime "$HOME/opt/voicevox/macos-x64" \
@@ -84,6 +87,7 @@ nk tts output/chapters --speaker 20 \
 | `--cache-dir DIR` | Store chunk caches elsewhere. |
 | `--keep-cache` | Leave chunk WAVs on disk after MP3 synthesis. |
 | `--overwrite` | Regenerate MP3s even if they already exist. |
+| `--mode fast/advanced` | When an EPUB is passed to `nk tts`, choose the propagation engine used to chapterize before synthesis (default: advanced). |
 
 **Resume after interruption** – nk caches every chunk under `.nk-tts-cache/<chapter-hash>/`. If you stop midway, rerun the same command (omit `--overwrite`) and synthesis resumes from the last unfinished chunk or merge. Delete MP3s (or use `--overwrite`) to regenerate everything.
 - **Skip ahead** – add `--start-index N` to begin at chapter `N` without touching earlier files (helpful when you only need to regenerate later chapters).
@@ -132,7 +136,7 @@ Serve your chapterized books over HTTP and stream them from a phone or tablet on
 3. On your phone, open Safari and visit `http://<your-mac-ip>:2046`.
 4. Tap a book → choose a chapter → press play. You can resume or restart individual chapters, and Safari will stream the MP3 while nk continues synthesising and caching in the background.
 
-> The web service uses the same chunk cache/resume logic as the CLI. Stopping playback mid-chapter and tapping “Resume” picks up exactly where you left off. A final MP3 is written when playback completes.
+> The web service uses the same chunk cache/resume logic as the CLI. Stopping playback mid-chapter and tapping “Resume” picks up exactly where you left off. A final MP3 is written when playback completes. The server will chapterize missing books on demand, just like `nk tts` does when you point it directly at an EPUB.
 
 ---
 

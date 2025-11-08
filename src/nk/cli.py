@@ -22,7 +22,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from .book_io import write_book_package
+from .book_io import BOOK_METADATA_FILENAME, write_book_package
 from .core import epub_to_chapter_texts, epub_to_txt, get_epub_cover
 from .nlp import NLPBackend, NLPBackendUnavailableError
 from .tools import DEFAULT_UNIDIC_URL, UniDicInstallError, ensure_unidic_installed, resolve_managed_unidic
@@ -81,6 +81,15 @@ def build_tts_parser() -> argparse.ArgumentParser:
         "input_path",
         nargs="?",
         help="Path to a .txt file or directory containing .txt files.",
+    )
+    ap.add_argument(
+        "--mode",
+        choices=["advanced", "fast"],
+        default="advanced",
+        help=(
+            "Propagation mode used if an EPUB input is provided. "
+            "'advanced' (default) verifies rubies via UniDic; 'fast' trusts in-book evidence."
+        ),
     )
     ap.add_argument(
         "--output-dir",
@@ -312,6 +321,42 @@ def build_tools_parser() -> argparse.ArgumentParser:
     return ap
 
 
+def _ensure_tts_source_ready(
+    input_path: Path,
+    *,
+    mode: str,
+    quiet: bool = False,
+) -> Path:
+    if not input_path.exists():
+        return input_path
+    if input_path.is_file() and input_path.suffix.lower() == ".epub":
+        target_dir = input_path.with_suffix("")
+        metadata_missing = not (target_dir / BOOK_METADATA_FILENAME).exists()
+        needs_chapter = (
+            metadata_missing or not target_dir.exists() or not any(target_dir.glob("*.txt"))
+        )
+        if needs_chapter and not quiet:
+            print(f"[nk tts] Chapterizing {input_path.name} (mode={mode})")
+        if not needs_chapter:
+            return target_dir
+        backend = None
+        if mode == "advanced":
+            try:
+                backend = NLPBackend()
+            except NLPBackendUnavailableError as exc:
+                raise SystemExit(str(exc)) from exc
+        chapters = epub_to_chapter_texts(str(input_path), mode=mode, nlp=backend)
+        cover = get_epub_cover(str(input_path))
+        write_book_package(
+            target_dir,
+            chapters,
+            source_epub=input_path,
+            cover_image=cover,
+        )
+        return target_dir
+    return input_path
+
+
 def _run_tts(args: argparse.Namespace) -> int:
     if args.clear_cache:
         search_root = Path(args.input_path or ".").expanduser().resolve()
@@ -330,6 +375,7 @@ def _run_tts(args: argparse.Namespace) -> int:
         raise SystemExit("Input path is required unless --clear-cache is used.")
 
     input_path = Path(args.input_path)
+    input_path = _ensure_tts_source_ready(input_path, mode=args.mode)
     output_dir = Path(args.output_dir) if args.output_dir else None
     try:
         targets = resolve_text_targets(input_path, output_dir)
