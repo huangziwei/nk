@@ -12,7 +12,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Iterator
+from typing import Callable, Iterable, Iterator, Mapping
 import threading
 from urllib.parse import urlparse
 
@@ -648,6 +648,8 @@ def managed_voicevox_runtime(
     *,
     readiness_timeout: float = 30.0,
     poll_interval: float = 0.5,
+    extra_env: Mapping[str, str] | None = None,
+    cpu_threads: int | None = None,
 ) -> Iterator[subprocess.Popen[bytes] | None]:
     """
     Context manager that launches a VoiceVox runtime if requested and stops it on exit.
@@ -664,6 +666,14 @@ def managed_voicevox_runtime(
         return
 
     cmd = [str(runtime_executable), "--host", host, "--port", str(port)]
+    if cpu_threads and cpu_threads > 0:
+        cmd.extend(["--cpu_num_threads", str(cpu_threads)])
+    proc_env = os.environ.copy()
+    if extra_env:
+        for key, value in extra_env.items():
+            if value is None:
+                continue
+            proc_env[str(key)] = str(value)
     process: subprocess.Popen[bytes] | None = None
     try:
         process = subprocess.Popen(
@@ -671,6 +681,7 @@ def managed_voicevox_runtime(
             cwd=str(runtime_executable.parent),
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            env=proc_env,
         )
     except OSError as exc:
         raise VoiceVoxRuntimeError(

@@ -84,6 +84,7 @@ nk tts output/chapters --speaker 20 \
 | `--jobs N` | Parallel chapters (default: 1, pass 0 for auto up to 4 workers). |
 | `--start-index M` | Skip the first `M-1` chapters and begin synthesis at chapter `M`. |
 | `--engine-runtime PATH` | Point at a custom VoiceVox install or the `run` binary. |
+| `--engine-threads N` | When nk auto-starts VoiceVox, set the engine’s CPU thread count (default: engine-decided). |
 | `--cache-dir DIR` | Store chunk caches elsewhere. |
 | `--keep-cache` | Leave chunk WAVs on disk after MP3 synthesis. |
 | `--overwrite` | Regenerate MP3s even if they already exist. |

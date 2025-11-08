@@ -135,6 +135,14 @@ def build_tts_parser() -> argparse.ArgumentParser:
         ),
     )
     ap.add_argument(
+        "--engine-threads",
+        type=int,
+        help=(
+            "When nk auto-starts the VoiceVox runtime, override its worker thread count "
+            "(set to 0 or omit to let the engine decide)."
+        ),
+    )
+    ap.add_argument(
         "--engine-runtime-wait",
         type=float,
         default=30.0,
@@ -261,6 +269,14 @@ def build_web_parser() -> argparse.ArgumentParser:
         help="Path to the VoiceVox runtime executable or its directory.",
     )
     ap.add_argument(
+        "--engine-threads",
+        type=int,
+        help=(
+            "When nk auto-starts the VoiceVox runtime, override its worker thread count "
+            "(omit or set to 0 to let the engine decide)."
+        ),
+    )
+    ap.add_argument(
         "--engine-runtime-wait",
         type=float,
         default=30.0,
@@ -324,6 +340,19 @@ def build_tools_parser() -> argparse.ArgumentParser:
     )
 
     return ap
+
+
+def _engine_thread_overrides(
+    threads: int | None,
+) -> tuple[dict[str, str] | None, int | None]:
+    if threads is None or threads <= 0:
+        return None, None
+    clamped = max(1, int(threads))
+    env = {
+        "VOICEVOX_CPU_NUM_THREADS": str(clamped),
+        "RAYON_NUM_THREADS": str(clamped),
+    }
+    return env, clamped
 
 
 def _ensure_tts_source_ready(
@@ -601,6 +630,7 @@ def _run_tts(args: argparse.Namespace) -> int:
         auto_runtime = discover_voicevox_runtime(args.engine_url)
 
     runtime_path = runtime_hint or auto_runtime
+    runtime_env, runtime_thread_flag = _engine_thread_overrides(args.engine_threads)
     cache_base = Path(args.cache_dir).expanduser() if args.cache_dir else None
     playback_fn = None
     if live_mode:
@@ -617,6 +647,8 @@ def _run_tts(args: argparse.Namespace) -> int:
             runtime_path,
             args.engine_url,
             readiness_timeout=args.engine_runtime_wait,
+            extra_env=runtime_env,
+            cpu_threads=runtime_thread_flag,
         ):
             live_targets = targets
             if live_mode and args.live_start:
@@ -726,6 +758,7 @@ def _run_web(args: argparse.Namespace) -> None:
         engine_url=args.engine_url,
         engine_runtime=engine_runtime,
         engine_wait=args.engine_runtime_wait,
+        engine_threads=args.engine_threads,
         ffmpeg_path=args.ffmpeg,
         pause=args.pause,
         cache_dir=cache_dir,

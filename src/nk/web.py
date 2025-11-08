@@ -32,6 +32,7 @@ class WebConfig:
     engine_url: str = "http://127.0.0.1:50021"
     engine_runtime: Path | None = None
     engine_wait: float = 30.0
+    engine_threads: int | None = None
     ffmpeg_path: str = "ffmpeg"
     pause: float = 0.4
     cache_dir: Path | None = None
@@ -709,6 +710,19 @@ def _safe_read_int(path: Path) -> int | None:
         return None
 
 
+def _engine_thread_overrides(
+    threads: int | None,
+) -> tuple[dict[str, str] | None, int | None]:
+    if threads is None or threads <= 0:
+        return None, None
+    clamped = max(1, int(threads))
+    env = {
+        "VOICEVOX_CPU_NUM_THREADS": str(clamped),
+        "RAYON_NUM_THREADS": str(clamped),
+    }
+    return env, clamped
+
+
 def _chapter_state(chapter_path: Path, config: WebConfig, index: int) -> dict[str, object]:
     target = TTSTarget(source=chapter_path, output=chapter_path.with_suffix(".mp3"))
     cache_dir = _target_cache_dir(config.cache_dir, target)
@@ -743,10 +757,13 @@ def _synthesize_sequence(
 
     with lock:
         runtime_hint = config.engine_runtime or discover_voicevox_runtime(config.engine_url)
+        env_override, thread_override = _engine_thread_overrides(config.engine_threads)
         with managed_voicevox_runtime(
             runtime_hint,
             config.engine_url,
             readiness_timeout=config.engine_wait,
+            extra_env=env_override,
+            cpu_threads=thread_override,
         ):
             client = VoiceVoxClient(
                 base_url=config.engine_url,
