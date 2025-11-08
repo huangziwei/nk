@@ -5,12 +5,11 @@ import shutil
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-import re
-import unicodedata
 
 from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
+from .book_io import write_book_package
 from .tts import (
     FFmpegError,
     TTSTarget,
@@ -22,7 +21,7 @@ from .tts import (
     managed_voicevox_runtime,
     _synthesize_target_with_client,
 )
-from .core import ChapterText, epub_to_chapter_texts
+from .core import epub_to_chapter_texts, get_epub_cover
 from .nlp import NLPBackend, NLPBackendUnavailableError
 
 
@@ -781,59 +780,6 @@ def _synthesize_sequence(
     return len(work_plan)
 
 
-def _slugify_for_filename(text: str) -> str:
-    normalized = unicodedata.normalize("NFKC", text)
-    cleaned_chars: list[str] = []
-    for ch in normalized:
-        if ch in {"/", "\\", ":", "*", "?", '"', "<", ">", "|"}:
-            cleaned_chars.append("_")
-            continue
-        if ord(ch) < 32:
-            continue
-        if ch.isspace():
-            cleaned_chars.append("_")
-            continue
-        cleaned_chars.append(ch)
-    slug = "".join(cleaned_chars)
-    slug = re.sub(r"_+", "_", slug).strip("_")
-    return slug[:80]
-
-
-def _chapter_basename(index: int, chapter: ChapterText, used_names: set[str]) -> str:
-    prefix = f"{index + 1:03d}"
-    candidates: list[str] = []
-    if chapter.title:
-        slug = _slugify_for_filename(chapter.title)
-        if slug:
-            candidates.append(slug)
-    source_stem = Path(chapter.source).stem
-    stem_slug = _slugify_for_filename(source_stem)
-    if stem_slug:
-        candidates.append(stem_slug)
-    for slug in candidates:
-        candidate = f"{prefix}_{slug}"
-        if candidate not in used_names:
-            used_names.add(candidate)
-            return candidate
-    fallback = prefix
-    suffix = 1
-    candidate = fallback
-    while candidate in used_names:
-        suffix += 1
-        candidate = f"{fallback}_{suffix}"
-    used_names.add(candidate)
-    return candidate
-
-
-def _write_chapter_files(output_dir: Path, chapters: list[ChapterText]) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    used_names: set[str] = set()
-    for index, chapter in enumerate(chapters):
-        basename = _chapter_basename(index, chapter, used_names)
-        output_path = output_dir / f"{basename}.txt"
-        output_path.write_text(chapter.text, encoding="utf-8")
-
-
 def _ensure_chapterized(root: Path) -> None:
     epubs = sorted(p for p in root.iterdir() if p.suffix.lower() == ".epub")
     if not epubs:
@@ -851,7 +797,13 @@ def _ensure_chapterized(root: Path) -> None:
         try:
             print(f"[nk web] Generating chapters for {epub_path.name} (mode={mode})")
             chapters = epub_to_chapter_texts(str(epub_path), mode=mode, nlp=nlp)
-            _write_chapter_files(output_dir, chapters)
+            cover = get_epub_cover(str(epub_path))
+            write_book_package(
+                output_dir,
+                chapters,
+                source_epub=epub_path,
+                cover_image=cover,
+            )
         except Exception as exc:  # pragma: no cover - fail fast
             raise RuntimeError(f"Failed to chapterize {epub_path}: {exc}") from exc
 

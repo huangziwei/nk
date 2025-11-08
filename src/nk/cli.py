@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import shutil
 import socket
 import sys
 import tempfile
-import unicodedata
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import threading
 
 import uvicorn
@@ -24,7 +22,8 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from .core import ChapterText, epub_to_chapter_texts, epub_to_txt
+from .book_io import write_book_package
+from .core import epub_to_chapter_texts, epub_to_txt, get_epub_cover
 from .nlp import NLPBackend, NLPBackendUnavailableError
 from .tools import DEFAULT_UNIDIC_URL, UniDicInstallError, ensure_unidic_installed, resolve_managed_unidic
 from .tts import (
@@ -311,60 +310,6 @@ def build_tools_parser() -> argparse.ArgumentParser:
     )
 
     return ap
-
-
-def _slugify_for_filename(text: str) -> str:
-    normalized = unicodedata.normalize("NFKC", text)
-    cleaned_chars: list[str] = []
-    for ch in normalized:
-        if ch in {"/", "\\", ":", "*", "?", '"', "<", ">", "|"}:
-            cleaned_chars.append("_")
-            continue
-        if ord(ch) < 32:
-            continue
-        if ch.isspace():
-            cleaned_chars.append("_")
-            continue
-        cleaned_chars.append(ch)
-    slug = "".join(cleaned_chars)
-    slug = re.sub(r"_+", "_", slug).strip("_")
-    return slug[:80]
-
-
-def _chapter_basename(index: int, chapter: ChapterText, used_names: set[str]) -> str:
-    prefix = f"{index + 1:03d}"
-    candidates: list[str] = []
-    title_source = chapter.original_title or chapter.title
-    if title_source:
-        slug = _slugify_for_filename(title_source)
-        if slug:
-            candidates.append(slug)
-    source_stem = PurePosixPath(chapter.source).stem
-    stem_slug = _slugify_for_filename(source_stem)
-    if stem_slug:
-        candidates.append(stem_slug)
-    for slug in candidates:
-        candidate = f"{prefix}_{slug}"
-        if candidate not in used_names:
-            used_names.add(candidate)
-            return candidate
-    fallback = prefix
-    suffix = 1
-    candidate = fallback
-    while candidate in used_names:
-        suffix += 1
-        candidate = f"{fallback}_{suffix}"
-    used_names.add(candidate)
-    return candidate
-
-
-def _write_chapter_files(output_dir: Path, chapters: list[ChapterText]) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    used_names: set[str] = set()
-    for index, chapter in enumerate(chapters):
-        basename = _chapter_basename(index, chapter, used_names)
-        output_path = output_dir / f"{basename}.txt"
-        output_path.write_text(chapter.text, encoding="utf-8")
 
 
 def _run_tts(args: argparse.Namespace) -> int:
@@ -789,7 +734,13 @@ def main(argv: list[str] | None = None) -> int:
             if emit_chapterized:
                 chapters = epub_to_chapter_texts(str(epub_path), mode=args.mode, nlp=backend)
                 output_dir = epub_path.with_suffix("")
-                _write_chapter_files(output_dir, chapters)
+                cover = get_epub_cover(str(epub_path))
+                write_book_package(
+                    output_dir,
+                    chapters,
+                    source_epub=epub_path,
+                    cover_image=cover,
+                )
             else:
                 txt = epub_to_txt(str(epub_path), mode=args.mode, nlp=backend)
                 output_path = epub_path.with_suffix(".txt")
@@ -801,7 +752,13 @@ def main(argv: list[str] | None = None) -> int:
         if emit_chapterized:
             chapters = epub_to_chapter_texts(str(inp_path), mode=args.mode, nlp=backend)
             output_dir = inp_path.with_suffix("")
-            _write_chapter_files(output_dir, chapters)
+            cover = get_epub_cover(str(inp_path))
+            write_book_package(
+                output_dir,
+                chapters,
+                source_epub=inp_path,
+                cover_image=cover,
+            )
         else:
             if args.output_name:
                 out_name_path = Path(args.output_name)

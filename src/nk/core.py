@@ -116,6 +116,14 @@ class ChapterText:
     title: str | None
     text: str
     original_title: str | None = None
+    book_title: str | None = None
+
+
+@dataclass
+class CoverImage:
+    path: str
+    media_type: str | None
+    data: bytes
 
 
 def _is_cjk_char(ch: str) -> bool:
@@ -254,6 +262,11 @@ def _zip_read_text(zf: zipfile.ZipFile, name: str) -> str:
     return raw.decode("utf-8", errors="ignore")
 
 
+def _zip_read_bytes(zf: zipfile.ZipFile, name: str) -> bytes:
+    with zf.open(name, "r") as handle:
+        return handle.read()
+
+
 def _find_opf_path(zf: zipfile.ZipFile) -> str:
     # Per spec: META-INF/container.xml -> rootfiles/rootfile@full-path
     try:
@@ -302,6 +315,123 @@ def _spine_items(zf: zipfile.ZipFile) -> list[str]:
     if not fixed:
         fixed = [n for n in zf.namelist() if n.lower().endswith(HTML_EXTS)]
     return fixed
+
+
+def _strip_tag(tag: str) -> str:
+    return tag.split("}", 1)[-1] if "}" in tag else tag
+
+
+def _get_attr(elem: ET.Element, name: str) -> str | None:
+    for attr, value in elem.attrib.items():
+        if _strip_tag(attr) == name:
+            return value
+    return None
+
+
+def _resolve_opf_href(opf_path: str, href: str) -> str:
+    base = str(PurePosixPath(opf_path).parent)
+    if base not in ("", ".", "/"):
+        combined = PurePosixPath(base) / href
+    else:
+        combined = PurePosixPath(href)
+    return str(combined.as_posix())
+
+
+def _extract_cover_image(zf: zipfile.ZipFile) -> CoverImage | None:
+    try:
+        opf_path = _find_opf_path(zf)
+    except FileNotFoundError:
+        return None
+    try:
+        opf_xml = _zip_read_text(zf, opf_path)
+        root = ET.fromstring(opf_xml)
+    except Exception:
+        return None
+
+    manifest: dict[str, dict[str, str | None]] = {}
+    for elem in root.iter():
+        if _strip_tag(elem.tag) != "manifest":
+            continue
+        for child in elem:
+            if _strip_tag(child.tag) != "item":
+                continue
+            item_id = _get_attr(child, "id")
+            href = _get_attr(child, "href")
+            if not item_id or not href:
+                continue
+            manifest[item_id] = {
+                "href": href,
+                "media_type": _get_attr(child, "media-type"),
+                "properties": _get_attr(child, "properties"),
+            }
+
+    def _candidate_from_id(item_id: str) -> dict[str, str | None] | None:
+        return manifest.get(item_id)
+
+    cover_candidates: list[dict[str, str | None]] = []
+    cover_id: str | None = None
+    for elem in root.iter():
+        if _strip_tag(elem.tag) != "meta":
+            continue
+        name = _get_attr(elem, "name")
+        content = _get_attr(elem, "content")
+        if name and name.lower() == "cover" and content:
+            cover_id = content.strip()
+            break
+
+    if cover_id:
+        manifest_entry = _candidate_from_id(cover_id)
+        if manifest_entry:
+            cover_candidates.append(manifest_entry)
+
+    for item in manifest.values():
+        properties = (item.get("properties") or "").lower()
+        media_type = (item.get("media_type") or "").lower()
+        if "cover-image" in properties and media_type.startswith("image/"):
+            cover_candidates.append(item)
+
+    for item_id, item in manifest.items():
+        href = (item.get("href") or "").lower()
+        media_type = (item.get("media_type") or "").lower()
+        if ("cover" in item_id.lower() or "cover" in href) and media_type.startswith("image/"):
+            cover_candidates.append(item)
+
+    if not cover_candidates:
+        for item in manifest.values():
+            media_type = (item.get("media_type") or "").lower()
+            if media_type.startswith("image/"):
+                cover_candidates.append(item)
+                break
+
+    seen: set[str] = set()
+    for candidate in cover_candidates:
+        href = candidate.get("href")
+        if not href:
+            continue
+        resolved = _resolve_opf_href(opf_path, href)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if resolved not in zf.namelist():
+            continue
+        try:
+            data = _zip_read_bytes(zf, resolved)
+        except KeyError:
+            continue
+        return CoverImage(
+            path=resolved,
+            media_type=candidate.get("media_type"),
+            data=data,
+        )
+    return None
+
+
+def get_epub_cover(inp_epub: str) -> CoverImage | None:
+    """
+    Extract the declared cover image from an EPUB, if present.
+    """
+    with zipfile.ZipFile(inp_epub, "r") as zf:
+        return _extract_cover_image(zf)
 
 
 def _normalize_ws(s: str) -> str:
@@ -778,6 +908,7 @@ def epub_to_chapter_texts(
                     title=processed_title,
                     text=piece_text,
                     original_title=original_title,
+                    book_title=book_title,
                 )
             )
 
@@ -802,4 +933,4 @@ def epub_to_txt(
     return combined
 
 
-__all__ = ["ChapterText", "epub_to_chapter_texts", "epub_to_txt"]
+__all__ = ["ChapterText", "CoverImage", "epub_to_chapter_texts", "epub_to_txt", "get_epub_cover"]

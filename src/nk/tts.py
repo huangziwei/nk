@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 
 import requests
 
+from .book_io import LoadedBookMetadata, load_book_metadata
 try:
     import simpleaudio as _simpleaudio
 except ImportError:  # pragma: no cover - optional dependency
@@ -44,6 +45,38 @@ class FFmpegError(RuntimeError):
 class TTSTarget:
     source: Path
     output: Path
+    book_title: str | None = None
+    chapter_title: str | None = None
+    original_title: str | None = None
+    track_number: int | None = None
+    track_total: int | None = None
+    cover_image: Path | None = None
+
+
+def _book_title_from_metadata(book_dir: Path, metadata: LoadedBookMetadata | None) -> str:
+    if metadata and metadata.title:
+        return metadata.title
+    return book_dir.name
+
+
+def _cover_path_for_book(book_dir: Path, metadata: LoadedBookMetadata | None) -> Path | None:
+    if metadata and metadata.cover_path and metadata.cover_path.exists():
+        return metadata.cover_path
+    for ext in (".jpg", ".jpeg", ".png"):
+        candidate = book_dir / f"cover{ext}"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _parse_track_number_from_name(stem: str) -> int | None:
+    match = re.match(r"^(\d+)", stem)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
 
 
 def resolve_text_targets(
@@ -65,15 +98,64 @@ def resolve_text_targets(
         if not text_files:
             raise FileNotFoundError(f"No .txt files found in directory: {path}")
         base_output = output_dir or path
-        for txt in text_files:
+        metadata = load_book_metadata(path)
+        book_title = _book_title_from_metadata(path, metadata)
+        cover_path = _cover_path_for_book(path, metadata)
+        track_total = len(text_files)
+        for idx, txt in enumerate(text_files):
             output = base_output / (txt.stem + ".mp3")
-            targets.append(TTSTarget(source=txt, output=output))
+            chapter_meta = metadata.chapters.get(txt.name) if metadata else None
+            track_number = (
+                chapter_meta.index
+                if chapter_meta and chapter_meta.index is not None
+                else _parse_track_number_from_name(txt.stem)
+            )
+            if track_number is None:
+                track_number = idx + 1
+            targets.append(
+                TTSTarget(
+                    source=txt,
+                    output=output,
+                    book_title=book_title,
+                    chapter_title=chapter_meta.title if chapter_meta else None,
+                    original_title=chapter_meta.original_title if chapter_meta else None,
+                    track_number=track_number,
+                    track_total=track_total,
+                    cover_image=cover_path,
+                )
+            )
     else:
         if path.suffix.lower() != ".txt":
             raise ValueError("TTS input must be a .txt file or a directory of .txt files.")
         base_output = output_dir or path.parent
         output = base_output / (path.stem + ".mp3")
-        targets.append(TTSTarget(source=path, output=output))
+        book_dir = path.parent
+        metadata = load_book_metadata(book_dir) if book_dir.exists() else None
+        book_title = _book_title_from_metadata(book_dir, metadata)
+        cover_path = _cover_path_for_book(book_dir, metadata)
+        chapter_meta = metadata.chapters.get(path.name) if metadata else None
+        track_total = (
+            len(metadata.chapters) if metadata and metadata.chapters else None
+        )
+        track_number = (
+            chapter_meta.index
+            if chapter_meta and chapter_meta.index is not None
+            else _parse_track_number_from_name(path.stem)
+        )
+        if track_number is None:
+            track_number = 1
+        targets.append(
+            TTSTarget(
+                source=path,
+                output=output,
+                book_title=book_title,
+                chapter_title=chapter_meta.title if chapter_meta else None,
+                original_title=chapter_meta.original_title if chapter_meta else None,
+                track_number=track_number,
+                track_total=track_total or 1,
+                cover_image=cover_path,
+            )
+        )
     return targets
 
 
@@ -479,23 +561,29 @@ def _synthesize_target_with_client(
         if last_play_object is not None and hasattr(last_play_object, "wait_done"):
             last_play_object.wait_done()
 
-    book_title = target.output.parent.name
-    chapter_id = target.source.stem
-    track_number: str | None = None
-    first_segment = chapter_id.split("_", 1)[0]
-    if first_segment.isdigit():
-        track_number = str(int(first_segment))
-
-    display_number = track_number.zfill(3) if track_number is not None else f"{index:03d}"
+    book_title = target.book_title or target.output.parent.name or "nk"
+    track_total = target.track_total or total or None
+    track_number_int = target.track_number
+    if track_number_int is None:
+        track_number_int = _parse_track_number_from_name(target.source.stem)
+    if track_number_int is None:
+        track_number_int = index
+    width = max(3, len(str(track_total))) if track_total else 3
+    display_number = f"{track_number_int:0{width}d}"
+    chapter_label = target.original_title or target.chapter_title
+    if not chapter_label:
+        chapter_label = target.source.stem.replace("_", " ").strip()
+    metadata_title = f"{display_number} {chapter_label or book_title}"
     metadata: dict[str, str] = {
-        "title": f"{display_number} {book_title}",
+        "title": metadata_title,
         "artist": book_title,
         "album": book_title,
+        "album_artist": book_title,
     }
-    if track_number is not None:
-        metadata["track"] = track_number
-    if total:
-        metadata["tracktotal"] = str(total)
+    if track_number_int is not None:
+        metadata["track"] = str(track_number_int)
+    if track_total:
+        metadata["tracktotal"] = str(track_total)
 
     if cancel_event and cancel_event.is_set():
         raise KeyboardInterrupt
@@ -506,6 +594,7 @@ def _synthesize_target_with_client(
         ffmpeg_path=ffmpeg_path,
         overwrite=overwrite or live_playback,
         metadata=metadata,
+        cover_path=target.cover_image,
     )
     progress_path.unlink(missing_ok=True)
     if cache_dir.exists():
@@ -794,6 +883,7 @@ def _merge_wavs_to_mp3(
     ffmpeg_path: str,
     overwrite: bool,
     metadata: dict[str, str] | None = None,
+    cover_path: Path | None = None,
 ) -> None:
     """
     Merge multiple WAV files into a single MP3 using the ffmpeg concat demuxer.
@@ -810,6 +900,7 @@ def _merge_wavs_to_mp3(
             list_file.write(f"file {_ffmpeg_escape_path(absolute)}\n")
         concat_list = Path(list_file.name)
     try:
+        cover_input = cover_path if cover_path and cover_path.exists() else None
         cmd = [
             ffmpeg_path,
             "-y",
@@ -819,16 +910,40 @@ def _merge_wavs_to_mp3(
             "0",
             "-i",
             str(concat_list),
-            "-codec:a",
-            "libmp3lame",
-            "-qscale:a",
-            "2",
         ]
+        if cover_input is not None:
+            cmd.extend(["-i", str(cover_input)])
+        cmd.extend(["-map", "0:a:0"])
+        if cover_input is not None:
+            cmd.extend(
+                [
+                    "-map",
+                    "1:v:0",
+                    "-c:v",
+                    "copy",
+                    "-disposition:v",
+                    "attached_pic",
+                    "-metadata:s:v",
+                    "title=Cover",
+                    "-metadata:s:v",
+                    "comment=Cover (front)",
+                ]
+            )
+        cmd.extend(
+            [
+                "-codec:a",
+                "libmp3lame",
+                "-qscale:a",
+                "2",
+            ]
+        )
         if metadata:
             for key, value in metadata.items():
                 if not value:
                     continue
                 cmd.extend(["-metadata", f"{key}={value}"])
+        if cover_input is not None:
+            cmd.extend(["-id3v2_version", "3"])
         cmd.append(str(output_path))
         try:
             subprocess.run(
