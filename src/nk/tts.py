@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from .book_io import LoadedBookMetadata, load_book_metadata
+from .book_io import LoadedBookMetadata, ensure_cover_is_square, load_book_metadata
 try:
     import simpleaudio as _simpleaudio
 except ImportError:  # pragma: no cover - optional dependency
@@ -61,10 +61,12 @@ def _book_title_from_metadata(book_dir: Path, metadata: LoadedBookMetadata | Non
 
 def _cover_path_for_book(book_dir: Path, metadata: LoadedBookMetadata | None) -> Path | None:
     if metadata and metadata.cover_path and metadata.cover_path.exists():
+        ensure_cover_is_square(metadata.cover_path)
         return metadata.cover_path
     for ext in (".jpg", ".jpeg", ".png"):
         candidate = book_dir / f"cover{ext}"
         if candidate.exists():
+            ensure_cover_is_square(candidate)
             return candidate
     return None
 

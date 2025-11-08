@@ -56,7 +56,7 @@ nk my_book.epub --single-file -o custom_name.txt
 
 Expect katakana-only output next to the source EPUB with duplicate titles stripped and line breaks preserved. Advanced mode consumes `fugashi + UniDic 3.1.1 + pykakasi`; fast mode requires no additional NLP setup.
 
-Each chapterized book now carries a `.nk-book.json` manifest plus an extracted `cover.jpg|png`. The manifest tracks the original/reading titles for every chapter so `nk tts` can build accurate ID3 tags; the cover is embedded into every MP3 automatically. Re-run `nk <book>.epub` if you have older chapter folders and want to backfill the metadata/cover bundle.
+Each chapterized book now carries a `.nk-book.json` manifest plus an extracted (and automatically square-padded) `cover.jpg|png`. The manifest tracks the original/reading titles for every chapter so `nk tts` can build accurate ID3 tags; the cover is embedded into every MP3 automatically. Re-run `nk <book>.epub` if you have older chapter folders and want to backfill the metadata/cover bundle.
 
 ---
 

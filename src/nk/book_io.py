@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Iterable
 
+try:
+    from PIL import Image
+except Exception:  # pragma: no cover - optional image padding
+    Image = None  # type: ignore[assignment]
+
 from .core import ChapterText, CoverImage
 
 BOOK_METADATA_FILENAME = ".nk-book.json"
@@ -126,7 +131,36 @@ def _write_cover_image(output_dir: Path, cover: CoverImage) -> Path | None:
         (output_dir / f"cover{ext}").unlink(missing_ok=True)
     cover_path = output_dir / f"cover{normalized_ext}"
     cover_path.write_bytes(cover.data)
+    ensure_cover_is_square(cover_path)
     return cover_path
+
+
+def ensure_cover_is_square(cover_path: Path) -> None:
+    if Image is None:
+        return
+    try:
+        with Image.open(cover_path) as img:
+            img = img.convert("RGB")
+            width, height = img.size
+            if width == height or width == 0 or height == 0:
+                return
+            size = max(width, height)
+            try:
+                resample = Image.Resampling.LANCZOS  # type: ignore[attr-defined]
+            except AttributeError:  # pragma: no cover - older Pillow
+                resample = Image.LANCZOS if hasattr(Image, "LANCZOS") else Image.BICUBIC
+            dominant = (
+                img.resize((1, 1), resample=resample)
+                .convert("RGB")
+                .getpixel((0, 0))
+            )
+            canvas = Image.new("RGB", (size, size), dominant)
+            offset = ((size - width) // 2, (size - height) // 2)
+            canvas.paste(img, offset)
+            save_kwargs = {"quality": 92} if cover_path.suffix.lower() in {".jpg", ".jpeg"} else {}
+            canvas.save(cover_path, **save_kwargs)
+    except Exception:  # pragma: no cover - best effort padding
+        return
 
 
 def _build_metadata_payload(
@@ -206,6 +240,7 @@ def load_book_metadata(book_dir: Path) -> LoadedBookMetadata | None:
     if isinstance(cover_name, str):
         candidate = book_dir / cover_name
         if candidate.exists():
+            ensure_cover_is_square(candidate)
             cover_path = candidate
 
     chapters_payload = payload.get("chapters")
@@ -244,6 +279,7 @@ __all__ = [
     "ChapterMetadata",
     "LoadedBookMetadata",
     "BOOK_METADATA_FILENAME",
+    "ensure_cover_is_square",
     "load_book_metadata",
     "write_book_package",
 ]
