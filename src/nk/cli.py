@@ -22,7 +22,12 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from .book_io import BOOK_METADATA_FILENAME, write_book_package
+from .book_io import (
+    BOOK_METADATA_FILENAME,
+    M4B_MANIFEST_FILENAME,
+    regenerate_m4b_manifest,
+    write_book_package,
+)
 from .core import epub_to_chapter_texts, epub_to_txt, get_epub_cover
 from .nlp import NLPBackend, NLPBackendUnavailableError
 from .tools import DEFAULT_UNIDIC_URL, UniDicInstallError, ensure_unidic_installed, resolve_managed_unidic
@@ -332,27 +337,32 @@ def _ensure_tts_source_ready(
     if input_path.is_file() and input_path.suffix.lower() == ".epub":
         target_dir = input_path.with_suffix("")
         metadata_missing = not (target_dir / BOOK_METADATA_FILENAME).exists()
+        m4b_missing = not (target_dir / M4B_MANIFEST_FILENAME).exists()
         needs_chapter = (
-            metadata_missing or not target_dir.exists() or not any(target_dir.glob("*.txt"))
+            metadata_missing
+            or m4b_missing
+            or not target_dir.exists()
+            or not any(target_dir.glob("*.txt"))
         )
         if needs_chapter and not quiet:
             print(f"[nk tts] Chapterizing {input_path.name} (mode={mode})")
-        if not needs_chapter:
-            return target_dir
-        backend = None
-        if mode == "advanced":
-            try:
-                backend = NLPBackend()
-            except NLPBackendUnavailableError as exc:
-                raise SystemExit(str(exc)) from exc
-        chapters = epub_to_chapter_texts(str(input_path), mode=mode, nlp=backend)
-        cover = get_epub_cover(str(input_path))
-        write_book_package(
-            target_dir,
-            chapters,
-            source_epub=input_path,
-            cover_image=cover,
-        )
+        if needs_chapter:
+            backend = None
+            if mode == "advanced":
+                try:
+                    backend = NLPBackend()
+                except NLPBackendUnavailableError as exc:
+                    raise SystemExit(str(exc)) from exc
+            chapters = epub_to_chapter_texts(str(input_path), mode=mode, nlp=backend)
+            cover = get_epub_cover(str(input_path))
+            write_book_package(
+                target_dir,
+                chapters,
+                source_epub=input_path,
+                cover_image=cover,
+            )
+        else:
+            regenerate_m4b_manifest(target_dir)
         return target_dir
     return input_path
 

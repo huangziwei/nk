@@ -14,6 +14,7 @@ except Exception:  # pragma: no cover - optional image padding
 from .core import ChapterText, CoverImage
 
 BOOK_METADATA_FILENAME = ".nk-book.json"
+M4B_MANIFEST_FILENAME = "m4b.json"
 _SUPPORTED_COVER_EXTS = (".jpg", ".jpeg", ".png")
 
 
@@ -31,6 +32,7 @@ class BookPackage:
     metadata_path: Path
     cover_path: Path | None
     book_title: str | None
+    m4b_manifest_path: Path
 
 
 @dataclass
@@ -135,6 +137,42 @@ def _write_cover_image(output_dir: Path, cover: CoverImage) -> Path | None:
     return cover_path
 
 
+def _write_m4b_manifest(
+    output_dir: Path,
+    book_title: str | None,
+    records: list[ChapterFileRecord],
+    cover_path: Path | None,
+) -> Path:
+    title = book_title or output_dir.name
+    tracks: list[dict[str, object]] = []
+    for record in records:
+        mp3_name = record.path.with_suffix(".mp3").name
+        chapter_title = (
+            record.chapter.original_title
+            or record.chapter.title
+            or record.path.stem
+        )
+        tracks.append(
+            {
+                "file": mp3_name,
+                "chapter": chapter_title,
+                "index": record.index,
+            }
+        )
+    payload: dict[str, object] = {
+        "name": title,
+        "album": title,
+        "artist": title,
+        "tracks": tracks,
+        "version": 1,
+    }
+    if cover_path is not None and cover_path.exists():
+        payload["cover"] = cover_path.name
+    manifest_path = output_dir / M4B_MANIFEST_FILENAME
+    manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return manifest_path
+
+
 def ensure_cover_is_square(cover_path: Path) -> None:
     if Image is None:
         return
@@ -214,13 +252,82 @@ def write_book_package(
         json.dumps(metadata_payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    m4b_manifest_path = _write_m4b_manifest(output_dir, book_title, records, cover_path)
     return BookPackage(
         output_dir=output_dir,
         chapter_records=records,
         metadata_path=metadata_path,
         cover_path=cover_path,
         book_title=book_title,
+        m4b_manifest_path=m4b_manifest_path,
     )
+
+
+def regenerate_m4b_manifest(
+    book_dir: Path,
+    metadata: LoadedBookMetadata | None = None,
+) -> Path | None:
+    metadata = metadata or load_book_metadata(book_dir)
+    if metadata is None:
+        return None
+    cover_path = metadata.cover_path
+    if cover_path is None:
+        for ext in _SUPPORTED_COVER_EXTS:
+            candidate = book_dir / f"cover{ext}"
+            if candidate.exists():
+                cover_path = candidate
+                break
+    if cover_path is not None:
+        ensure_cover_is_square(cover_path)
+    chapters = sorted(
+        metadata.chapters.items(),
+        key=lambda item: (
+            item[1].index if item[1].index is not None else 10**6,
+            item[0],
+        ),
+    )
+    if not chapters:
+        txt_files = sorted(book_dir.glob("*.txt"))
+        for idx, txt in enumerate(txt_files, start=1):
+            metadata.chapters.setdefault(
+                txt.name,
+                ChapterMetadata(index=idx, title=txt.stem, original_title=None),
+            )
+        chapters = sorted(
+            metadata.chapters.items(),
+            key=lambda item: (
+                item[1].index if item[1].index is not None else 10**6,
+                item[0],
+            ),
+        )
+    tracks: list[dict[str, object]] = []
+    for filename, chapter_meta in chapters:
+        mp3_name = Path(filename).with_suffix(".mp3").name
+        chapter_title = (
+            chapter_meta.original_title
+            or chapter_meta.title
+            or Path(filename).stem
+        )
+        index = chapter_meta.index
+        tracks.append(
+            {
+                "file": mp3_name,
+                "chapter": chapter_title,
+                "index": index if index is not None else len(tracks) + 1,
+            }
+        )
+    payload: dict[str, object] = {
+        "name": metadata.title or book_dir.name,
+        "album": metadata.title or book_dir.name,
+        "artist": metadata.title or book_dir.name,
+        "tracks": tracks,
+        "version": 1,
+    }
+    if cover_path is not None and cover_path.exists():
+        payload["cover"] = cover_path.name
+    manifest_path = book_dir / M4B_MANIFEST_FILENAME
+    manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return manifest_path
 
 
 def load_book_metadata(book_dir: Path) -> LoadedBookMetadata | None:
@@ -279,7 +386,9 @@ __all__ = [
     "ChapterMetadata",
     "LoadedBookMetadata",
     "BOOK_METADATA_FILENAME",
+    "M4B_MANIFEST_FILENAME",
     "ensure_cover_is_square",
+    "regenerate_m4b_manifest",
     "load_book_metadata",
     "write_book_package",
 ]

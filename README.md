@@ -94,6 +94,26 @@ nk tts output/chapters --speaker 20 \
 
 ---
 
+## 5.1 Build an M4B (optional)
+
+nk drops two helper files next to every chapterized book:
+
+- `.nk-book.json` – structured metadata for nk itself (titles, track counts, etc.).
+- `m4b.json` – directly consumable by [m4b-tool](https://github.com/sandreas/m4b-tool) with every MP3 listed in order, chapter labels, and the padded cover.
+
+If you already have m4b-tool installed, you can jump straight from chapterized MP3s to a single M4B:
+
+```bash
+# After running `nk tts books/novel.epub --speaker 20`
+m4b-tool merge \
+  --audio-book-json "books/novel/m4b.json" \
+  --output "books/novel/novel.m4b"
+```
+
+m4b-tool automatically reads the cover path and chapter names from `m4b.json`, so you usually don’t need to pass extra tagging flags (add `--jobs` or `--use-fdk-aac` if you want higher-quality AAC encoding). Re-run `nk <book>.epub` if your existing chapter folders predate this manifest; it will regenerate the metadata and cover bundle without touching your EPUB.
+
+---
+
 ## 6. Live playback (`--live`)
 
 Stream chapters through your speakers while nk keeps synthesising chunks and writing MP3s in the background.
