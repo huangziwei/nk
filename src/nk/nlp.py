@@ -174,7 +174,8 @@ class NLPBackend:
                 pieces.append(token.reading)
             else:
                 pieces.append(token.surface)
-        return {"".join(pieces)}
+        reading = "".join(pieces)
+        return {_normalize_katakana(reading)}
 
     def to_reading_text(self, text: str) -> str:
         tokens = self._tokenize(text)
@@ -192,7 +193,8 @@ class NLPBackend:
             pos = token.end
         if pos < len(text):
             pieces.append(text[pos:])
-        return "".join(pieces)
+        result = "".join(pieces)
+        return _normalize_katakana(result)
 
     def _tokenize(self, text: str) -> list[_Token]:
         tokens: list[_Token] = []
