@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 from .tools import get_unidic_dicdir
+from .pitch import PitchToken
 
 __all__ = [
     "NLPBackend",
@@ -139,6 +140,9 @@ class _Token:
     reading: str
     start: int
     end: int
+    accent_type: int | None
+    accent_connection: str | None
+    pos: str | None
 
 
 class NLPBackend:
@@ -226,7 +230,20 @@ class NLPBackend:
                 previous_reading,
             )
             end = start + len(surface)
-            tokens.append(_Token(surface=surface, reading=reading, start=start, end=end))
+            accent_type = self._extract_accent_type(raw)
+            accent_connection = self._extract_accent_connection(raw)
+            pos_label = self._extract_pos(raw)
+            tokens.append(
+                _Token(
+                    surface=surface,
+                    reading=reading,
+                    start=start,
+                    end=end,
+                    accent_type=accent_type,
+                    accent_connection=accent_connection,
+                    pos=pos_label,
+                )
+            )
             pos = end
             if _contains_cjk(surface) and reading:
                 previous_surface = surface
@@ -237,6 +254,36 @@ class NLPBackend:
                 previous_reading = ""
                 previous_lemma = self._extract_lemma(raw) or surface
         return tokens
+
+    def to_reading_with_pitch(self, text: str) -> tuple[str, list[PitchToken]]:
+        tokens = self._tokenize(text)
+        if not tokens:
+            return text, []
+        pieces: list[str] = []
+        pitch_tokens: list[PitchToken] = []
+        pos = 0
+        for token in tokens:
+            if token.start > pos:
+                pieces.append(text[pos:token.start])
+            segment = token.reading if _contains_cjk(token.surface) else token.surface
+            segment = _normalize_katakana(segment)
+            if segment:
+                pieces.append(segment)
+            if _contains_cjk(token.surface) and token.reading:
+                pitch_tokens.append(
+                    PitchToken(
+                        surface=token.surface,
+                        reading=segment,
+                        accent_type=token.accent_type,
+                        accent_connection=token.accent_connection,
+                        pos=token.pos,
+                    )
+                )
+            pos = token.end
+        if pos < len(text):
+            pieces.append(text[pos:])
+        reading = _normalize_katakana("".join(pieces))
+        return reading, pitch_tokens
 
     def _reading_for_token(
         self,
@@ -321,6 +368,60 @@ class NLPBackend:
             return feature["lemma"]  # type: ignore[index]
         except Exception:
             return None
+
+    def _extract_pos(self, token) -> str | None:
+        feature = getattr(token, "feature", None)
+        if feature is None:
+            return None
+        for attr in ("pos1", "pos"):
+            if hasattr(feature, attr):
+                value = getattr(feature, attr)
+                if value and value != "*":
+                    return str(value)
+            else:
+                try:
+                    value = feature[attr]
+                except Exception:
+                    value = None
+                if value and value != "*":
+                    return str(value)
+        return None
+
+    def _extract_accent_type(self, token) -> int | None:
+        feature = getattr(token, "feature", None)
+        if feature is None:
+            return None
+        for attr in ("aType", "accentType", "pitchAccentType"):
+            if hasattr(feature, attr):
+                value = getattr(feature, attr)
+            else:
+                try:
+                    value = feature[attr]
+                except Exception:
+                    value = None
+            if not value or value == "*":
+                continue
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                continue
+        return None
+
+    def _extract_accent_connection(self, token) -> str | None:
+        feature = getattr(token, "feature", None)
+        if feature is None:
+            return None
+        for attr in ("aConType", "accentConnection", "pitchAccentConnection"):
+            if hasattr(feature, attr):
+                value = getattr(feature, attr)
+            else:
+                try:
+                    value = feature[attr]
+                except Exception:
+                    value = None
+            if value and value != "*":
+                return str(value)
+        return None
 
     def _build_kakasi_converter(self) -> Optional[Callable[[str], str]]:
         try:

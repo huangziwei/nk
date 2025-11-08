@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -12,10 +13,17 @@ except Exception:  # pragma: no cover - optional image padding
     Image = None  # type: ignore[assignment]
 
 from .core import ChapterText, CoverImage
+from .pitch import (
+    ChapterPitchMetadata,
+    PitchToken,
+    deserialize_pitch_tokens,
+    serialize_pitch_tokens,
+)
 
 BOOK_METADATA_FILENAME = ".nk-book.json"
 M4B_MANIFEST_FILENAME = "m4b.json"
 _SUPPORTED_COVER_EXTS = (".jpg", ".jpeg", ".png")
+_PITCH_SUFFIX = ".pitch.json"
 
 
 @dataclass
@@ -103,8 +111,29 @@ def _write_chapter_texts(output_dir: Path, chapters: Iterable[ChapterText]) -> l
         basename = _chapter_basename(index, chapter, used_names)
         path = output_dir / f"{basename}.txt"
         path.write_text(chapter.text, encoding="utf-8")
+        _maybe_write_pitch_metadata(path, chapter)
         records.append(ChapterFileRecord(chapter=chapter, path=path, index=index + 1))
     return records
+
+
+def _pitch_metadata_path(chapter_path: Path) -> Path:
+    return chapter_path.with_name(chapter_path.name + _PITCH_SUFFIX)
+
+
+def _maybe_write_pitch_metadata(chapter_path: Path, chapter: ChapterText) -> None:
+    pitch_path = _pitch_metadata_path(chapter_path)
+    if not chapter.pitch_data:
+        pitch_path.unlink(missing_ok=True)
+        return
+    payload = {
+        "version": 1,
+        "text_sha1": hashlib.sha1(chapter.text.encode("utf-8")).hexdigest(),
+        "tokens": serialize_pitch_tokens(chapter.pitch_data),
+    }
+    pitch_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
 
 def _resolve_book_title(chapters: Iterable[ChapterText], output_dir: Path) -> str | None:
@@ -407,6 +436,27 @@ def load_book_metadata(book_dir: Path) -> LoadedBookMetadata | None:
     )
 
 
+def load_pitch_metadata(chapter_path: Path) -> ChapterPitchMetadata | None:
+    pitch_path = _pitch_metadata_path(chapter_path)
+    if not pitch_path.exists():
+        return None
+    try:
+        payload = json.loads(pitch_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    tokens_payload = payload.get("tokens")
+    if not isinstance(tokens_payload, list):
+        return ChapterPitchMetadata(
+            text_sha1=payload.get("text_sha1") if isinstance(payload.get("text_sha1"), str) else None,
+            tokens=[],
+        )
+    tokens = deserialize_pitch_tokens(tokens_payload)
+    text_sha1 = payload.get("text_sha1")
+    if not isinstance(text_sha1, str):
+        text_sha1 = None
+    return ChapterPitchMetadata(text_sha1=text_sha1, tokens=tokens)
+
+
 __all__ = [
     "BookPackage",
     "ChapterFileRecord",
@@ -417,5 +467,6 @@ __all__ = [
     "ensure_cover_is_square",
     "regenerate_m4b_manifest",
     "load_book_metadata",
+    "load_pitch_metadata",
     "write_book_package",
 ]

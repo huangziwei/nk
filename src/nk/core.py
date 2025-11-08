@@ -6,7 +6,7 @@ import unicodedata
 import xml.etree.ElementTree as ET
 import zipfile
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Literal
 
@@ -17,6 +17,8 @@ from bs4 import (
     Tag,
     XMLParsedAsHTMLWarning,
 )  # type: ignore
+
+from .pitch import PitchToken
 
 if TYPE_CHECKING:
     from .nlp import NLPBackend
@@ -117,6 +119,7 @@ class ChapterText:
     text: str
     original_title: str | None = None
     book_title: str | None = None
+    pitch_data: list[PitchToken] | None = None
     book_author: str | None = None
 
 
@@ -229,6 +232,23 @@ def _apply_mapping_to_plain_text(text: str, mapping: dict[str, str]) -> str:
     if pattern is None:
         return text
     return _apply_mapping_with_pattern(text, mapping, pattern)
+
+
+def _align_pitch_tokens(text: str, tokens: list[PitchToken]) -> list[PitchToken]:
+    if not text or not tokens:
+        return []
+    aligned: list[PitchToken] = []
+    cursor = 0
+    for token in tokens:
+        reading = token.reading
+        if not reading:
+            continue
+        idx = text.find(reading, cursor)
+        if idx == -1:
+            continue
+        aligned.append(replace(token, start=idx, end=idx + len(reading)))
+        cursor = idx + len(reading)
+    return aligned
 
 
 def _hiragana_to_katakana(text: str) -> str:
@@ -922,9 +942,16 @@ def epub_to_chapter_texts(
             raw_piece_text = re.sub(r"\n{3,}", "\n\n", raw_piece_text)
             raw_piece_text = raw_piece_text.strip()
             piece_text = raw_piece_text
+            pitch_tokens: list[PitchToken] | None = None
             if mode == "advanced" and backend is not None and piece_text:
-                piece_text = backend.to_reading_text(piece_text).strip()
+                converted_text, tokens = backend.to_reading_with_pitch(piece_text)
+                piece_text = converted_text.strip()
                 piece_text = _normalize_ellipsis(piece_text)
+                aligned_tokens = _align_pitch_tokens(piece_text, tokens)
+                if aligned_tokens:
+                    pitch_tokens = aligned_tokens
+            else:
+                piece_text = piece_text.strip()
             if not piece_text:
                 continue
             original_title = next(
@@ -948,6 +975,7 @@ def epub_to_chapter_texts(
                     original_title=original_title,
                     book_title=book_title,
                     book_author=book_author,
+                    pitch_data=pitch_tokens,
                 )
             )
 

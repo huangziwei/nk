@@ -18,7 +18,13 @@ from urllib.parse import urlparse
 
 import requests
 
-from .book_io import LoadedBookMetadata, ensure_cover_is_square, load_book_metadata
+from .book_io import (
+    LoadedBookMetadata,
+    ensure_cover_is_square,
+    load_book_metadata,
+    load_pitch_metadata,
+)
+from .pitch import PitchToken
 try:
     import simpleaudio as _simpleaudio
 except ImportError:  # pragma: no cover - optional dependency
@@ -52,6 +58,13 @@ class TTSTarget:
     track_number: int | None = None
     track_total: int | None = None
     cover_image: Path | None = None
+
+
+@dataclass
+class _ChunkSpan:
+    text: str
+    start: int
+    end: int
 
 
 def _book_title_from_metadata(book_dir: Path, metadata: LoadedBookMetadata | None) -> str:
@@ -478,8 +491,14 @@ def _synthesize_target_with_client(
         )
         return None
 
-    chunks = _split_text_on_breaks(text)
-    if not chunks:
+    text_hash = hashlib.sha1(text.encode("utf-8")).hexdigest()
+    pitch_metadata = load_pitch_metadata(target.source)
+    if pitch_metadata and pitch_metadata.text_sha1 and pitch_metadata.text_sha1 != text_hash:
+        pitch_metadata = None
+    pitch_tokens = pitch_metadata.tokens if pitch_metadata else []
+
+    chunk_entries = _split_text_on_breaks_with_spans(text)
+    if not chunk_entries:
         _emit_progress(
             progress,
             "target_skipped",
@@ -491,7 +510,7 @@ def _synthesize_target_with_client(
         )
         return None
 
-    chunk_count = len(chunks)
+    chunk_count = len(chunk_entries)
     _emit_progress(
         progress,
         "target_start",
@@ -518,7 +537,7 @@ def _synthesize_target_with_client(
     chunk_files: list[Path] = []
     last_play_object = None
 
-    for chunk_index, chunk in enumerate(chunks, start=1):
+    for chunk_index, chunk_entry in enumerate(chunk_entries, start=1):
         if cancel_event and cancel_event.is_set():
             raise KeyboardInterrupt
         _emit_progress(
@@ -531,9 +550,31 @@ def _synthesize_target_with_client(
             source=target.source,
             live=live_playback,
         )
-        chunk_path = _chunk_cache_path(cache_dir, chunk_index, chunk)
+        chunk_text = chunk_entry.text
+        chunk_path = _chunk_cache_path(cache_dir, chunk_index, chunk_text)
         if not chunk_path.exists():
-            wav_bytes = client.synthesize_wav(chunk)
+            local_pitch_tokens = _slice_pitch_tokens_for_chunk(
+                pitch_tokens,
+                chunk_entry.start,
+                chunk_entry.end,
+            )
+
+            def _modifier(payload: dict[str, object], tokens=local_pitch_tokens, voice_client=client) -> None:
+                if not tokens:
+                    return
+                changed = _apply_pitch_overrides(payload, tokens)
+                if changed and hasattr(voice_client, "recalculate_mora_pitch"):
+                    try:
+                        updated_phrases = voice_client.recalculate_mora_pitch(
+                            payload.get("accent_phrases") or []
+                        )
+                    except Exception:
+                        return
+                    if isinstance(updated_phrases, list):
+                        payload["accent_phrases"] = updated_phrases
+
+            modify_query = _modifier if local_pitch_tokens else None
+            wav_bytes = client.synthesize_wav(chunk_text, modify_query=modify_query)
             chunk_path.write_bytes(wav_bytes)
 
         chunk_files.append(chunk_path)
@@ -730,10 +771,7 @@ class VoiceVoxClient:
         self.post_phoneme_length = post_phoneme_length
         self._session = requests.Session()
 
-    def synthesize_wav(self, text: str) -> bytes:
-        """
-        Generate WAV audio bytes for the provided text via VoiceVox.
-        """
+    def build_audio_query(self, text: str) -> dict:
         try:
             query_resp = self._session.post(
                 f"{self.base_url}/audio_query",
@@ -761,7 +799,9 @@ class VoiceVoxClient:
                 payload_value,
                 float(self.post_phoneme_length),
             )
+        return query_payload
 
+    def synthesize_from_query(self, query_payload: dict) -> bytes:
         try:
             synth_resp = self._session.post(
                 f"{self.base_url}/synthesis",
@@ -780,6 +820,47 @@ class VoiceVoxClient:
             )
 
         return synth_resp.content
+
+    def synthesize_wav(
+        self,
+        text: str,
+        *,
+        modify_query: Callable[[dict[str, object]], None] | None = None,
+    ) -> bytes:
+        """
+        Generate WAV audio bytes for the provided text via VoiceVox.
+        """
+        query_payload = self.build_audio_query(text)
+        if modify_query is not None:
+            modify_query(query_payload)
+        return self.synthesize_from_query(query_payload)
+
+    def recalculate_mora_pitch(self, accent_phrases: list[dict[str, object]]) -> list[dict[str, object]]:
+        """
+        Ask VoiceVox to recompute mora pitch values for the provided accent phrases.
+        """
+        try:
+            resp = self._session.post(
+                f"{self.base_url}/mora_pitch",
+                params={"speaker": self.speaker_id},
+                json=accent_phrases,
+                timeout=self.timeout,
+            )
+        except requests.RequestException as exc:
+            raise VoiceVoxUnavailableError(
+                f"Failed to recalculate mora pitch at {self.base_url}"
+            ) from exc
+        if resp.status_code != 200:
+            raise VoiceVoxError(
+                f"/mora_pitch failed with status {resp.status_code}: {resp.text}"
+            )
+        try:
+            updated = resp.json()
+        except json.JSONDecodeError as exc:
+            raise VoiceVoxError("VoiceVox returned invalid JSON for /mora_pitch") from exc
+        if isinstance(updated, list):
+            return updated
+        return accent_phrases
 
     def close(self) -> None:
         self._session.close()
@@ -836,22 +917,33 @@ def _split_text_on_breaks(text: str) -> list[str]:
     Split text into chunks using blank-line separated blocks.
     Empty lines are treated as delimiters; consecutive blanks collapse.
     """
-    chunks: list[str] = []
-    current: list[str] = []
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped:
-            if current:
-                chunk = "\n".join(current).strip()
-                if chunk:
-                    chunks.extend(_split_chunk_if_needed(chunk))
-                current = []
-            continue
-        current.append(line)
-    if current:
-        chunk = "\n".join(current).strip()
-        if chunk:
-            chunks.extend(_split_chunk_if_needed(chunk))
+    return [chunk.text for chunk in _split_text_on_breaks_with_spans(text)]
+
+
+def _split_text_on_breaks_with_spans(text: str) -> list[_ChunkSpan]:
+    chunks: list[_ChunkSpan] = []
+    current: list[tuple[str, int, int]] = []
+
+    def flush() -> None:
+        if not current:
+            return
+        first_line, first_start, _ = current[0]
+        last_line, _, last_end = current[-1]
+        start = first_start + _leading_trim_index(first_line)
+        end = last_end - _trailing_trim_count(last_line)
+        current[:] = []
+        if start >= end:
+            return
+        chunk_text = text[start:end]
+        sub_chunks = _split_chunk_with_spans(chunk_text, start)
+        chunks.extend(sub_chunks)
+
+    for line, start, end in _iter_lines_with_positions(text):
+        if line.strip():
+            current.append((line, start, end))
+        else:
+            flush()
+    flush()
     return chunks
 
 
@@ -875,6 +967,169 @@ def _split_chunk_if_needed(chunk: str) -> list[str]:
         if tail:
             segments.append(tail)
     return segments
+
+
+def _split_chunk_with_spans(chunk_text: str, base_start: int) -> list[_ChunkSpan]:
+    segments = _split_chunk_if_needed(chunk_text)
+    if not segments:
+        return []
+    spans: list[_ChunkSpan] = []
+    cursor = 0
+    for segment in segments:
+        if not segment:
+            continue
+        idx = chunk_text.find(segment, cursor)
+        if idx == -1:
+            idx = chunk_text.find(segment)
+            if idx == -1:
+                continue
+        start = base_start + idx
+        end = start + len(segment)
+        spans.append(_ChunkSpan(text=segment, start=start, end=end))
+        cursor = idx + len(segment)
+        while cursor < len(chunk_text) and chunk_text[cursor].isspace():
+            cursor += 1
+    return spans
+
+
+def _slice_pitch_tokens_for_chunk(
+    tokens: list[PitchToken],
+    chunk_start: int,
+    chunk_end: int,
+) -> list[PitchToken]:
+    if not tokens or chunk_start >= chunk_end:
+        return []
+    chunk_tokens: list[PitchToken] = []
+    for token in tokens:
+        if token.end <= chunk_start:
+            continue
+        if token.start >= chunk_end:
+            break
+        local_start = max(token.start, chunk_start) - chunk_start
+        local_end = min(token.end, chunk_end) - chunk_start
+        if local_end <= local_start:
+            continue
+        chunk_tokens.append(token.with_offsets(local_start, local_end))
+    return chunk_tokens
+
+
+def _apply_pitch_overrides(query_payload: dict[str, object], chunk_tokens: list[PitchToken]) -> bool:
+    if not chunk_tokens:
+        return False
+    phrases = query_payload.get("accent_phrases")
+    if not isinstance(phrases, list):
+        return False
+    token_idx = 0
+    token_count = len(chunk_tokens)
+    cursor = 0
+    changed = False
+    for phrase in phrases:
+        moras = phrase.get("moras")
+        if not isinstance(moras, list) or not moras:
+            continue
+        phrase_text = "".join(str(mora.get("text") or "") for mora in moras)
+        phrase_len = len(phrase_text)
+        if phrase_len == 0:
+            continue
+        phrase_start = cursor
+        phrase_end = phrase_start + phrase_len
+        cursor = phrase_end
+        pause = phrase.get("pause_mora")
+        if isinstance(pause, dict):
+            pause_text = pause.get("text")
+            if isinstance(pause_text, str):
+                cursor += len(pause_text)
+        while token_idx < token_count and chunk_tokens[token_idx].end <= phrase_start:
+            token_idx += 1
+        relevant: list[PitchToken] = []
+        idx = token_idx
+        while idx < token_count:
+            token = chunk_tokens[idx]
+            if token.start >= phrase_end:
+                break
+            if token.end > phrase_start:
+                relevant.append(token)
+            idx += 1
+        if not relevant:
+            continue
+        accent_type = _select_accent_type(relevant)
+        if accent_type is None:
+            continue
+        accent_index = _accent_index_from_type(accent_type, len(moras))
+        if accent_index is None:
+            continue
+        if phrase.get("accent") != accent_index:
+            phrase["accent"] = accent_index
+            changed = True
+    return changed
+
+
+_CONTENT_POS_PREFIXES = (
+    "名詞",
+    "動詞",
+    "形容詞",
+    "副詞",
+    "連体詞",
+    "感動詞",
+    "接頭辞",
+    "接頭詞",
+)
+
+
+def _select_accent_type(tokens: list[PitchToken]) -> int | None:
+    for token in tokens:
+        if token.accent_type is None:
+            continue
+        if _is_content_pos(token.pos):
+            return token.accent_type
+    for token in tokens:
+        if token.accent_type is not None:
+            return token.accent_type
+    return None
+
+
+def _accent_index_from_type(accent_type: int | None, mora_count: int) -> int | None:
+    if accent_type is None or mora_count <= 0:
+        return None
+    if accent_type <= 0:
+        return mora_count
+    return max(1, min(accent_type, mora_count))
+
+
+def _is_content_pos(pos: str | None) -> bool:
+    if not pos:
+        return False
+    return any(pos.startswith(prefix) for prefix in _CONTENT_POS_PREFIXES)
+
+
+def _iter_lines_with_positions(text: str) -> list[tuple[str, int, int]]:
+    lines: list[tuple[str, int, int]] = []
+    cursor = 0
+    for raw in text.splitlines(keepends=True):
+        line = raw.rstrip("\r\n")
+        line_start = cursor
+        line_end = line_start + len(line)
+        lines.append((line, line_start, line_end))
+        cursor += len(raw)
+    if not text.endswith(("\n", "\r")) and text:
+        # splitlines with keepends already adds final line without newline,
+        # so this branch is only reached when the input is empty.
+        pass
+    return lines
+
+
+def _leading_trim_index(line: str) -> int:
+    idx = 0
+    while idx < len(line) and line[idx].isspace():
+        idx += 1
+    return idx
+
+
+def _trailing_trim_count(line: str) -> int:
+    idx = len(line)
+    while idx > 0 and line[idx - 1].isspace():
+        idx -= 1
+    return len(line) - idx
 
 
 def _preferred_chunk_cut_index(text: str, limit: int) -> int:
