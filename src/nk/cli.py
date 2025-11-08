@@ -874,7 +874,10 @@ def _run_dav(args: argparse.Namespace) -> int:
     print("Authentication: macOS login (PAM). Press Ctrl+C to stop.\n")
 
     try:
-        server.start()
+        server_thread = threading.Thread(target=server.start, daemon=True)
+        server_thread.start()
+        while server_thread.is_alive():
+            server_thread.join(timeout=0.5)
     except KeyboardInterrupt:
         print("\nStopping nk dav...")
     finally:
