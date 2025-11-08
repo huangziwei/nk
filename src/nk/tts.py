@@ -46,6 +46,7 @@ class TTSTarget:
     source: Path
     output: Path
     book_title: str | None = None
+    book_author: str | None = None
     chapter_title: str | None = None
     original_title: str | None = None
     track_number: int | None = None
@@ -102,6 +103,7 @@ def resolve_text_targets(
         base_output = output_dir or path
         metadata = load_book_metadata(path)
         book_title = _book_title_from_metadata(path, metadata)
+        book_author = metadata.author if metadata else None
         cover_path = _cover_path_for_book(path, metadata)
         track_total = len(text_files)
         for idx, txt in enumerate(text_files):
@@ -119,6 +121,7 @@ def resolve_text_targets(
                     source=txt,
                     output=output,
                     book_title=book_title,
+                    book_author=book_author,
                     chapter_title=chapter_meta.title if chapter_meta else None,
                     original_title=chapter_meta.original_title if chapter_meta else None,
                     track_number=track_number,
@@ -134,6 +137,7 @@ def resolve_text_targets(
         book_dir = path.parent
         metadata = load_book_metadata(book_dir) if book_dir.exists() else None
         book_title = _book_title_from_metadata(book_dir, metadata)
+        book_author = metadata.author if metadata else None
         cover_path = _cover_path_for_book(book_dir, metadata)
         chapter_meta = metadata.chapters.get(path.name) if metadata else None
         track_total = (
@@ -151,6 +155,7 @@ def resolve_text_targets(
                 source=path,
                 output=output,
                 book_title=book_title,
+                book_author=book_author,
                 chapter_title=chapter_meta.title if chapter_meta else None,
                 original_title=chapter_meta.original_title if chapter_meta else None,
                 track_number=track_number,
@@ -576,11 +581,12 @@ def _synthesize_target_with_client(
     if not chapter_label:
         chapter_label = target.source.stem.replace("_", " ").strip()
     metadata_title = f"{display_number} {chapter_label or book_title}"
+    artist_name = target.book_author or book_title
     metadata: dict[str, str] = {
         "title": metadata_title,
-        "artist": book_title,
+        "artist": artist_name,
         "album": book_title,
-        "album_artist": book_title,
+        "album_artist": artist_name,
     }
     if track_number_int is not None:
         metadata["track"] = str(track_number_int)

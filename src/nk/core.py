@@ -117,6 +117,7 @@ class ChapterText:
     text: str
     original_title: str | None = None
     book_title: str | None = None
+    book_author: str | None = None
 
 
 @dataclass
@@ -190,6 +191,37 @@ def _get_book_title(zf: zipfile.ZipFile) -> str | None:
     except Exception:
         return None
     return None
+
+
+def _get_book_author(zf: zipfile.ZipFile) -> str | None:
+    try:
+        opf_path = _find_opf_path(zf)
+        opf_xml = _zip_read_text(zf, opf_path)
+        root = ET.fromstring(opf_xml)
+        authors: list[str] = []
+        for creator_el in root.findall(".//{http://purl.org/dc/elements/1.1/}creator"):
+            raw_name = "".join(creator_el.itertext()).strip()
+            if not raw_name:
+                continue
+            normalized = unicodedata.normalize("NFKC", raw_name).strip()
+            if not normalized:
+                continue
+            role = _get_attr(creator_el, "role")
+            if role:
+                role_lower = role.lower()
+                if role_lower not in {"aut", "author"}:
+                    continue
+            if normalized not in authors:
+                authors.append(normalized)
+        if not authors:
+            return None
+        if len(authors) == 1:
+            return authors[0]
+        ascii_only = all(_looks_like_ascii_word(name) for name in authors)
+        separator = ", " if ascii_only else "・"
+        return separator.join(authors)
+    except Exception:
+        return None
 
 
 def _apply_mapping_to_plain_text(text: str, mapping: dict[str, str]) -> str:
@@ -802,6 +834,7 @@ def epub_to_chapter_texts(
         unique_mapping, common_mapping = _build_book_mapping(zf, mode, backend)
         spine = _spine_items(zf)
         book_title = _get_book_title(zf)
+        book_author = _get_book_author(zf)
         title_candidates: list[str] = []
         if book_title:
             normalized_title = unicodedata.normalize("NFKC", book_title).strip()
@@ -914,6 +947,7 @@ def epub_to_chapter_texts(
                     text=piece_text,
                     original_title=original_title,
                     book_title=book_title,
+                    book_author=book_author,
                 )
             )
 

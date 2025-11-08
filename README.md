@@ -56,7 +56,7 @@ nk my_book.epub --single-file -o custom_name.txt
 
 Expect katakana-only output next to the source EPUB with duplicate titles stripped and line breaks preserved. Advanced mode consumes `fugashi + UniDic 3.1.1 + pykakasi`; fast mode requires no additional NLP setup.
 
-Each chapterized book now carries a `.nk-book.json` manifest plus an extracted (and automatically square-padded) `cover.jpg|png`. The manifest tracks the original/reading titles for every chapter so `nk tts` can build accurate ID3 tags; the cover is embedded into every MP3 automatically. Re-run `nk <book>.epub` if you have older chapter folders and want to backfill the metadata/cover bundle.
+Each chapterized book now carries a `.nk-book.json` manifest plus an extracted (and automatically square-padded) `cover.jpg|png`. The manifest tracks the original/reading titles for every chapter and records the book author so `nk tts` can build accurate ID3 tags; the cover is embedded into every MP3 automatically. Re-run `nk <book>.epub` if you have older chapter folders and want to backfill the metadata/cover bundle.
 
 ---
 
@@ -99,7 +99,7 @@ nk tts output/chapters --speaker 20 \
 
 nk drops two helper files next to every chapterized book:
 
-- `.nk-book.json` – structured metadata for nk itself (titles, track counts, etc.).
+- `.nk-book.json` – structured metadata for nk itself (titles, author, track counts, etc.).
 - `m4b.json` – directly consumable by [m4b-tool](https://github.com/sandreas/m4b-tool) with every MP3 listed in order, chapter labels, and the padded cover.
 
 If you already have m4b-tool installed, you can jump straight from chapterized MP3s to a single M4B:

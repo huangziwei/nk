@@ -32,6 +32,7 @@ class BookPackage:
     metadata_path: Path
     cover_path: Path | None
     book_title: str | None
+    book_author: str | None
     m4b_manifest_path: Path
 
 
@@ -45,6 +46,7 @@ class ChapterMetadata:
 @dataclass
 class LoadedBookMetadata:
     title: str | None
+    author: str | None
     cover_path: Path | None
     chapters: dict[str, ChapterMetadata]
 
@@ -112,6 +114,13 @@ def _resolve_book_title(chapters: Iterable[ChapterText], output_dir: Path) -> st
     return output_dir.name or None
 
 
+def _resolve_book_author(chapters: Iterable[ChapterText]) -> str | None:
+    for chapter in chapters:
+        if chapter.book_author:
+            return chapter.book_author
+    return None
+
+
 def _cover_extension(cover: CoverImage) -> str | None:
     suffix = PurePosixPath(cover.path).suffix.lower()
     if suffix in _SUPPORTED_COVER_EXTS:
@@ -140,10 +149,12 @@ def _write_cover_image(output_dir: Path, cover: CoverImage) -> Path | None:
 def _write_m4b_manifest(
     output_dir: Path,
     book_title: str | None,
+    book_author: str | None,
     records: list[ChapterFileRecord],
     cover_path: Path | None,
 ) -> Path:
     title = book_title or output_dir.name
+    artist = book_author or title
     tracks: list[dict[str, object]] = []
     for record in records:
         mp3_name = record.path.with_suffix(".mp3").name
@@ -162,7 +173,7 @@ def _write_m4b_manifest(
     payload: dict[str, object] = {
         "name": title,
         "album": title,
-        "artist": title,
+        "artist": artist,
         "tracks": tracks,
         "version": 1,
     }
@@ -203,6 +214,7 @@ def ensure_cover_is_square(cover_path: Path) -> None:
 
 def _build_metadata_payload(
     book_title: str | None,
+    book_author: str | None,
     records: list[ChapterFileRecord],
     *,
     source_epub: Path | None,
@@ -224,6 +236,8 @@ def _build_metadata_payload(
         "title": book_title,
         "chapters": chapters_payload,
     }
+    if book_author:
+        payload["author"] = book_author
     if cover_path is not None:
         payload["cover"] = cover_path.name
     if source_epub is not None:
@@ -240,9 +254,11 @@ def write_book_package(
 ) -> BookPackage:
     records = _write_chapter_texts(output_dir, chapters)
     book_title = _resolve_book_title(chapters, output_dir)
+    book_author = _resolve_book_author(chapters)
     cover_path = _write_cover_image(output_dir, cover_image) if cover_image else None
     metadata_payload = _build_metadata_payload(
         book_title,
+        book_author,
         records,
         source_epub=source_epub,
         cover_path=cover_path,
@@ -252,13 +268,20 @@ def write_book_package(
         json.dumps(metadata_payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    m4b_manifest_path = _write_m4b_manifest(output_dir, book_title, records, cover_path)
+    m4b_manifest_path = _write_m4b_manifest(
+        output_dir,
+        book_title,
+        book_author,
+        records,
+        cover_path,
+    )
     return BookPackage(
         output_dir=output_dir,
         chapter_records=records,
         metadata_path=metadata_path,
         cover_path=cover_path,
         book_title=book_title,
+        book_author=book_author,
         m4b_manifest_path=m4b_manifest_path,
     )
 
@@ -316,10 +339,12 @@ def regenerate_m4b_manifest(
                 "index": index if index is not None else len(tracks) + 1,
             }
         )
+    title = metadata.title or book_dir.name
+    artist = metadata.author or title
     payload: dict[str, object] = {
-        "name": metadata.title or book_dir.name,
-        "album": metadata.title or book_dir.name,
-        "artist": metadata.title or book_dir.name,
+        "name": title,
+        "album": title,
+        "artist": artist,
         "tracks": tracks,
         "version": 1,
     }
@@ -342,6 +367,7 @@ def load_book_metadata(book_dir: Path) -> LoadedBookMetadata | None:
         return None
 
     title = payload.get("title")
+    author = payload.get("author")
     cover_name = payload.get("cover")
     cover_path = None
     if isinstance(cover_name, str):
@@ -375,6 +401,7 @@ def load_book_metadata(book_dir: Path) -> LoadedBookMetadata | None:
 
     return LoadedBookMetadata(
         title=title if isinstance(title, str) else None,
+        author=author if isinstance(author, str) else None,
         cover_path=cover_path,
         chapters=chapters,
     )
