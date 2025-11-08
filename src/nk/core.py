@@ -439,6 +439,14 @@ def _normalize_ws(s: str) -> str:
     return "".join(s.split())
 
 
+def _normalize_ellipsis(text: str) -> str:
+    if not text:
+        return text
+    text = re.sub(r"\.{3,}", "…", text)
+    text = re.sub(r"…{2,}", "…", text)
+    return text
+
+
 def _contains_cjk(s: str) -> bool:
     # Heuristic: any Han or iteration mark suggests kanji content
     for ch in s:
@@ -765,14 +773,10 @@ def _strip_html_to_text(soup: BeautifulSoup) -> str:
             tag.insert_before("\n")
     # Generate plain text without inserting extra separators between inline nodes.
     txt = soup.get_text(separator="")
-    # Normalize Unicode NFKC to standardize fullwidth/halfwidth variants.
     txt = unicodedata.normalize("NFKC", txt)
-    # Trim trailing ASCII whitespace before newlines introduced above.
     txt = re.sub(r"[ \t]+\n", "\n", txt)
-    # Harmonize symbols for TTS friendliness.
     txt = txt.replace("〝", '"').replace("〟", '"')
-    txt = re.sub(r"\.{3,}", "…", txt)
-    # Collapse excessive blank lines.
+    txt = _normalize_ellipsis(txt)
     txt = re.sub(r"\n{3,}", "\n\n", txt).strip()
     return txt
 
@@ -887,6 +891,7 @@ def epub_to_chapter_texts(
             piece_text = raw_piece_text
             if mode == "advanced" and backend is not None and piece_text:
                 piece_text = backend.to_reading_text(piece_text).strip()
+                piece_text = _normalize_ellipsis(piece_text)
             if not piece_text:
                 continue
             original_title = next(
