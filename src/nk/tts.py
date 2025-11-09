@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import tempfile
 import time
@@ -252,6 +253,65 @@ def _resolve_runtime_executable(runtime_path: Path) -> Path:
 
 
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "0.0.0.0", "::1"}
+
+
+def _allocate_local_port(host: str) -> int:
+    """
+    Reserve an ephemeral TCP port bound to the given host and return it.
+    """
+    errors: list[BaseException] = []
+    candidates = [host]
+    if host == "localhost":
+        candidates.append("127.0.0.1")
+    for candidate in candidates:
+        try:
+            addr_info = socket.getaddrinfo(
+                candidate,
+                0,
+                family=socket.AF_UNSPEC,
+                type=socket.SOCK_STREAM,
+            )
+        except OSError as exc:
+            errors.append(exc)
+            continue
+        for family, socktype, proto, _, sockaddr in addr_info:
+            try:
+                with contextlib.closing(socket.socket(family, socktype, proto)) as sock:
+                    sock.bind(sockaddr)
+                    return sock.getsockname()[1]
+            except OSError as exc:
+                errors.append(exc)
+                continue
+    if errors:
+        raise VoiceVoxRuntimeError(
+            f"Unable to allocate a free port for VoiceVox on host '{host}': {errors[-1]}"
+        ) from errors[-1]
+    raise VoiceVoxRuntimeError(
+        f"Unable to allocate a free port for VoiceVox on host '{host}'."
+    )
+
+
+def ensure_dedicated_voicevox_url(base_url: str) -> tuple[str, bool]:
+    """
+    Ensure the returned VoiceVox base URL is free so we can launch a dedicated runtime.
+    Returns (url, changed_flag).
+    """
+    normalized_base_url, host, port = _prepare_voicevox_endpoint(base_url)
+    if host not in _LOCAL_HOSTS:
+        return normalized_base_url, False
+    if not _voicevox_is_ready(normalized_base_url):
+        return normalized_base_url, False
+    new_port = _allocate_local_port(host)
+    if new_port == port:
+        return normalized_base_url, False
+    parsed = urlparse(normalized_base_url)
+    updated = parsed._replace(netloc=f"{host}:{new_port}")
+    new_url = updated.geturl().rstrip("/")
+    _debug_log(
+        f"Existing VoiceVox runtime detected at {normalized_base_url}; "
+        f"using dedicated runtime on port {new_port} ({new_url})"
+    )
+    return new_url, True
 
 
 def discover_voicevox_runtime(

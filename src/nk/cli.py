@@ -39,6 +39,7 @@ from .tts import (
     VoiceVoxUnavailableError,
     _play_chunk_simpleaudio,
     _simpleaudio,
+    ensure_dedicated_voicevox_url,
     discover_voicevox_runtime,
     managed_voicevox_runtime,
     resolve_text_targets,
@@ -644,6 +645,7 @@ def _run_tts(args: argparse.Namespace) -> int:
         auto_runtime = discover_voicevox_runtime(args.engine_url)
 
     runtime_path = runtime_hint or auto_runtime
+    engine_url = args.engine_url
     runtime_env, runtime_thread_flag = _engine_thread_overrides(args.engine_threads)
     cache_base = Path(args.cache_dir).expanduser() if args.cache_dir else None
     playback_fn = None
@@ -657,9 +659,17 @@ def _run_tts(args: argparse.Namespace) -> int:
     generated: list[Path] = []
 
     try:
+        if runtime_path:
+            engine_url, dedicated_runtime = ensure_dedicated_voicevox_url(engine_url)
+            if dedicated_runtime and engine_url != args.engine_url:
+                print(
+                    f"Existing VoiceVox detected at {args.engine_url}; "
+                    f"launching a dedicated runtime on {engine_url}.",
+                    flush=True,
+                )
         with managed_voicevox_runtime(
             runtime_path,
-            args.engine_url,
+            engine_url,
             readiness_timeout=args.engine_runtime_wait,
             extra_env=runtime_env,
             cpu_threads=runtime_thread_flag,
@@ -679,7 +689,7 @@ def _run_tts(args: argparse.Namespace) -> int:
             generated = synthesize_texts_to_mp3(
                 live_targets,
                 speaker_id=args.speaker,
-                base_url=args.engine_url,
+                base_url=engine_url,
                 ffmpeg_path=args.ffmpeg,
                 overwrite=args.overwrite,
                 timeout=args.timeout,
