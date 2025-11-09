@@ -96,18 +96,21 @@ def refine_chapter(text_path: Path, overrides: Iterable[OverrideRule]) -> bool:
     text_path.write_text(text, encoding="utf-8")
     pitch_path = text_path.with_name(text_path.name + ".pitch.json")
     existing_tokens: list[PitchToken] = []
+    version = 1
     if pitch_path.exists():
         try:
             payload = json.loads(pitch_path.read_text(encoding="utf-8"))
+            version = payload.get("version", 1)
             tokens_payload = payload.get("tokens")
             if isinstance(tokens_payload, list):
                 existing_tokens = deserialize_pitch_tokens(tokens_payload)
         except (OSError, json.JSONDecodeError):
             existing_tokens = []
     tokens = _merge_override_tokens(existing_tokens, matches_for_tokens, text)
-    sha1 = hashlib.sha1(text.encode("utf-8")).hexdigest()
+    normalized_for_hash = text.strip()
+    sha1 = hashlib.sha1(normalized_for_hash.encode("utf-8")).hexdigest()
     payload = {
-        "version": 1,
+        "version": version,
         "text_sha1": sha1,
         "tokens": serialize_pitch_tokens(tokens),
     }

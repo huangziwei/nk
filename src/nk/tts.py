@@ -516,6 +516,9 @@ def _synthesize_target_with_client(
     text_hash = hashlib.sha1(text.encode("utf-8")).hexdigest()
     pitch_metadata = load_pitch_metadata(target.source)
     if pitch_metadata and pitch_metadata.text_sha1 and pitch_metadata.text_sha1 != text_hash:
+        _debug_log(
+            f"Pitch metadata SHA mismatch (expected {pitch_metadata.text_sha1}, got {text_hash}); ignoring overrides"
+        )
         pitch_metadata = None
     pitch_tokens = pitch_metadata.tokens if pitch_metadata else []
 
@@ -580,9 +583,7 @@ def _synthesize_target_with_client(
         )
         pitch_signature = _pitch_signature(local_pitch_tokens)
         if pitch_signature:
-            _debug_log(
-                f"Chunk {chunk_index}: pitch signature {pitch_signature}"
-            )
+            _debug_log(f"Chunk {chunk_index}: pitch signature {pitch_signature}")
         chunk_path = _chunk_cache_path(cache_dir, chunk_index, chunk_text, pitch_signature)
         if not chunk_path.exists():
 
