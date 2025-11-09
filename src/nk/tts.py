@@ -11,6 +11,8 @@ import socket
 import subprocess
 import tempfile
 import time
+import unicodedata
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, Mapping
@@ -253,6 +255,30 @@ def _resolve_runtime_executable(runtime_path: Path) -> Path:
 
 
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "0.0.0.0", "::1"}
+
+
+_ACCENT_CACHE_SENTINEL = object()
+
+
+class _VoiceVoxAccentCache:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._data: dict[tuple[str, str], int | None] = {}
+
+    def get(self, key: tuple[str, str]) -> object:
+        with self._lock:
+            return self._data.get(key, _ACCENT_CACHE_SENTINEL)
+
+    def set(self, key: tuple[str, str], value: int | None) -> None:
+        with self._lock:
+            self._data[key] = value
+
+    def clear(self) -> None:
+        with self._lock:
+            self._data.clear()
+
+
+_VOICEVOX_ACCENT_CACHE = _VoiceVoxAccentCache()
 
 
 def _allocate_local_port(host: str) -> int:
@@ -581,6 +607,8 @@ def _synthesize_target_with_client(
         )
         pitch_metadata = None
     pitch_tokens = pitch_metadata.tokens if pitch_metadata else []
+    if pitch_tokens:
+        _enrich_pitch_tokens_with_voicevox(pitch_tokens, client)
 
     chunk_entries = _split_text_on_breaks_with_spans(text)
     if not chunk_entries:
@@ -861,11 +889,17 @@ class VoiceVoxClient:
         timeout: float = 30.0,
         *,
         post_phoneme_length: float | None = None,
+        speed_scale: float | None = None,
+        pitch_scale: float | None = None,
+        intonation_scale: float | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.speaker_id = speaker_id
         self.timeout = timeout
         self.post_phoneme_length = post_phoneme_length
+        self.speed_scale = speed_scale
+        self.pitch_scale = pitch_scale
+        self.intonation_scale = intonation_scale
         self._session = requests.Session()
 
     def build_audio_query(self, text: str) -> dict:
@@ -896,6 +930,12 @@ class VoiceVoxClient:
                 payload_value,
                 float(self.post_phoneme_length),
             )
+        if self.speed_scale is not None:
+            query_payload["speedScale"] = float(self.speed_scale)
+        if self.pitch_scale is not None:
+            query_payload["pitchScale"] = float(self.pitch_scale)
+        if self.intonation_scale is not None:
+            query_payload["intonationScale"] = float(self.intonation_scale)
         return query_payload
 
     def synthesize_from_query(self, query_payload: dict) -> bytes:
@@ -1210,6 +1250,151 @@ def _pitch_signature(tokens: list[PitchToken]) -> str | None:
     return "|".join(parts)
 
 
+_KANA_IGNORE_CHARS = {"'", "’", "`", "´", "/", "／", "、", "，", ",", ".", "．", "・"}
+
+
+def _normalize_kana(text: str | None) -> str:
+    if not text:
+        return ""
+    normalized = unicodedata.normalize("NFKC", text.strip())
+    result: list[str] = []
+    for char in normalized:
+        if char in _KANA_IGNORE_CHARS or char.isspace():
+            continue
+        code = ord(char)
+        if 0x3041 <= code <= 0x3096:
+            char = chr(code + 0x60)
+        elif 0x30A1 <= code <= 0x30FF:
+            pass
+        elif char == "ー":
+            pass
+        else:
+            continue
+        result.append(char)
+    return "".join(result)
+
+
+def _contains_kanji(text: str | None) -> bool:
+    if not text:
+        return False
+    for char in text:
+        code = ord(char)
+        if (
+            0x4E00 <= code <= 0x9FFF
+            or 0x3400 <= code <= 0x4DBF
+            or 0xF900 <= code <= 0xFAFF
+            or 0x20000 <= code <= 0x2A6DF
+            or 0x2A700 <= code <= 0x2B73F
+            or 0x2B740 <= code <= 0x2B81F
+            or 0x2B820 <= code <= 0x2CEAF
+        ):
+            return True
+    return False
+
+
+def _voicevox_accent_type_from_phrases(accent_phrases: object) -> int | None:
+    if not isinstance(accent_phrases, list) or not accent_phrases:
+        return None
+    if len(accent_phrases) != 1:
+        return None
+    phrase = accent_phrases[0]
+    if not isinstance(phrase, dict):
+        return None
+    moras = phrase.get("moras")
+    if not isinstance(moras, list) or not moras:
+        return None
+    accent_val = phrase.get("accent")
+    if not isinstance(accent_val, int):
+        return None
+    mora_count = len(moras)
+    if mora_count <= 0:
+        return None
+    if accent_val <= 0 or accent_val >= mora_count:
+        return 0
+    return accent_val
+
+
+def _fetch_voicevox_accent_from_surface(
+    surface: str,
+    reading: str,
+    normalized_reading: str,
+    client: VoiceVoxClient,
+) -> int | None:
+    try:
+        query_payload = client.build_audio_query(surface)
+    except (VoiceVoxUnavailableError, VoiceVoxError):
+        return None
+    kana = query_payload.get("kana")
+    if not isinstance(kana, str):
+        return None
+    normalized_kana = _normalize_kana(kana)
+    if not normalized_kana or normalized_kana != normalized_reading:
+        return None
+    accent_type = _voicevox_accent_type_from_phrases(query_payload.get("accent_phrases"))
+    return accent_type
+
+
+def _lookup_voicevox_accent(
+    surface: str,
+    reading: str,
+    normalized_reading: str,
+    client: VoiceVoxClient,
+) -> int | None:
+    cache_key = (surface, normalized_reading)
+    cached = _VOICEVOX_ACCENT_CACHE.get(cache_key)
+    if cached is not _ACCENT_CACHE_SENTINEL:
+        return cached  # type: ignore[return-value]
+    accent_type = _fetch_voicevox_accent_from_surface(
+        surface,
+        reading,
+        normalized_reading,
+        client,
+    )
+    _VOICEVOX_ACCENT_CACHE.set(cache_key, accent_type)
+    return accent_type
+
+
+def _enrich_pitch_tokens_with_voicevox(
+    tokens: list[PitchToken],
+    client: VoiceVoxClient,
+) -> None:
+    if not tokens:
+        return
+    if not hasattr(client, "build_audio_query"):
+        return
+    grouped: dict[tuple[str, str], list[PitchToken]] = defaultdict(list)
+    readings: dict[tuple[str, str], str] = {}
+    for token in tokens:
+        if not token.surface or not token.reading:
+            continue
+        if not _contains_kanji(token.surface):
+            continue
+        normalized_reading = _normalize_kana(token.reading)
+        if not normalized_reading:
+            continue
+        key = (token.surface, normalized_reading)
+        grouped[key].append(token)
+        readings.setdefault(key, token.reading)
+
+    for key, token_group in grouped.items():
+        surface, normalized_reading = key
+        reading = readings[key]
+        accent_type = _lookup_voicevox_accent(surface, reading, normalized_reading, client)
+        if accent_type is None:
+            continue
+        for token in token_group:
+            if token.accent_type == accent_type:
+                continue
+            _debug_log(
+                f"VoiceVox accent override for '{surface}': {token.accent_type} -> {accent_type}"
+            )
+            token.accent_type = accent_type
+
+
+def _reset_voicevox_accent_cache_for_tests() -> None:
+    _VOICEVOX_ACCENT_CACHE.clear()
+
+
 def _iter_lines_with_positions(text: str) -> list[tuple[str, int, int]]:
     lines: list[tuple[str, int, int]] = []
     cursor = 0
@@ -1353,6 +1538,9 @@ def synthesize_texts_to_mp3(
     overwrite: bool = False,
     timeout: float = 30.0,
     post_phoneme_length: float | None = None,
+    speed_scale: float | None = None,
+    pitch_scale: float | None = None,
+    intonation_scale: float | None = None,
     jobs: int = 1,
     cache_dir: Path | None = None,
     keep_cache: bool = False,
@@ -1385,6 +1573,9 @@ def synthesize_texts_to_mp3(
             speaker_id=speaker_id,
             timeout=timeout,
             post_phoneme_length=post_phoneme_length,
+            speed_scale=speed_scale,
+            pitch_scale=pitch_scale,
+            intonation_scale=intonation_scale,
         )
         try:
             results: list[Path] = []
@@ -1428,6 +1619,9 @@ def synthesize_texts_to_mp3(
             speaker_id=speaker_id,
             timeout=timeout,
             post_phoneme_length=post_phoneme_length,
+            speed_scale=speed_scale,
+            pitch_scale=pitch_scale,
+            intonation_scale=intonation_scale,
         )
         try:
             if cancel_event and cancel_event.is_set():

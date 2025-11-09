@@ -80,6 +80,9 @@ nk tts output/chapters --speaker 20 \
 | Option | Purpose |
 | --- | --- |
 | `--speaker N` | VoiceVox speaker ID (default 2, 四国めたん・セリフ). |
+| `--speed SCALE` | Override VoiceVox `speedScale` (e.g., 0.9 slows speech). Defaults to the engine preset. |
+| `--pitch SCALE` | Override VoiceVox `pitchScale` (e.g., -0.1 lowers the voice). Defaults to the engine preset. |
+| `--intonation SCALE` | Override VoiceVox `intonationScale` (e.g., 1.1 adds more variation). Defaults to the engine preset. |
 | `--pause SECONDS` | Trailing silence per chunk (default 0.4 s). |
 | `--jobs N` | Parallel chapters (default: 1, pass 0 for auto up to 4 workers). |
 | `--start-index M` | Skip the first `M-1` chapters and begin synthesis at chapter `M`. |
@@ -218,6 +221,9 @@ nk book.epub [--mode advanced|fast] [--single-file] [-o output.txt]
 
 # TXT → MP3 (batch)
 nk tts book.txt|directory [--speaker N]
+                          [--speed SCALE]
+                          [--pitch SCALE]
+                          [--intonation SCALE]
                           [--engine-runtime PATH]
                           [--jobs N]
                           [--pause SECONDS]
@@ -229,7 +235,8 @@ nk tts book.txt|directory [--speaker N]
 nk tts chapters/ --live [--live-prebuffer N] [--live-start M]
 
 # Web service (browse + stream)
-nk web output/ [--host HOST] [--port PORT] [--speaker N] [...]
+nk web output/ [--host HOST] [--port PORT] [--speaker N]
+               [--speed SCALE] [--pitch SCALE] [--intonation SCALE] [...]
 
 # WebDAV share (Flacbox, etc.)
 nk dav books/ [--host HOST] [--port PORT] [--auth pam-login]

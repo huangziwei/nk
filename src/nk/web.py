@@ -35,6 +35,9 @@ class WebConfig:
     engine_threads: int | None = None
     ffmpeg_path: str = "ffmpeg"
     pause: float = 0.4
+    speed_scale: float | None = None
+    pitch_scale: float | None = None
+    intonation_scale: float | None = None
     cache_dir: Path | None = None
     keep_cache: bool = True
     live_prebuffer: int = 2  # kept for CLI compatibility
@@ -770,6 +773,9 @@ def _synthesize_sequence(
                 speaker_id=config.speaker,
                 timeout=60.0,
                 post_phoneme_length=config.pause,
+                speed_scale=config.speed_scale,
+                pitch_scale=config.pitch_scale,
+                intonation_scale=config.intonation_scale,
             )
             try:
                 total = len(work_plan)

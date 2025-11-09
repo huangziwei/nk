@@ -110,6 +110,21 @@ def build_tts_parser() -> argparse.ArgumentParser:
         help="VoiceVox speaker ID to use (default: 2).",
     )
     ap.add_argument(
+        "--speed",
+        type=float,
+        help="Override VoiceVox speedScale (default: engine preset).",
+    )
+    ap.add_argument(
+        "--pitch",
+        type=float,
+        help="Override VoiceVox pitchScale (default: engine preset).",
+    )
+    ap.add_argument(
+        "--intonation",
+        type=float,
+        help="Override VoiceVox intonationScale (default: engine preset).",
+    )
+    ap.add_argument(
         "--engine-url",
         default="http://127.0.0.1:50021",
         help="Base URL for the VoiceVox engine (default: http://127.0.0.1:50021).",
@@ -266,6 +281,21 @@ def build_web_parser() -> argparse.ArgumentParser:
         type=int,
         default=2,
         help="VoiceVox speaker ID to use (default: 2).",
+    )
+    ap.add_argument(
+        "--speed",
+        type=float,
+        help="Override VoiceVox speedScale (default: engine preset).",
+    )
+    ap.add_argument(
+        "--pitch",
+        type=float,
+        help="Override VoiceVox pitchScale (default: engine preset).",
+    )
+    ap.add_argument(
+        "--intonation",
+        type=float,
+        help="Override VoiceVox intonationScale (default: engine preset).",
     )
     ap.add_argument(
         "--engine-url",
@@ -694,6 +724,9 @@ def _run_tts(args: argparse.Namespace) -> int:
                 overwrite=args.overwrite,
                 timeout=args.timeout,
                 post_phoneme_length=max(args.pause, 0.0) if args.pause is not None else None,
+                speed_scale=args.speed,
+                pitch_scale=args.pitch,
+                intonation_scale=args.intonation,
                 jobs=args.jobs,
                 cache_dir=cache_base,
                 keep_cache=args.keep_cache,
@@ -807,6 +840,9 @@ def _run_web(args: argparse.Namespace) -> None:
         cache_dir=cache_dir,
         keep_cache=args.keep_cache,
         live_prebuffer=args.live_prebuffer,
+        speed_scale=args.speed,
+        pitch_scale=args.pitch,
+        intonation_scale=args.intonation,
     )
 
     app = create_app(config)
