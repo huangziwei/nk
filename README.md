@@ -103,6 +103,42 @@ nk drops two helper files next to every chapterized book:
 - `<chapter>.txt.pitch.json` – optional per-chapter pitch-accent metadata (advanced mode) that lets `nk tts` override VoiceVox accent phrases for homographs.
 - `m4b.json` – directly consumable by [m4b-tool](https://github.com/sandreas/m4b-tool) with every MP3 listed in order, chapter labels, and the padded cover.
 
+### Manual pitch overrides
+
+If MeCab splits a word incorrectly or assigns the wrong accent, add a `custom_pitch.json` next to the book directory:
+
+```json
+{
+  "overrides": [
+    {
+      "pattern": "ソガシャハジ",
+      "replacement": "ソガノシャチ",
+      "reading": "ソガノシャチ",
+      "accent": 1,
+      "pos": "名詞"
+    },
+    {
+      "pattern": "クラウゼル",
+      "reading": "クラウゼル",
+      "accent": 2
+    }
+  ]
+}
+```
+
+- `pattern` matches against the katakana `.txt` output (set `"regex": true` if you need a regular expression).
+- `replacement` rewrites the `.txt` text before re-tokenizing (omit it for pitch-only fixes).
+- `reading`/`accent` describe the curated pronunciation to inject into `.pitch.json` (defaults to `replacement` when omitted).
+
+Apply the overrides with:
+
+```bash
+nk refine "books/novel/"
+```
+
+The command rewrites affected `.txt` files, updates `.pitch.json` with your curated tokens, and recomputes the hashes so subsequent `nk tts` runs use the corrected readings.
+
+
 If you already have m4b-tool installed, you can jump straight from chapterized MP3s to a single M4B:
 
 ```bash

@@ -43,7 +43,9 @@ from .tts import (
     managed_voicevox_runtime,
     resolve_text_targets,
     synthesize_texts_to_mp3,
+    set_debug_logging,
 )
+from .refine import load_override_config, refine_book
 from .web import WebConfig, create_app
 
 
@@ -203,6 +205,11 @@ def build_tts_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Clear nk chunk caches under the provided path (or current directory if omitted).",
     )
+    ap.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable verbose debug logging (pitch overrides, VoiceVox requests).",
+    )
     return ap
 
 
@@ -311,6 +318,12 @@ def build_web_parser() -> argparse.ArgumentParser:
     return ap
 
 
+def build_refine_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(description="Apply custom pitch overrides to a chapterized book.")
+    ap.add_argument("book_dir", help="Path to the chapterized book directory.")
+    return ap
+
+
 def build_tools_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="nk helper utilities")
     subparsers = ap.add_subparsers(dest="tool_cmd")
@@ -397,6 +410,7 @@ def _ensure_tts_source_ready(
 
 
 def _run_tts(args: argparse.Namespace) -> int:
+    set_debug_logging(bool(getattr(args, "debug", False)))
     if args.clear_cache:
         search_root = Path(args.input_path or ".").expanduser().resolve()
         cleared = False
@@ -709,6 +723,25 @@ def _run_tts(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_refine(args: argparse.Namespace) -> int:
+    book_dir = Path(args.book_dir).expanduser()
+    if not book_dir.is_dir():
+        raise SystemExit(f"Book directory not found: {book_dir}")
+    try:
+        overrides = load_override_config(book_dir)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    if not overrides:
+        print(f"No overrides found in {book_dir / 'custom_pitch.json'}")
+        return 0
+    updated = refine_book(book_dir, overrides)
+    if updated:
+        print(f"Refined {updated} chapter(s).")
+    else:
+        print("No chapters required changes.")
+    return 0
+
+
 def _slice_targets_by_index(targets: list[TTSTarget], start_index: int | None) -> list[TTSTarget]:
     if not targets:
         raise ValueError("No chapters available for synthesis.")
@@ -791,6 +824,10 @@ def main(argv: list[str] | None = None) -> int:
         tools_parser = build_tools_parser()
         tools_args = tools_parser.parse_args(argv[1:])
         return _run_tools(tools_args)
+    if argv and argv[0] == "refine":
+        refine_parser = build_refine_parser()
+        refine_args = refine_parser.parse_args(argv[1:])
+        return _run_refine(refine_args)
 
     parser = build_parser()
     if not argv:

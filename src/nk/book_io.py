@@ -23,6 +23,7 @@ from .pitch import (
 BOOK_METADATA_FILENAME = ".nk-book.json"
 M4B_MANIFEST_FILENAME = "m4b.json"
 _SUPPORTED_COVER_EXTS = (".jpg", ".jpeg", ".png")
+_CUSTOM_PITCH_FILENAME = "custom_pitch.json"
 _PITCH_SUFFIX = ".pitch.json"
 
 
@@ -241,6 +242,32 @@ def ensure_cover_is_square(cover_path: Path) -> None:
         return
 
 
+def _ensure_custom_pitch_template(output_dir: Path) -> None:
+    template_path = output_dir / _CUSTOM_PITCH_FILENAME
+    if template_path.exists():
+        return
+    template = {
+        "overrides": [
+            {
+                "pattern": "ソガシャハジ",
+                "replacement": "ソガノシャチ",
+                "reading": "ソガノシャチ",
+                "accent": 1,
+                "pos": "名詞",
+            },
+            {
+                "pattern": "クラウゼル",
+                "reading": "クラウゼル",
+                "accent": 2,
+            },
+        ]
+    }
+    template_path.write_text(
+        json.dumps(template, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
 def _build_metadata_payload(
     book_title: str | None,
     book_author: str | None,
@@ -304,6 +331,7 @@ def write_book_package(
         records,
         cover_path,
     )
+    _ensure_custom_pitch_template(output_dir)
     return BookPackage(
         output_dir=output_dir,
         chapter_records=records,

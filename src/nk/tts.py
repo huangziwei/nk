@@ -30,6 +30,18 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     _simpleaudio = None
 
+_DEBUG_LOG = False
+
+
+def set_debug_logging(enabled: bool) -> None:
+    global _DEBUG_LOG
+    _DEBUG_LOG = enabled
+
+
+def _debug_log(message: str) -> None:
+    if _DEBUG_LOG:
+        print(f"[nk tts debug] {message}")
+
 
 class VoiceVoxError(RuntimeError):
     """Raised when the VoiceVox engine returns an unexpected response."""
@@ -418,8 +430,18 @@ def _target_cache_dir(cache_base: Path | None, target: TTSTarget) -> Path:
     return base_path / _compose_name(stem_slug, fingerprint)
 
 
-def _chunk_cache_path(cache_dir: Path, index: int, chunk_text: str) -> Path:
-    digest = hashlib.sha1(chunk_text.encode("utf-8")).hexdigest()[:10]
+def _chunk_cache_path(
+    cache_dir: Path,
+    index: int,
+    chunk_text: str,
+    pitch_signature: str | None = None,
+) -> Path:
+    hasher = hashlib.sha1()
+    hasher.update(chunk_text.encode("utf-8"))
+    if pitch_signature:
+        hasher.update(b"||")
+        hasher.update(pitch_signature.encode("utf-8"))
+    digest = hasher.hexdigest()[:10]
     return cache_dir / f"{index:05d}_{digest}.wav"
 
 
@@ -551,24 +573,38 @@ def _synthesize_target_with_client(
             live=live_playback,
         )
         chunk_text = chunk_entry.text
-        chunk_path = _chunk_cache_path(cache_dir, chunk_index, chunk_text)
-        if not chunk_path.exists():
-            local_pitch_tokens = _slice_pitch_tokens_for_chunk(
-                pitch_tokens,
-                chunk_entry.start,
-                chunk_entry.end,
+        local_pitch_tokens = _slice_pitch_tokens_for_chunk(
+            pitch_tokens,
+            chunk_entry.start,
+            chunk_entry.end,
+        )
+        pitch_signature = _pitch_signature(local_pitch_tokens)
+        if pitch_signature:
+            _debug_log(
+                f"Chunk {chunk_index}: pitch signature {pitch_signature}"
             )
+        chunk_path = _chunk_cache_path(cache_dir, chunk_index, chunk_text, pitch_signature)
+        if not chunk_path.exists():
 
-            def _modifier(payload: dict[str, object], tokens=local_pitch_tokens, voice_client=client) -> None:
+            def _modifier(
+                payload: dict[str, object],
+                tokens=local_pitch_tokens,
+                voice_client=client,
+                chunk_idx=chunk_index,
+            ) -> None:
                 if not tokens:
                     return
                 changed = _apply_pitch_overrides(payload, tokens)
                 if changed and hasattr(voice_client, "recalculate_mora_pitch"):
+                    _debug_log(
+                        f"Chunk {chunk_idx}: overrides applied (tokens={len(tokens)}); recalculating mora pitch"
+                    )
                     try:
                         updated_phrases = voice_client.recalculate_mora_pitch(
                             payload.get("accent_phrases") or []
                         )
                     except Exception:
+                        _debug_log(f"Chunk {chunk_idx}: mora pitch recalculation failed")
                         return
                     if isinstance(updated_phrases, list):
                         payload["accent_phrases"] = updated_phrases
@@ -1100,6 +1136,17 @@ def _is_content_pos(pos: str | None) -> bool:
     if not pos:
         return False
     return any(pos.startswith(prefix) for prefix in _CONTENT_POS_PREFIXES)
+
+
+def _pitch_signature(tokens: list[PitchToken]) -> str | None:
+    if not tokens:
+        return None
+    parts = []
+    for token in tokens:
+        accent = token.accent_type if token.accent_type is not None else "-"
+        reading = token.reading
+        parts.append(f"{token.start}:{token.end}:{reading}:{accent}")
+    return "|".join(parts)
 
 
 def _iter_lines_with_positions(text: str) -> list[tuple[str, int, int]]:
