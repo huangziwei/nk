@@ -4,26 +4,44 @@ Convert Japanese EPUBs into TTS-ready text and narrate them with VoiceVox on mac
 
 ---
 
-## 1. Prerequisites (macOS)
-
-```bash
-brew install p7zip ffmpeg jq
-```
-
-## 2. Install nk and Python dependencies
+## 1. Clone & bootstrap (macOS)
 
 ```bash
 git clone https://github.com/huangziwei/nk
-uv sync
-nk tools install-unidic
+cd nk
+./install.sh
 ```
 
-> `nk tools install-unidic` downloads UniDic 3.1.1 (~1.8 GB) directly into `.venv/share/nk/unidic/` and points fugashi at it. Re-run the command if you recreate the virtualenv or supply `--zip /path/to/unidic-cwj-3.1.1-full.zip` for offline installs. Check the detected path any time with `nk tools unidic-status`.
+`install.sh` assumes you already have `brew`, `curl`, and `uv` on your path. It will:
 
-## 3. Install the VoiceVox engine
+- install/upgrade `p7zip`, `ffmpeg`, and `jq` via Homebrew.
+- run `uv sync` to create/update `.venv` and install all Python deps.
+- call `uv run nk tools install-unidic` so fugashi can see UniDic 3.1.1.
+- fetch the latest VoiceVox engine release from GitHub, log the tag it grabbed, and unpack it under `${VOICEVOX_ROOT:-$HOME/opt/voicevox}/macos-x64` (with the tag recorded in `.nk-voicevox-version` under that directory; `cat "$HOME/opt/voicevox/macos-x64/.nk-voicevox-version"` to check later).
 
-1. Download `voicevox_engine-macos-x64-*.7z.001` from the [VoiceVox engine releases](https://github.com/VOICEVOX/voicevox_engine/releases).
-2. Extract and prepare the runtime:
+> Regenerate the UniDic data any time you recreate the virtualenv with `uv run nk tools install-unidic`.
+
+Environment knobs:
+
+- `NK_SKIP_VOICEVOX=1 ./install.sh` &rarr; skip the VoiceVox download.
+- `VOICEVOX_VERSION=v0.15.4 ./install.sh` &rarr; pin to a specific release tag.
+- `VOICEVOX_URL=https://.../voicevox_engine-macos-x64-*.7z.001 ./install.sh` &rarr; use a pre-downloaded asset URL.
+- `VOICEVOX_FORCE=1 ./install.sh` &rarr; overwrite an existing install.
+- `VOICEVOX_ROOT=/custom/path ./install.sh` &rarr; choose a different install prefix.
+
+Once the script finishes you can either activate the virtualenv or run nk via uv directly:
+
+```bash
+source .venv/bin/activate
+nk my_book.epub
+
+# or stay outside the venv
+uv run nk my_book.epub
+```
+
+## 2. Install the VoiceVox engine manually (optional)
+
+`install.sh` already installs the latest VoiceVox runtime. If you prefer to manage it yourself, grab `voicevox_engine-macos-x64-*.7z.001` from the [VoiceVox engine releases](https://github.com/VOICEVOX/voicevox_engine/releases) and extract it:
 
 ```bash
 mkdir -p "$HOME/opt/voicevox"
@@ -38,7 +56,7 @@ nk auto-detects installs under `~/opt/voicevox/**`. If you keep the engine elsew
 
 ---
 
-## 4. Convert EPUB → TTS-friendly text
+## 3. Convert EPUB → TTS-friendly text
 
 ```bash
 # Default (per-chapter .txt files)
@@ -60,7 +78,7 @@ Each chapterized book now carries a `.nk-book.json` manifest plus an extracted (
 
 ---
 
-## 5. Generate MP3s with VoiceVox
+## 4. Generate MP3s with VoiceVox
 
 ```bash
 # Basic run (nk auto-starts VoiceVox at 127.0.0.1:50021)
@@ -98,7 +116,7 @@ nk tts output/chapters --speaker 20 \
 
 ---
 
-## 5.1 Build an M4B (optional)
+## 4.1 Build an M4B (optional)
 
 nk drops two helper files next to every chapterized book:
 
@@ -155,7 +173,7 @@ m4b-tool automatically reads the cover path and chapter names from `m4b.json`, s
 
 ---
 
-## 6. Live playback (`--live`)
+## 5. Live playback (`--live`)
 
 Stream chapters through your speakers while nk keeps synthesising chunks and writing MP3s in the background.
 
@@ -176,7 +194,7 @@ nk tts output/ --live --live-prebuffer 3 --live-start 5
 
 ---
 
-## 7. VoiceVox tips
+## 6. VoiceVox tips
 
 - Increase `--engine-runtime-wait` if the engine needs extra time to load models.
 - Pass `--pause 0` to keep the engine’s default trailing silence.
@@ -184,7 +202,7 @@ nk tts output/ --live --live-prebuffer 3 --live-start 5
 
 ---
 
-## 8. Web playback service (`nk web`)
+## 7. Web playback service (`nk web`)
 
 Serve your chapterized books over HTTP and stream them from a phone or tablet on the same network.
 
@@ -201,7 +219,7 @@ Serve your chapterized books over HTTP and stream them from a phone or tablet on
 
 ---
 
-## 9. Troubleshooting
+## 8. Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
@@ -213,7 +231,7 @@ Serve your chapterized books over HTTP and stream them from a phone or tablet on
 
 ---
 
-## 10. Command reference
+## 9. Command reference
 
 ```
 # EPUB → TXT (per-chapter by default)
