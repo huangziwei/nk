@@ -6,7 +6,6 @@ dist/
 wheels/
 dev/
 data/
-tests/
 output/
 *.egg-info
 .DS*
@@ -15,3 +14,5 @@ AGENTS.md
 books/
 *.mp3
 *.wav
+tests/test_regressions.py
+tests/artifacts
