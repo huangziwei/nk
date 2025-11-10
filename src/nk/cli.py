@@ -805,7 +805,7 @@ def _run_tools(args: argparse.Namespace) -> int:
         except UniDicInstallError as exc:
             raise SystemExit(str(exc)) from exc
         print(f"UniDic {status.version} installed at {status.path}")
-        print("Set NK_UNIDIC_DIR to override or rerun this command to reinstall.")
+        print("Set NK_UNIDIC_DIR to override or rerun 'nk tools install-unidic' to reinstall.")
         return 0
 
     if args.tool_cmd == "unidic-status":
