@@ -349,7 +349,15 @@ def test_voicevox_client_post_phoneme_override(monkeypatch) -> None:
         def post(self, url, *, params=None, json=None, timeout=None):
             if url.endswith("/audio_query"):
                 self.calls.append(("audio_query", params, json))
-                return DummyResponse(200, {"postPhonemeLength": 0.1})
+                return DummyResponse(
+                    200,
+                    {
+                        "postPhonemeLength": 0.1,
+                        "speedScale": 1.0,
+                        "pitchScale": 0.0,
+                        "intonationScale": 1.0,
+                    },
+                )
             if url.endswith("/synthesis"):
                 self.calls.append(("synthesis", params, json))
                 return DummyResponse(200, b"wav")
@@ -361,11 +369,14 @@ def test_voicevox_client_post_phoneme_override(monkeypatch) -> None:
     dummy_session = DummySession()
     monkeypatch.setattr("nk.tts.requests.Session", lambda: dummy_session)
 
+    observed_defaults: list[dict[str, float]] = []
+
     client = VoiceVoxClient(
         post_phoneme_length=0.6,
         speed_scale=1.2,
         pitch_scale=-0.1,
         intonation_scale=0.8,
+        engine_defaults_callback=lambda defaults: observed_defaults.append(defaults),
     )
     try:
         wav = client.synthesize_wav("テスト")
@@ -378,6 +389,9 @@ def test_voicevox_client_post_phoneme_override(monkeypatch) -> None:
     synthesis_payload = dummy_session.calls[1][2]
     assert isinstance(synthesis_payload, dict)
     assert synthesis_payload["postPhonemeLength"] == 0.6
+    assert observed_defaults
+    assert observed_defaults[0]["speed"] == 1.0
+    assert observed_defaults[0]["intonation"] == 1.0
     assert synthesis_payload["speedScale"] == 1.2
     assert synthesis_payload["pitchScale"] == -0.1
     assert synthesis_payload["intonationScale"] == 0.8

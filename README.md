@@ -97,7 +97,7 @@ nk tts output/chapters --speaker 20 \
 
 | Option | Purpose |
 | --- | --- |
-| `--speaker N` | VoiceVox speaker ID (default 2, 四国めたん・セリフ). |
+| `--speaker N` | VoiceVox speaker ID (defaults to the saved per-book value, falling back to 2 / 四国めたん・セリフ). |
 | `--speed SCALE` | Override VoiceVox `speedScale` (e.g., 0.9 slows speech). Defaults to the engine preset. |
 | `--pitch SCALE` | Override VoiceVox `pitchScale` (e.g., -0.1 lowers the voice). Defaults to the engine preset. |
 | `--intonation SCALE` | Override VoiceVox `intonationScale` (e.g., 1.1 adds more variation). Defaults to the engine preset. |
@@ -114,6 +114,13 @@ nk tts output/chapters --speaker 20 \
 **Resume after interruption** – nk caches every chunk under `.nk-tts-cache/<chapter-hash>/`. If you stop midway, rerun the same command (omit `--overwrite`) and synthesis resumes from the last unfinished chunk or merge. Delete MP3s (or use `--overwrite`) to regenerate everything.
 - **Skip ahead** – add `--start-index N` to begin at chapter `N` without touching earlier files (helpful when you only need to regenerate later chapters).
 
+### Remember per-book voice settings
+
+- `nk tts` remembers the last `--speaker/--speed/--pitch/--intonation` overrides you use for a book by storing them in that book’s `.nk-book.json`.
+- Future runs without those flags automatically reuse the saved values (falling back to speaker `2` and engine defaults otherwise).
+- When you rely on VoiceVox defaults, nk captures the actual numeric values and stores them in `tts_defaults` so future runs show the precise baseline you used.
+- Re-run `nk tts` with new options or edit `.nk-book.json` to change or clear the remembered values.
+
 ---
 
 ## 4.1 Build an M4B (optional)
@@ -121,6 +128,7 @@ nk tts output/chapters --speaker 20 \
 nk drops two helper files next to every chapterized book:
 
 - `.nk-book.json` – structured metadata for nk itself (titles, author, track counts, etc.).
+- `tts_defaults` inside `.nk-book.json` records the last speaker/speed/pitch/intonation nk used (whether from CLI or engine defaults).
 - `<chapter>.txt.pitch.json` – optional per-chapter pitch-accent metadata (advanced mode) that lets `nk tts` override VoiceVox accent phrases for homographs.
 - `m4b.json` – directly consumable by [m4b-tool](https://github.com/sandreas/m4b-tool) with every MP3 listed in order, chapter labels, and the padded cover.
 

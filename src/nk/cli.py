@@ -8,6 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 import threading
+from typing import Mapping
 
 import uvicorn
 from watchdog.events import FileSystemEventHandler
@@ -25,7 +26,9 @@ from rich.progress import (
 from .book_io import (
     BOOK_METADATA_FILENAME,
     M4B_MANIFEST_FILENAME,
+    load_book_metadata,
     regenerate_m4b_manifest,
+    update_book_tts_defaults,
     write_book_package,
 )
 from .core import epub_to_chapter_texts, epub_to_txt, get_epub_cover
@@ -106,8 +109,8 @@ def build_tts_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--speaker",
         type=int,
-        default=2,
-        help="VoiceVox speaker ID to use (default: 2).",
+        default=None,
+        help="VoiceVox speaker ID to use (defaults to the saved per-book value or 2).",
     )
     ap.add_argument(
         "--speed",
@@ -458,8 +461,267 @@ def _run_tts(args: argparse.Namespace) -> int:
     if args.input_path is None:
         raise SystemExit("Input path is required unless --clear-cache is used.")
 
+    speaker_override_set = args.speaker is not None
+    speed_override_set = args.speed is not None
+    pitch_override_set = args.pitch is not None
+    intonation_override_set = args.intonation is not None
+
     input_path = Path(args.input_path)
     input_path = _ensure_tts_source_ready(input_path, mode=args.mode)
+    defaults_book_dir = input_path if input_path.is_dir() else input_path.parent
+    metadata_path = (
+        defaults_book_dir / BOOK_METADATA_FILENAME
+        if defaults_book_dir.is_dir()
+        else None
+    )
+    metadata_for_defaults = None
+    if defaults_book_dir.is_dir():
+        metadata_for_defaults = load_book_metadata(defaults_book_dir)
+    stored_defaults = metadata_for_defaults.tts_defaults if metadata_for_defaults else None
+
+    if args.speaker is None:
+        if stored_defaults and stored_defaults.speaker is not None:
+            args.speaker = stored_defaults.speaker
+        else:
+            args.speaker = 2
+    if args.speed is None and stored_defaults and stored_defaults.speed is not None:
+        args.speed = stored_defaults.speed
+    if args.pitch is None and stored_defaults and stored_defaults.pitch is not None:
+        args.pitch = stored_defaults.pitch
+    if args.intonation is None and stored_defaults and stored_defaults.intonation is not None:
+        args.intonation = stored_defaults.intonation
+
+    def _format_value(name: str, value: float | int | None) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, float):
+            return f"{name}={format(value, 'g')}"
+        return f"{name}={value}"
+
+    def _format_setting(name: str, value: float | int | None, source: str | None = None) -> str:
+        if value is None:
+            return f"{name}=engine default"
+        text = _format_value(name, value) or f"{name}={value}"
+        if source == "cli":
+            return f"{text} [CLI]"
+        if source == "saved":
+            return f"{text} [saved]"
+        return text
+
+    def _format_transition(name: str, previous: float | int | None, new_value: float | int | None) -> str:
+        def _value_text(val: float | int | None) -> str:
+            if val is None:
+                return "engine default"
+            if isinstance(val, float):
+                return format(val, "g")
+            return str(val)
+
+        return f"{name} {_value_text(previous)} → {_value_text(new_value)}"
+
+    def _format_engine_defaults(values: Mapping[str, float]) -> str:
+        order = ("speed", "pitch", "intonation")
+        parts: list[str] = []
+        for name in order:
+            if name in values:
+                parts.append(f"{name}={format(values[name], 'g')}")
+        for name in sorted(values.keys()):
+            if name in order:
+                continue
+            parts.append(f"{name}={format(values[name], 'g')}")
+        return ", ".join(parts) if parts else "none"
+
+    setting_sources: dict[str, str | None] = {}
+    if speaker_override_set:
+        setting_sources["speaker"] = "cli"
+    elif stored_defaults and stored_defaults.speaker is not None:
+        setting_sources["speaker"] = "saved"
+    else:
+        setting_sources["speaker"] = None
+
+    def _source_for_scale(
+        override_flag: bool,
+        stored_value: float | None,
+        current_value: float | None,
+    ) -> str | None:
+        if override_flag:
+            return "cli"
+        if stored_value is not None and current_value is not None:
+            return "saved"
+        return None
+
+    setting_sources["speed"] = _source_for_scale(
+        speed_override_set,
+        stored_defaults.speed if stored_defaults else None,
+        args.speed,
+    )
+    setting_sources["pitch"] = _source_for_scale(
+        pitch_override_set,
+        stored_defaults.pitch if stored_defaults else None,
+        args.pitch,
+    )
+    setting_sources["intonation"] = _source_for_scale(
+        intonation_override_set,
+        stored_defaults.intonation if stored_defaults else None,
+        args.intonation,
+    )
+
+    saved_values_summary: list[str] = []
+    if stored_defaults:
+        for name, value in (
+            ("speaker", stored_defaults.speaker),
+            ("speed", stored_defaults.speed),
+            ("pitch", stored_defaults.pitch),
+            ("intonation", stored_defaults.intonation),
+        ):
+            formatted = _format_value(name, value)
+            if formatted:
+                saved_values_summary.append(formatted)
+    if saved_values_summary:
+        source_path = metadata_path if metadata_path else defaults_book_dir
+        saved_summary = ", ".join(saved_values_summary)
+        print(f"[nk tts] Loaded saved voice defaults from {source_path} ({saved_summary}).")
+
+    voice_settings = {
+        "speaker": args.speaker,
+        "speed": args.speed,
+        "pitch": args.pitch,
+        "intonation": args.intonation,
+    }
+    summary_parts = [
+        _format_setting(name, value, setting_sources.get(name))
+        for name, value in voice_settings.items()
+    ]
+    summary = ", ".join(summary_parts)
+    print(f"[nk tts] Voice settings: {summary}.")
+
+    auto_default_fields = {
+        "speed": args.speed is None,
+        "pitch": args.pitch is None,
+        "intonation": args.intonation is None,
+    }
+
+    changed_fields: list[str] = []
+    if (
+        speaker_override_set
+        and stored_defaults
+        and stored_defaults.speaker is not None
+        and stored_defaults.speaker != args.speaker
+    ):
+        changed_fields.append(_format_transition("speaker", stored_defaults.speaker, args.speaker))
+    if (
+        speed_override_set
+        and stored_defaults
+        and stored_defaults.speed is not None
+        and args.speed is not None
+        and stored_defaults.speed != args.speed
+    ):
+        changed_fields.append(_format_transition("speed", stored_defaults.speed, args.speed))
+    if (
+        pitch_override_set
+        and stored_defaults
+        and stored_defaults.pitch is not None
+        and args.pitch is not None
+        and stored_defaults.pitch != args.pitch
+    ):
+        changed_fields.append(_format_transition("pitch", stored_defaults.pitch, args.pitch))
+    if (
+        intonation_override_set
+        and stored_defaults
+        and stored_defaults.intonation is not None
+        and args.intonation is not None
+        and stored_defaults.intonation != args.intonation
+    ):
+        changed_fields.append(
+            _format_transition("intonation", stored_defaults.intonation, args.intonation)
+        )
+
+    if not saved_values_summary and not (
+        speaker_override_set or speed_override_set or pitch_override_set or intonation_override_set
+    ):
+        print("[nk tts] No saved voice defaults found; using built-in engine settings.")
+
+    if changed_fields:
+        print(
+            "[nk tts] Voice overrides differ from previously saved defaults "
+            f"({'; '.join(changed_fields)}). Expect synthesized voices to change."
+        )
+
+    baseline_updates: dict[str, float | int] = {}
+    if (
+        not speaker_override_set
+        and args.speaker is not None
+        and (stored_defaults is None or stored_defaults.speaker != args.speaker)
+    ):
+        baseline_updates["speaker"] = args.speaker
+
+    engine_defaults_lock = threading.Lock()
+    observed_engine_defaults: dict[str, float] = {}
+
+    def _capture_engine_defaults(defaults: Mapping[str, float]) -> None:
+        if not defaults:
+            return
+        normalized = {
+            key: float(value)
+            for key, value in defaults.items()
+            if isinstance(value, (int, float)) and key in {"speed", "pitch", "intonation"}
+        }
+        filtered = {
+            key: normalized[key]
+            for key, flag in auto_default_fields.items()
+            if flag and key in normalized
+        }
+        if not filtered:
+            return
+        newly_added: dict[str, float] = {}
+        with engine_defaults_lock:
+            for key, value in filtered.items():
+                if key not in observed_engine_defaults:
+                    observed_engine_defaults[key] = value
+                    newly_added[key] = value
+        if not newly_added:
+            return
+        summary = _format_engine_defaults(newly_added)
+        print(f"[nk tts] VoiceVox defaults in use ({summary}).")
+
+    def _persist_engine_defaults() -> None:
+        if not defaults_book_dir.is_dir():
+            return
+        pending: dict[str, float | int] = {}
+        pending.update(baseline_updates)
+        pending.update(observed_engine_defaults)
+        if not pending:
+            return
+        if update_book_tts_defaults(defaults_book_dir, pending):
+            saved_path = metadata_path if metadata_path else defaults_book_dir / BOOK_METADATA_FILENAME
+            summary_values = [
+                _format_value(name, pending[name]) or f"{name}={pending[name]}"
+                for name in ("speaker", "speed", "pitch", "intonation")
+                if name in pending
+            ]
+            summary_text = ", ".join(summary_values)
+            print(f"[nk tts] Saved voice defaults to {saved_path} ({summary_text}).")
+
+    remember_updates: dict[str, float | int] = {}
+    if speaker_override_set and args.speaker is not None:
+        remember_updates["speaker"] = args.speaker
+    if speed_override_set and args.speed is not None:
+        remember_updates["speed"] = args.speed
+    if pitch_override_set and args.pitch is not None:
+        remember_updates["pitch"] = args.pitch
+    if intonation_override_set and args.intonation is not None:
+        remember_updates["intonation"] = args.intonation
+    saved_overrides = False
+    if remember_updates and defaults_book_dir.is_dir():
+        saved_overrides = update_book_tts_defaults(defaults_book_dir, remember_updates)
+        if saved_overrides:
+            saved_path = metadata_path if metadata_path else defaults_book_dir / BOOK_METADATA_FILENAME
+            saved_pairs = ", ".join(
+                _format_value(name, remember_updates[name]) or f"{name}={remember_updates[name]}"
+                for name in ("speaker", "speed", "pitch", "intonation")
+                if name in remember_updates
+            )
+            print(f"[nk tts] Saved voice overrides to {saved_path} ({saved_pairs}).")
+
     output_dir = Path(args.output_dir) if args.output_dir else None
     try:
         targets = resolve_text_targets(input_path, output_dir)
@@ -735,6 +997,7 @@ def _run_tts(args: argparse.Namespace) -> int:
                 live_prebuffer=max(1, args.live_prebuffer),
                 progress=_progress_printer,
                 cancel_event=cancel_event,
+                engine_defaults_callback=_capture_engine_defaults,
             )
     except KeyboardInterrupt:
         cancel_event.set()
@@ -751,6 +1014,7 @@ def _run_tts(args: argparse.Namespace) -> int:
         raise SystemExit(str(exc)) from exc
     finally:
         progress_handler.close()
+        _persist_engine_defaults()
 
     if live_mode:
         if not printed_progress["value"]:

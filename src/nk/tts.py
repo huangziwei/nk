@@ -34,6 +34,11 @@ except ImportError:  # pragma: no cover - optional dependency
     _simpleaudio = None
 
 _DEBUG_LOG = False
+_VOICEVOX_ENGINE_DEFAULT_KEYS = {
+    "speed": "speedScale",
+    "pitch": "pitchScale",
+    "intonation": "intonationScale",
+}
 
 
 def set_debug_logging(enabled: bool) -> None:
@@ -877,6 +882,15 @@ def managed_voicevox_runtime(
                 process.kill()
 
 
+def _extract_voicevox_engine_defaults(payload: Mapping[str, object]) -> dict[str, float]:
+    defaults: dict[str, float] = {}
+    for logical_key, payload_key in _VOICEVOX_ENGINE_DEFAULT_KEYS.items():
+        value = payload.get(payload_key)
+        if isinstance(value, (int, float)):
+            defaults[logical_key] = float(value)
+    return defaults
+
+
 class VoiceVoxClient:
     """
     Thin wrapper around the VoiceVox HTTP API.
@@ -892,6 +906,7 @@ class VoiceVoxClient:
         speed_scale: float | None = None,
         pitch_scale: float | None = None,
         intonation_scale: float | None = None,
+        engine_defaults_callback: Callable[[dict[str, float]], None] | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.speaker_id = speaker_id
@@ -901,6 +916,9 @@ class VoiceVoxClient:
         self.pitch_scale = pitch_scale
         self.intonation_scale = intonation_scale
         self._session = requests.Session()
+        self._engine_defaults_callback = engine_defaults_callback
+        self._engine_defaults_reported = False
+        self._last_engine_defaults: dict[str, float] | None = None
 
     def build_audio_query(self, text: str) -> dict:
         try:
@@ -924,6 +942,16 @@ class VoiceVoxClient:
         except json.JSONDecodeError as exc:
             raise VoiceVoxError("VoiceVox returned invalid JSON for /audio_query") from exc
 
+        engine_defaults = _extract_voicevox_engine_defaults(query_payload)
+        if engine_defaults:
+            self._last_engine_defaults = engine_defaults
+            if self._engine_defaults_callback and not self._engine_defaults_reported:
+                try:
+                    self._engine_defaults_callback(engine_defaults.copy())
+                    self._engine_defaults_reported = True
+                except Exception as exc:  # pragma: no cover - defensive
+                    _debug_log(f"engine_defaults_callback failed: {exc}")
+
         if self.post_phoneme_length is not None and self.post_phoneme_length >= 0:
             payload_value = float(query_payload.get("postPhonemeLength", 0.0))
             query_payload["postPhonemeLength"] = max(
@@ -937,6 +965,11 @@ class VoiceVoxClient:
         if self.intonation_scale is not None:
             query_payload["intonationScale"] = float(self.intonation_scale)
         return query_payload
+
+    def last_engine_defaults(self) -> dict[str, float] | None:
+        if self._last_engine_defaults is None:
+            return None
+        return self._last_engine_defaults.copy()
 
     def synthesize_from_query(self, query_payload: dict) -> bytes:
         try:
@@ -1549,6 +1582,7 @@ def synthesize_texts_to_mp3(
     live_prebuffer: int = 2,
     progress: Callable[[dict[str, object]], None] | None = None,
     cancel_event: threading.Event | None = None,
+    engine_defaults_callback: Callable[[dict[str, float]], None] | None = None,
 ) -> list[Path]:
     """
     Synthesize each target text file into an MP3 and return the generated paths.
@@ -1576,6 +1610,7 @@ def synthesize_texts_to_mp3(
             speed_scale=speed_scale,
             pitch_scale=pitch_scale,
             intonation_scale=intonation_scale,
+            engine_defaults_callback=engine_defaults_callback,
         )
         try:
             results: list[Path] = []
@@ -1622,6 +1657,7 @@ def synthesize_texts_to_mp3(
             speed_scale=speed_scale,
             pitch_scale=pitch_scale,
             intonation_scale=intonation_scale,
+            engine_defaults_callback=engine_defaults_callback,
         )
         try:
             if cancel_event and cancel_event.is_set():

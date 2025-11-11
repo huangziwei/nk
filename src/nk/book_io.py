@@ -5,7 +5,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Iterable
+from typing import Iterable, Mapping
 
 try:
     from PIL import Image
@@ -58,6 +58,65 @@ class LoadedBookMetadata:
     author: str | None
     cover_path: Path | None
     chapters: dict[str, ChapterMetadata]
+    tts_defaults: "BookTTSDefaults | None"
+
+
+@dataclass
+class BookTTSDefaults:
+    speaker: int | None = None
+    speed: float | None = None
+    pitch: float | None = None
+    intonation: float | None = None
+
+    def as_payload(self) -> dict[str, float | int]:
+        payload: dict[str, float | int] = {}
+        if self.speaker is not None:
+            payload["speaker"] = self.speaker
+        if self.speed is not None:
+            payload["speed"] = self.speed
+        if self.pitch is not None:
+            payload["pitch"] = self.pitch
+        if self.intonation is not None:
+            payload["intonation"] = self.intonation
+        return payload
+
+    def is_empty(self) -> bool:
+        return not self.as_payload()
+
+    @classmethod
+    def from_payload(cls, payload: object) -> "BookTTSDefaults | None":
+        if not isinstance(payload, Mapping):
+            return None
+        speaker = payload.get("speaker")
+        speed = payload.get("speed")
+        pitch = payload.get("pitch")
+        intonation = payload.get("intonation")
+        has_value = False
+        speaker_value: int | None = None
+        speed_value: float | None = None
+        pitch_value: float | None = None
+        intonation_value: float | None = None
+        if isinstance(speaker, int):
+            speaker_value = speaker
+            has_value = True
+        if isinstance(speed, (int, float)):
+            speed_value = float(speed)
+            has_value = True
+        if isinstance(pitch, (int, float)):
+            pitch_value = float(pitch)
+            has_value = True
+        if isinstance(intonation, (int, float)):
+            intonation_value = float(intonation)
+            has_value = True
+        if not has_value:
+            return None
+        return cls(
+            speaker=speaker_value,
+            speed=speed_value,
+            pitch=pitch_value,
+            intonation=intonation_value,
+        )
+
 
 
 def _slugify_for_filename(text: str) -> str:
@@ -275,6 +334,7 @@ def _build_metadata_payload(
     *,
     source_epub: Path | None,
     cover_path: Path | None,
+    tts_defaults: BookTTSDefaults | None = None,
 ) -> dict:
     chapters_payload = []
     for record in records:
@@ -298,6 +358,10 @@ def _build_metadata_payload(
         payload["cover"] = cover_path.name
     if source_epub is not None:
         payload["epub"] = source_epub.name
+    if tts_defaults:
+        defaults_payload = tts_defaults.as_payload()
+        if defaults_payload:
+            payload["tts_defaults"] = defaults_payload
     return payload
 
 
@@ -308,6 +372,7 @@ def write_book_package(
     source_epub: Path | None = None,
     cover_image: CoverImage | None = None,
 ) -> BookPackage:
+    previous_metadata = load_book_metadata(output_dir)
     records = _write_chapter_texts(output_dir, chapters)
     book_title = _resolve_book_title(chapters, output_dir)
     book_author = _resolve_book_author(chapters)
@@ -318,6 +383,7 @@ def write_book_package(
         records,
         source_epub=source_epub,
         cover_path=cover_path,
+        tts_defaults=previous_metadata.tts_defaults if previous_metadata else None,
     )
     metadata_path = output_dir / BOOK_METADATA_FILENAME
     metadata_path.write_text(
@@ -456,11 +522,14 @@ def load_book_metadata(book_dir: Path) -> LoadedBookMetadata | None:
                 else None,
             )
 
+    tts_defaults = BookTTSDefaults.from_payload(payload.get("tts_defaults"))
+
     return LoadedBookMetadata(
         title=title if isinstance(title, str) else None,
         author=author if isinstance(author, str) else None,
         cover_path=cover_path,
         chapters=chapters,
+        tts_defaults=tts_defaults,
     )
 
 
@@ -485,16 +554,74 @@ def load_pitch_metadata(chapter_path: Path) -> ChapterPitchMetadata | None:
     return ChapterPitchMetadata(text_sha1=text_sha1, tokens=tokens)
 
 
+def update_book_tts_defaults(
+    book_dir: Path,
+    updates: Mapping[str, float | int | None],
+) -> bool:
+    if not updates:
+        return False
+    metadata_path = book_dir / BOOK_METADATA_FILENAME
+    if not metadata_path.exists():
+        return False
+    try:
+        payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+    existing_payload = payload.get("tts_defaults")
+    current: dict[str, float | int] = {}
+    if isinstance(existing_payload, dict):
+        for key, value in existing_payload.items():
+            if key in {"speaker", "speed", "pitch", "intonation"} and isinstance(
+                value, (int, float)
+            ):
+                if key == "speaker" and not isinstance(value, int):
+                    continue
+                current[key] = int(value) if key == "speaker" else float(value)
+    changed = False
+    for key, value in updates.items():
+        if key not in {"speaker", "speed", "pitch", "intonation"}:
+            continue
+        if value is None:
+            if key in current:
+                current.pop(key, None)
+                changed = True
+            continue
+        normalized: float | int
+        if key == "speaker":
+            if not isinstance(value, int):
+                continue
+            normalized = value
+        else:
+            normalized = float(value)
+        if current.get(key) != normalized:
+            current[key] = normalized
+            changed = True
+    if not changed:
+        return False
+    if current:
+        payload["tts_defaults"] = current
+    else:
+        payload.pop("tts_defaults", None)
+    metadata_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return True
+
 __all__ = [
     "BookPackage",
     "ChapterFileRecord",
     "ChapterMetadata",
     "LoadedBookMetadata",
+    "BookTTSDefaults",
     "BOOK_METADATA_FILENAME",
     "M4B_MANIFEST_FILENAME",
     "ensure_cover_is_square",
     "regenerate_m4b_manifest",
     "load_book_metadata",
     "load_pitch_metadata",
+    "update_book_tts_defaults",
     "write_book_package",
 ]

@@ -9,7 +9,12 @@ import pytest
 pytest.importorskip("PIL")
 from PIL import Image
 
-from nk.book_io import load_book_metadata, load_pitch_metadata, write_book_package
+from nk.book_io import (
+    load_book_metadata,
+    load_pitch_metadata,
+    update_book_tts_defaults,
+    write_book_package,
+)
 from nk.core import ChapterText, CoverImage
 from nk.pitch import PitchToken
 
@@ -119,3 +124,93 @@ def test_write_book_package_persists_pitch_metadata(tmp_path: Path) -> None:
     loaded = load_pitch_metadata(record.path)
     assert loaded is not None
     assert len(loaded.tokens) == 2
+
+
+def test_write_book_package_preserves_tts_defaults(tmp_path: Path) -> None:
+    output_dir = tmp_path / "Book"
+    output_dir.mkdir()
+    existing = {
+        "version": 1,
+        "title": "Old Title",
+        "chapters": [
+            {"index": 1, "file": "001_old.txt", "title": "Old", "original_title": None},
+        ],
+        "tts_defaults": {"speaker": 11, "speed": 0.88, "pitch": 0.0, "intonation": 1.1},
+    }
+    (output_dir / ".nk-book.json").write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    chapters = [
+        ChapterText(
+            source="c.xhtml",
+            title="New",
+            text="Body",
+            book_title="New Title",
+            book_author="Author",
+        )
+    ]
+
+    package = write_book_package(output_dir, chapters)
+    payload = json.loads(package.metadata_path.read_text(encoding="utf-8"))
+    assert payload["tts_defaults"]["speaker"] == 11
+    assert payload["tts_defaults"]["speed"] == 0.88
+
+
+def test_load_book_metadata_reads_tts_defaults(tmp_path: Path) -> None:
+    book_dir = tmp_path / "novel"
+    book_dir.mkdir()
+    (book_dir / "001_intro.txt").write_text("text", encoding="utf-8")
+    payload = {
+        "version": 1,
+        "title": "Novel",
+        "chapters": [
+            {
+                "index": 1,
+                "file": "001_intro.txt",
+                "title": "Intro",
+                "original_title": "第一章",
+            }
+        ],
+        "tts_defaults": {
+            "speaker": 7,
+            "speed": 0.92,
+            "pitch": -0.07,
+            "intonation": 1.15,
+        },
+    }
+    (book_dir / ".nk-book.json").write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    metadata = load_book_metadata(book_dir)
+    assert metadata is not None
+    defaults = metadata.tts_defaults
+    assert defaults is not None
+    assert defaults.speaker == 7
+    assert defaults.speed == 0.92
+    assert defaults.pitch == -0.07
+    assert defaults.intonation == 1.15
+
+
+def test_update_book_tts_defaults_merges_fields(tmp_path: Path) -> None:
+    book_dir = tmp_path / "novel"
+    book_dir.mkdir()
+    meta_path = book_dir / ".nk-book.json"
+    payload = {
+        "version": 1,
+        "title": "Novel",
+        "chapters": [
+            {"index": 1, "file": "001.txt", "title": "One", "original_title": None},
+        ],
+        "tts_defaults": {"speaker": 5, "speed": 0.95},
+    }
+    meta_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    assert update_book_tts_defaults(book_dir, {"speaker": 9, "pitch": -0.12}) is True
+    updated = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert updated["tts_defaults"]["speaker"] == 9
+    assert updated["tts_defaults"]["speed"] == 0.95
+    assert updated["tts_defaults"]["pitch"] == -0.12
+
+    assert update_book_tts_defaults(book_dir, {"pitch": None}) is True
+    updated = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert "pitch" not in updated["tts_defaults"]
+
+    assert update_book_tts_defaults(book_dir, {"pitch": None}) is False
+
