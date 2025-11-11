@@ -15,7 +15,7 @@ import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Iterator, Mapping
+from typing import Callable, Iterable, Iterator, Mapping, Sequence
 import threading
 from urllib.parse import urlparse
 
@@ -435,6 +435,55 @@ _CLAUSE_BREAKS = (
     "、", "，", "､", ",", ";", "；", ":", "：", "・", "—", "─",
 )
 
+_VOICEVOX_STRIPPED_PUNCTUATION = frozenset({"・", "･", "『", "』"})
+
+
+def _strip_voicevox_pause_punctuation(text: str) -> tuple[str, tuple[int, ...] | None]:
+    if not text:
+        return text, None
+    if not any(ch in _VOICEVOX_STRIPPED_PUNCTUATION for ch in text):
+        return text, None
+    mapping = [0] * (len(text) + 1)
+    out_chars: list[str] = []
+    out_len = 0
+    mapping[0] = 0
+    for idx, ch in enumerate(text):
+        if ch in _VOICEVOX_STRIPPED_PUNCTUATION:
+            mapping[idx + 1] = out_len
+            continue
+        out_chars.append(ch)
+        out_len += 1
+        mapping[idx + 1] = out_len
+    sanitized = "".join(out_chars)
+    return sanitized, tuple(mapping)
+
+
+def _remap_pitch_tokens_for_voicevox(
+    tokens: list[PitchToken],
+    offset_map: Sequence[int],
+) -> list[PitchToken]:
+    if not tokens:
+        return []
+    limit = max(0, len(offset_map) - 1)
+    remapped: list[PitchToken] = []
+    for token in tokens:
+        start = token.start
+        end = token.end
+        if start < 0:
+            start = 0
+        elif start > limit:
+            start = limit
+        if end < 0:
+            end = 0
+        elif end > limit:
+            end = limit
+        new_start = offset_map[start]
+        new_end = offset_map[end]
+        if new_end <= new_start:
+            continue
+        remapped.append(token.with_offsets(new_start, new_end))
+    return remapped
+
 
 def _slugify_cache_component(text: str) -> str:
     slug = _CACHE_SANITIZE_RE.sub("_", text)
@@ -615,7 +664,13 @@ def _synthesize_target_with_client(
     if pitch_tokens:
         _enrich_pitch_tokens_with_voicevox(pitch_tokens, client)
 
-    chunk_entries = _split_text_on_breaks_with_spans(text)
+    raw_chunk_entries = _split_text_on_breaks_with_spans(text)
+    chunk_entries: list[tuple[_ChunkSpan, str, tuple[int, ...] | None]] = []
+    for entry in raw_chunk_entries:
+        sanitized_text, offset_map = _strip_voicevox_pause_punctuation(entry.text)
+        if not sanitized_text:
+            continue
+        chunk_entries.append((entry, sanitized_text, offset_map))
     if not chunk_entries:
         _emit_progress(
             progress,
@@ -655,7 +710,7 @@ def _synthesize_target_with_client(
     chunk_files: list[Path] = []
     last_play_object = None
 
-    for chunk_index, chunk_entry in enumerate(chunk_entries, start=1):
+    for chunk_index, (chunk_entry, chunk_text, offset_map) in enumerate(chunk_entries, start=1):
         if cancel_event and cancel_event.is_set():
             raise KeyboardInterrupt
         _emit_progress(
@@ -668,12 +723,13 @@ def _synthesize_target_with_client(
             source=target.source,
             live=live_playback,
         )
-        chunk_text = chunk_entry.text
         local_pitch_tokens = _slice_pitch_tokens_for_chunk(
             pitch_tokens,
             chunk_entry.start,
             chunk_entry.end,
         )
+        if offset_map is not None and local_pitch_tokens:
+            local_pitch_tokens = _remap_pitch_tokens_for_voicevox(local_pitch_tokens, offset_map)
         pitch_signature = _pitch_signature(local_pitch_tokens)
         if pitch_signature:
             _debug_log(f"Chunk {chunk_index}: pitch signature {pitch_signature}")

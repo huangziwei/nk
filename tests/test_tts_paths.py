@@ -21,6 +21,8 @@ from nk.tts import (
     _chunk_cache_path,
     _enrich_pitch_tokens_with_voicevox,
     _reset_voicevox_accent_cache_for_tests,
+    _strip_voicevox_pause_punctuation,
+    _remap_pitch_tokens_for_voicevox,
     resolve_text_targets,
 )
 
@@ -196,6 +198,35 @@ def test_resolve_directory_without_txt(tmp_path: Path) -> None:
     empty.mkdir()
     with pytest.raises(FileNotFoundError):
         resolve_text_targets(empty)
+
+
+def test_strip_voicevox_pause_punctuation_removes_middle_dot() -> None:
+    text = "あ・い『う』"
+    sanitized, mapping = _strip_voicevox_pause_punctuation(text)
+    assert sanitized == "あいう"
+    assert mapping is not None
+    # prefix lengths should map original offsets to sanitized offsets
+    assert mapping[0] == 0
+    assert mapping[len(text)] == len(sanitized)
+
+
+def test_remap_pitch_tokens_for_voicevox_adjusts_offsets() -> None:
+    text = "あ・い"
+    sanitized, mapping = _strip_voicevox_pause_punctuation(text)
+    assert sanitized == "あい"
+    assert mapping is not None
+    tokens = [
+        PitchToken(surface="あ", reading="ア", accent_type=1, start=0, end=1),
+        PitchToken(surface="・", reading="", accent_type=None, start=1, end=2),
+        PitchToken(surface="い", reading="イ", accent_type=1, start=2, end=3),
+    ]
+
+    remapped = _remap_pitch_tokens_for_voicevox(tokens, mapping)
+
+    assert [(token.surface, token.start, token.end) for token in remapped] == [
+        ("あ", 0, 1),
+        ("い", 1, 2),
+    ]
 
 
 def test_split_text_on_breaks() -> None:
