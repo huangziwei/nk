@@ -42,6 +42,24 @@ def test_adjacent_single_kanji_ruby_merges_into_compound() -> None:
     assert unique.get("温水") == "ヌクミズ"
 
 
+def test_name_ruby_with_dict_mismatch_is_preserved() -> None:
+    class _NameMock:
+        def reading_variants(self, text: str) -> set[str]:
+            if text == "馬締":
+                return {"ウマシメ"}
+            return set()
+
+    html = """
+    <p>
+      <ruby><rb>馬締</rb><rt>まじめ</rt></ruby>が来た。
+    </p>
+    """
+    soup = _soup(html)
+    accumulators = _collect_reading_counts_from_soup(soup)
+    unique, _ = _select_reading_mapping(accumulators, mode="advanced", nlp=_NameMock())
+    assert unique.get("馬締") == "マジメ"
+
+
 def test_nlp_backend_normalizes_cross_token_small_kana() -> None:
     pytest.importorskip("fugashi")
     from nk.nlp import NLPBackend

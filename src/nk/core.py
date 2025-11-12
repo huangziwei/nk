@@ -958,6 +958,22 @@ def _looks_like_translation(flags: _ReadingFlags, reading: str) -> bool:
     return False
 
 
+def _is_likely_name_candidate(base: str, flags: _ReadingFlags) -> bool:
+    stripped = base.strip()
+    if not stripped:
+        return False
+    if flags.has_latin or flags.has_middle_dot:
+        return False
+    cjk_chars = [ch for ch in stripped if _is_cjk_char(ch)]
+    if len(cjk_chars) < 2 or len(cjk_chars) > 4:
+        return False
+    if len(cjk_chars) != len(stripped):
+        return False
+    if not flags.has_hiragana and not flags.has_long_mark:
+        return False
+    return True
+
+
 def _reading_matches(candidate: str, variants: set[str]) -> bool:
     if not variants:
         return False
@@ -1010,6 +1026,9 @@ def _select_reading_mapping(
                 continue
             variants = nlp.reading_variants(base)
             if _reading_matches(top_reading, variants):
+                tier3[base] = top_reading
+                continue
+            if share >= 0.9 and _is_likely_name_candidate(base, flags):
                 tier3[base] = top_reading
                 continue
             if total >= 3 and share >= 0.95:
