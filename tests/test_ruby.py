@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from bs4 import BeautifulSoup
+from types import SimpleNamespace
 
 from nk.core import _collect_reading_counts_from_soup, _select_reading_mapping
 
@@ -77,3 +78,13 @@ def test_nlp_backend_handles_parent_titles_and_oyaji() -> None:
     assert backend.to_reading_text("母上") == "ハハウエ"
     assert backend.to_reading_text("お母上") == "おハハウエ"
     assert backend.to_reading_text("お母上様") == "おハハウエサマ"
+
+
+def test_cli_convert_command_outputs_kana(capsys) -> None:
+    pytest.importorskip("fugashi")
+    from nk.cli import _run_convert
+
+    args = SimpleNamespace(text=["他は"])
+    assert _run_convert(args) == 0
+    captured = capsys.readouterr()
+    assert "ホカは" in captured.out

@@ -84,6 +84,18 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
+def build_convert_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        description="Convert arbitrary text to kana using the NLP backend.",
+    )
+    ap.add_argument(
+        "text",
+        nargs="+",
+        help="Japanese text to convert. Wrap the phrase in quotes if it contains spaces.",
+    )
+    return ap
+
+
 def build_tts_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="Synthesize MP3s from .txt files using a running VoiceVox engine.",
@@ -400,6 +412,19 @@ def _engine_thread_overrides(
         "RAYON_NUM_THREADS": str(clamped),
     }
     return env, clamped
+
+
+def _run_convert(args: argparse.Namespace) -> int:
+    try:
+        backend = NLPBackend()
+    except NLPBackendUnavailableError as exc:
+        raise SystemExit(str(exc)) from exc
+    text = " ".join(args.text).strip()
+    if not text:
+        raise SystemExit("No text provided for conversion.")
+    converted = backend.to_reading_text(text)
+    print(converted)
+    return 0
 
 
 def _ensure_tts_source_ready(
@@ -1130,6 +1155,10 @@ def main(argv: list[str] | None = None) -> int:
         dav_parser = build_dav_parser()
         dav_args = dav_parser.parse_args(argv[1:])
         return _run_dav(dav_args)
+    if argv and argv[0] == "convert":
+        convert_parser = build_convert_parser()
+        convert_args = convert_parser.parse_args(argv[1:])
+        return _run_convert(convert_args)
     if argv and argv[0] == "tools":
         tools_parser = build_tools_parser()
         tools_args = tools_parser.parse_args(argv[1:])
