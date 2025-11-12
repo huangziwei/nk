@@ -387,3 +387,50 @@ def test_toc_splits_shared_spine_item(tmp_path: Path) -> None:
     assert chapters[2].title == "第二夜"
     assert "第一夜の物語" in chapters[1].text
     assert "第二夜の物語" in chapters[2].text
+
+
+def test_first_chapter_inserts_break_between_title_and_author(tmp_path: Path) -> None:
+    epub_path = tmp_path / "title_author.epub"
+    mimetype = "application/epub+zip"
+    container_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+"""
+    opf_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" unique-identifier="BookId" xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Title Author Test</dc:title>
+    <dc:creator>Example Author</dc:creator>
+  </metadata>
+  <manifest>
+    <item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="ch1"/>
+  </spine>
+</package>
+"""
+    ch1_html = """<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Title page</title></head>
+  <body>
+    <h1>夢十夜</h1>
+    <h2>夏目漱石</h2>
+  </body>
+</html>
+"""
+    with zipfile.ZipFile(epub_path, "w") as zf:
+        zf.writestr("mimetype", mimetype)
+        zf.writestr("META-INF/container.xml", container_xml)
+        zf.writestr("content.opf", opf_xml)
+        zf.writestr("ch1.xhtml", ch1_html)
+
+    chapters = epub_to_chapter_texts(str(epub_path), mode="fast")
+    assert len(chapters) == 1
+    lines = chapters[0].text.splitlines()
+    assert lines[0] == "夢十夜"
+    assert lines[1] == ""
+    assert lines[2] == "夏目漱石"

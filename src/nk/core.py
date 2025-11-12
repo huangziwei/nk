@@ -652,6 +652,70 @@ def _first_non_blank_line(text: str) -> str | None:
     return None
 
 
+def _line_looks_like_title_or_author(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    if len(stripped) > 32:
+        return False
+    if any(ch in "。！？!?…" for ch in stripped):
+        return False
+    allowed_punct = {
+        "・",
+        "-",
+        "‐",
+        " ",
+        "　",
+        "／",
+        "(",
+        ")",
+        "（",
+        "）",
+        "［",
+        "］",
+        "[",
+        "]",
+        "『",
+        "』",
+        "〈",
+        "〉",
+        "＝",
+    }
+    for ch in stripped:
+        if ch in allowed_punct:
+            continue
+        code = ord(ch)
+        if _is_cjk_char(ch):
+            continue
+        if 0x3040 <= code <= 0x30FF:
+            continue
+        if ch.isascii() and (ch.isalpha() or ch.isdigit()):
+            continue
+        return False
+    return True
+
+
+def _ensure_title_author_break(text: str) -> str:
+    lines = text.splitlines()
+    first_idx = second_idx = -1
+    for idx, line in enumerate(lines):
+        if line.strip():
+            if first_idx == -1:
+                first_idx = idx
+            else:
+                second_idx = idx
+                break
+    if first_idx == -1 or second_idx == -1:
+        return text
+    if not (_line_looks_like_title_or_author(lines[first_idx]) and _line_looks_like_title_or_author(lines[second_idx])):
+        return text
+    has_blank = any(not lines[idx].strip() for idx in range(first_idx + 1, second_idx))
+    if has_blank:
+        return text
+    lines.insert(second_idx, "")
+    return "\n".join(lines)
+
+
 def _finalize_segment_text(
     raw_text: str,
     mode: PropagationMode,
@@ -1341,6 +1405,8 @@ def epub_to_chapter_texts(
             finalized_text, pitch_tokens = _finalize_segment_text(pending.raw_text, mode, backend)
             if not finalized_text:
                 continue
+            if not chapters:
+                finalized_text = _ensure_title_author_break(finalized_text)
             original_basis = pending.raw_original.strip() or pending.raw_text
             original_title = _first_non_blank_line(original_basis)
             processed_title = _first_non_blank_line(finalized_text)
