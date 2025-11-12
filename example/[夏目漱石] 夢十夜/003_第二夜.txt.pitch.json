@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "text_sha1": "579b5924f99480c75c9946b7c252e4ea9314136e",
+  "tokens": [
+    {
+      "surface": "第",
+      "reading": "ダイ",
+      "accent": null,
+      "connection": "P13",
+      "pos": "接頭辞",
+      "start": 0,
+      "end": 2
+    },
+    {
+      "surface": "二",
+      "reading": "ニ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 2,
+      "end": 3
+    },
+    {
+      "surface": "夜",
+      "reading": "ヤ",
+      "accent": null,
+      "connection": "C3",
+      "pos": "接尾辞",
+      "start": 44,
+      "end": 45
+    },
+    {
+      "surface": "見",
+      "reading": "ミ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 324,
+      "end": 325
+    },
+    {
+      "surface": "室",
+      "reading": "シツ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 646,
+      "end": 648
+    },
+    {
+      "surface": "自分",
+      "reading": "ジブン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 716,
+      "end": 719
+    },
+    {
+      "surface": "部屋",
+      "reading": "ヘヤ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 883,
+      "end": 885
+    },
+    {
+      "surface": "上",
+      "reading": "ウエ",
+      "accent": null,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1608,
+      "end": 1610
+    },
+    {
+      "surface": "濃く",
+      "reading": "コク",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "形容詞",
+      "start": 1776,
+      "end": 1778
+    },
+    {
+      "surface": "影",
+      "reading": "カゲ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1877,
+      "end": 1879
+    },
+    {
+      "surface": "手",
+      "reading": "テ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1937,
+      "end": 1938
+    },
+    {
+      "surface": "時計",
+      "reading": "トケイ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1950,
+      "end": 1953
+    },
+    {
+      "surface": "血",
+      "reading": "チ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1959,
+      "end": 1960
+    },
+    {
+      "surface": "打っ",
+      "reading": "ウッ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1963,
+      "end": 1965
+    }
+  ]
+}

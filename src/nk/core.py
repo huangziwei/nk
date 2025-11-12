@@ -9,6 +9,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field, replace
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Literal
+from urllib.parse import unquote
 
 from bs4 import (
     BeautifulSoup,
@@ -61,6 +62,10 @@ BLOCK_LEVEL_TAGS = {
 }
 # Tags that should force a break even when nested inside another block.
 FORCE_BREAK_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "li", "p", "dt", "dd", "tr"}
+
+CHAPTER_MARKER_PREFIX = "[[NKCHAP:"
+CHAPTER_MARKER_SUFFIX = "]]"
+CHAPTER_MARKER_PATTERN = re.compile(r"\[\[NKCHAP:(\d+)\]\]")
 
 PropagationMode = Literal["fast", "advanced"]
 
@@ -128,6 +133,35 @@ class CoverImage:
     path: str
     media_type: str | None
     data: bytes
+
+
+@dataclass
+class _NavPoint:
+    order: int
+    path: str
+    spine_index: int
+    fragment: str | None
+    title: str | None
+    local_order: int = 0
+
+
+@dataclass
+class _FallbackSegment:
+    spine_index: int
+    order: int
+    sequence: int
+    source: str
+    raw_text: str
+    raw_original: str
+
+
+@dataclass
+class _PendingChapter:
+    sort_key: tuple[int, int, int]
+    source: str
+    raw_text: str
+    raw_original: str
+    title_hint: str | None
 
 
 def _is_cjk_char(ch: str) -> bool:
@@ -381,12 +415,235 @@ def _get_attr(elem: ET.Element, name: str) -> str | None:
 
 
 def _resolve_opf_href(opf_path: str, href: str) -> str:
-    base = str(PurePosixPath(opf_path).parent)
+    return _resolve_relative_path(opf_path, href)
+
+
+def _resolve_relative_path(base_file: str, href: str) -> str:
+    base = str(PurePosixPath(base_file).parent)
     if base not in ("", ".", "/"):
         combined = PurePosixPath(base) / href
     else:
         combined = PurePosixPath(href)
     return str(combined.as_posix())
+
+
+def _normalize_zip_path(path: str) -> str:
+    return str(PurePosixPath(path).as_posix())
+
+
+def _split_href_fragment(href: str) -> tuple[str, str | None]:
+    if "#" in href:
+        base, frag = href.split("#", 1)
+        return base, unquote(frag)
+    return href, None
+
+
+def _parse_nav_document(html: str) -> list[tuple[str, str]]:
+    soup = BeautifulSoup(html, "html.parser")
+    nav_tags = []
+    for nav in soup.find_all("nav"):
+        nav_type = (nav.get("epub:type") or "").lower()
+        role = (nav.get("role") or "").lower()
+        if "toc" in nav_type or role == "doc-toc":
+            nav_tags.append(nav)
+    if not nav_tags:
+        nav_tags = soup.find_all("nav")
+    if not nav_tags:
+        return []
+    entries: list[tuple[str, str]] = []
+    for nav in nav_tags:
+        for anchor in nav.find_all("a"):
+            href = anchor.get("href")
+            if not href:
+                continue
+            text = anchor.get_text(strip=True)
+            entries.append((href, text))
+    return entries
+
+
+def _parse_ncx_document(xml_text: str) -> list[tuple[str, str]]:
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return []
+    ns = {"ncx": root.tag.split("}")[0].strip("{")}
+
+    def _collect_points(elem: ET.Element, acc: list[tuple[str, str]]) -> None:
+        for nav_point in elem.findall("ncx:navPoint", ns):
+            label_elem = nav_point.find(".//ncx:text", ns)
+            content_elem = nav_point.find("ncx:content", ns)
+            if content_elem is None:
+                continue
+            href = content_elem.attrib.get("src")
+            if not href:
+                continue
+            text = ""
+            if label_elem is not None:
+                text = "".join(label_elem.itertext()).strip()
+            acc.append((href, text))
+            _collect_points(nav_point, acc)
+
+    entries: list[tuple[str, str]] = []
+    nav_map = root.find("ncx:navMap", ns)
+    if nav_map is None:
+        return entries
+    _collect_points(nav_map, entries)
+    return entries
+
+
+def _toc_nav_points(zf: zipfile.ZipFile, spine: list[str]) -> list[_NavPoint]:
+    try:
+        opf_path = _find_opf_path(zf)
+        opf_xml = _zip_read_text(zf, opf_path)
+        root = ET.fromstring(opf_xml)
+    except Exception:
+        return []
+    ns = {"opf": root.tag.split("}")[0].strip("{")}
+    manifest: dict[str, dict[str, str | None]] = {}
+    for item in root.findall(".//opf:manifest/opf:item", ns):
+        item_id = item.attrib.get("id")
+        if not item_id:
+            continue
+        manifest[item_id] = {
+            "href": item.attrib.get("href"),
+            "media_type": item.attrib.get("media-type"),
+            "properties": item.attrib.get("properties"),
+        }
+    nav_candidates: list[str] = []
+    ncx_candidates: list[str] = []
+    for info in manifest.values():
+        href = info.get("href")
+        if not href:
+            continue
+        resolved = _resolve_opf_href(opf_path, href)
+        properties = (info.get("properties") or "").lower()
+        media_type = (info.get("media_type") or "").lower()
+        if "nav" in properties:
+            nav_candidates.append(resolved)
+        if media_type == "application/x-dtbncx+xml":
+            ncx_candidates.append(resolved)
+    entries: list[tuple[str, str]] = []
+    for nav_path in nav_candidates:
+        try:
+            html = _zip_read_text(zf, nav_path)
+        except KeyError:
+            continue
+        entries = _parse_nav_document(html)
+        if entries:
+            base = nav_path
+            normalized: list[tuple[str, str]] = []
+            for href, title in entries:
+                normalized.append((_resolve_relative_path(base, href), title))
+            entries = normalized
+            break
+    if not entries:
+        for ncx_path in ncx_candidates:
+            try:
+                xml_text = _zip_read_text(zf, ncx_path)
+            except KeyError:
+                continue
+            entries = _parse_ncx_document(xml_text)
+            if entries:
+                base = ncx_path
+                normalized = []
+                for href, title in entries:
+                    normalized.append((_resolve_relative_path(base, href), title))
+                entries = normalized
+                break
+    if not entries:
+        return []
+    spine_map: dict[str, int] = {}
+    for idx, path in enumerate(spine):
+        norm = _normalize_zip_path(path)
+        if norm not in spine_map:
+            spine_map[norm] = idx
+    nav_points: list[_NavPoint] = []
+    for order, (href, title) in enumerate(entries):
+        base_href, fragment = _split_href_fragment(href)
+        norm = _normalize_zip_path(base_href)
+        spine_index = spine_map.get(norm)
+        if spine_index is None:
+            continue
+        nav_points.append(
+            _NavPoint(
+                order=order,
+                path=spine[spine_index],
+                spine_index=spine_index,
+                fragment=fragment,
+                title=title or None,
+            )
+        )
+    return nav_points
+
+
+def _insert_nav_markers(soup: BeautifulSoup, entries: list[_NavPoint]) -> None:
+    if not entries:
+        return
+    for entry in entries:
+        marker_text = f"\n{CHAPTER_MARKER_PREFIX}{entry.order}{CHAPTER_MARKER_SUFFIX}\n"
+        marker = NavigableString(marker_text)
+        target = None
+        if entry.fragment:
+            target = soup.find(id=entry.fragment)
+            if target is None:
+                target = soup.find(attrs={"name": entry.fragment})
+        if target is None:
+            body = soup.find("body")
+            if body and body.contents:
+                target = body.contents[0]
+            else:
+                target = soup
+        target.insert_before(marker)
+
+
+def _split_text_by_markers(text: str) -> tuple[str, list[tuple[int, str]]]:
+    if not text:
+        return "", []
+    segments: list[tuple[int, str]] = []
+    cursor = 0
+    current_marker: int | None = None
+    leading = ""
+    for match in CHAPTER_MARKER_PATTERN.finditer(text):
+        if current_marker is None:
+            leading = text[: match.start()]
+        else:
+            segment = text[cursor : match.start()]
+            segments.append((current_marker, segment))
+        current_marker = int(match.group(1))
+        cursor = match.end()
+    if current_marker is not None:
+        segments.append((current_marker, text[cursor:]))
+    else:
+        leading = text
+    return leading, segments
+
+
+def _first_non_blank_line(text: str) -> str | None:
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return None
+
+
+def _finalize_segment_text(
+    raw_text: str,
+    mode: PropagationMode,
+    backend: "NLPBackend" | None,
+) -> tuple[str, list[PitchToken] | None]:
+    piece_text = raw_text.strip()
+    if not piece_text:
+        return "", None
+    if mode == "advanced" and backend is not None:
+        converted_text, tokens = backend.to_reading_with_pitch(piece_text)
+        piece_text = converted_text.strip()
+        piece_text = _normalize_ellipsis(piece_text)
+        aligned_tokens = _align_pitch_tokens(piece_text, tokens)
+        if aligned_tokens:
+            return piece_text, aligned_tokens
+        return piece_text, None
+    piece_text = _normalize_ellipsis(piece_text)
+    return piece_text, None
 
 
 def _extract_cover_image(zf: zipfile.ZipFile) -> CoverImage | None:
@@ -853,6 +1110,16 @@ def epub_to_chapter_texts(
     with zipfile.ZipFile(inp_epub, "r") as zf:
         unique_mapping, common_mapping = _build_book_mapping(zf, mode, backend)
         spine = _spine_items(zf)
+        nav_points = _toc_nav_points(zf, spine)
+        nav_buckets: dict[int, dict[str, list[str]]] = {
+            entry.order: {"text_parts": [], "original_parts": []} for entry in nav_points
+        }
+        nav_by_spine: dict[int, list[_NavPoint]] = defaultdict(list)
+        for entry in nav_points:
+            entry.local_order = len(nav_by_spine[entry.spine_index])
+            nav_by_spine[entry.spine_index].append(entry)
+        fallback_segments: list[_FallbackSegment] = []
+        fallback_sequence = 0
         book_title = _get_book_title(zf)
         book_author = _get_book_author(zf)
         title_candidates: list[str] = []
@@ -877,8 +1144,7 @@ def epub_to_chapter_texts(
                             title_candidates.append(cand)
         title_seen = False
 
-        chapters: list[ChapterText] = []
-        for name in spine:
+        for spine_index, name in enumerate(spine):
             if name not in zf.namelist():
                 # Some spines use relative paths; try to resolve simply
                 candidates = [
@@ -891,11 +1157,14 @@ def epub_to_chapter_texts(
             if not name.lower().endswith(HTML_EXTS):
                 continue
             html = _zip_read_text(zf, name)
+            nav_entries_for_file = nav_by_spine.get(spine_index, [])
             original_soup = _soup_from_html(html)
             for rt in original_soup.find_all("rt"):
                 rt.decompose()
+            _insert_nav_markers(original_soup, nav_entries_for_file)
             original_plain_text = _strip_html_to_text(original_soup)
             soup = _soup_from_html(html)
+            _insert_nav_markers(soup, nav_entries_for_file)
             # 1) propagate: replace base outside ruby using the global mapping
             _replace_outside_ruby_with_readings(soup, unique_mapping)
             _replace_outside_ruby_with_readings(soup, common_mapping)
@@ -905,8 +1174,6 @@ def epub_to_chapter_texts(
             piece = _strip_html_to_text(soup)
             filtered_lines: list[str] = []
             skip_blank_after_title = False
-            has_content_in_piece = False
-            first_non_blank_original: str | None = None
             for line in piece.splitlines():
                 stripped_line = line.strip()
                 if not stripped_line:
@@ -932,46 +1199,85 @@ def epub_to_chapter_texts(
                     skip_blank_after_title = False
 
                 filtered_lines.append(line)
-                if stripped_line and first_non_blank_original is None:
-                    first_non_blank_original = line
-                if stripped_line:
-                    has_content_in_piece = True
 
-            preserved_line_raw = first_non_blank_original.strip() if first_non_blank_original else None
             raw_piece_text = "\n".join(filtered_lines)
             raw_piece_text = re.sub(r"\n{3,}", "\n\n", raw_piece_text)
             raw_piece_text = raw_piece_text.strip()
-            piece_text = raw_piece_text
-            pitch_tokens: list[PitchToken] | None = None
-            if mode == "advanced" and backend is not None and piece_text:
-                converted_text, tokens = backend.to_reading_with_pitch(piece_text)
-                piece_text = converted_text.strip()
-                piece_text = _normalize_ellipsis(piece_text)
-                aligned_tokens = _align_pitch_tokens(piece_text, tokens)
-                if aligned_tokens:
-                    pitch_tokens = aligned_tokens
-            else:
-                piece_text = piece_text.strip()
-            if not piece_text:
+            if not raw_piece_text:
                 continue
-            original_title = next(
-                (line.strip() for line in original_plain_text.splitlines() if line.strip()),
-                None,
-            )
-            if original_title is None:
-                original_title = preserved_line_raw or next(
-                    (line.strip() for line in raw_piece_text.splitlines() if line.strip()),
-                    None,
+            leading_piece, piece_segments = _split_text_by_markers(raw_piece_text)
+            leading_original, original_segments = _split_text_by_markers(original_plain_text)
+            original_segment_map = {marker: segment for marker, segment in original_segments}
+            for marker_id, segment_text in piece_segments:
+                bucket = nav_buckets.get(marker_id)
+                if bucket is None:
+                    continue
+                if not segment_text.strip():
+                    continue
+                bucket["text_parts"].append(segment_text)
+                bucket["original_parts"].append(original_segment_map.get(marker_id, ""))
+            if leading_piece.strip():
+                order = -1 if nav_entries_for_file else 0
+                fallback_segments.append(
+                    _FallbackSegment(
+                        spine_index=spine_index,
+                        order=order,
+                        sequence=fallback_sequence,
+                        source=name,
+                        raw_text=leading_piece,
+                        raw_original=leading_original or leading_piece,
+                    )
                 )
-            processed_title = next(
-                (line.strip() for line in piece_text.splitlines() if line.strip()),
-                None,
+                fallback_sequence += 1
+
+        pending_outputs: list[_PendingChapter] = []
+        for segment in fallback_segments:
+            if not segment.raw_text.strip():
+                continue
+            pending_outputs.append(
+                _PendingChapter(
+                    sort_key=(segment.spine_index, segment.order, segment.sequence),
+                    source=segment.source,
+                    raw_text=segment.raw_text,
+                    raw_original=segment.raw_original,
+                    title_hint=None,
+                )
             )
+        for entry in nav_points:
+            bucket = nav_buckets.get(entry.order)
+            if not bucket:
+                continue
+            text_parts = [part for part in bucket["text_parts"] if part.strip()]
+            if not text_parts:
+                continue
+            raw_text = "\n\n".join(part.strip("\n") for part in text_parts)
+            original_parts = [part for part in bucket["original_parts"] if part.strip()]
+            raw_original = "\n\n".join(part.strip("\n") for part in original_parts) if original_parts else raw_text
+            pending_outputs.append(
+                _PendingChapter(
+                    sort_key=(entry.spine_index, entry.local_order + 1, entry.order),
+                    source=entry.path,
+                    raw_text=raw_text,
+                    raw_original=raw_original,
+                    title_hint=entry.title.strip() if entry.title else None,
+                )
+            )
+
+        chapters: list[ChapterText] = []
+        for pending in sorted(pending_outputs, key=lambda item: item.sort_key):
+            finalized_text, pitch_tokens = _finalize_segment_text(pending.raw_text, mode, backend)
+            if not finalized_text:
+                continue
+            original_basis = pending.raw_original.strip() or pending.raw_text
+            original_title = _first_non_blank_line(original_basis)
+            processed_title = _first_non_blank_line(finalized_text)
+            title = processed_title or pending.title_hint
+            original_title = original_title or pending.title_hint or title
             chapters.append(
                 ChapterText(
-                    source=name,
-                    title=processed_title,
-                    text=piece_text,
+                    source=pending.source,
+                    title=title,
+                    text=finalized_text,
                     original_title=original_title,
                     book_title=book_title,
                     book_author=book_author,

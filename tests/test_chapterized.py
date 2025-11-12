@@ -322,3 +322,68 @@ def test_nlp_backend_provides_pitch_tokens() -> None:
     assert accents.get("飴") == 0
     structured, _ = backend.to_reading_with_pitch("雨\n\n飴")
     assert "\n\n" in structured
+
+
+def test_toc_splits_shared_spine_item(tmp_path: Path) -> None:
+    epub_path = tmp_path / "toc_split.epub"
+    mimetype = "application/epub+zip"
+    container_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+"""
+    opf_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" unique-identifier="BookId" xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Ten Nights</dc:title>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="text" href="text.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="text"/>
+  </spine>
+</package>
+"""
+    nav_html = """<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <head><title>TOC</title></head>
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="text.xhtml#night1">第一夜</a></li>
+        <li><a href="text.xhtml#night2">第二夜</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+"""
+    text_html = """<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Ten Nights</title></head>
+  <body>
+    <p>序</p>
+    <h2 id="night1">第一夜</h2>
+    <p>これは第一夜の物語。</p>
+    <h2 id="night2">第二夜</h2>
+    <p>これは第二夜の物語。</p>
+  </body>
+</html>
+"""
+    with zipfile.ZipFile(epub_path, "w") as zf:
+        zf.writestr("mimetype", mimetype)
+        zf.writestr("META-INF/container.xml", container_xml)
+        zf.writestr("OEBPS/content.opf", opf_xml)
+        zf.writestr("OEBPS/nav.xhtml", nav_html)
+        zf.writestr("OEBPS/text.xhtml", text_html)
+
+    chapters = epub_to_chapter_texts(str(epub_path), mode="fast")
+    assert len(chapters) == 3
+    assert chapters[0].title == "序"
+    assert chapters[1].title == "第一夜"
+    assert chapters[2].title == "第二夜"
+    assert "第一夜の物語" in chapters[1].text
+    assert "第二夜の物語" in chapters[2].text

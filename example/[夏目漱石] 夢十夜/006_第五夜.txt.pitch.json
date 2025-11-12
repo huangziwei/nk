@@ -1,0 +1,2544 @@
+{
+  "version": 1,
+  "text_sha1": "0cc37ff6892c6a31a597ee5b9853964e49b40e4b",
+  "tokens": [
+    {
+      "surface": "第",
+      "reading": "ダイ",
+      "accent": null,
+      "connection": "P13",
+      "pos": "接頭辞",
+      "start": 0,
+      "end": 2
+    },
+    {
+      "surface": "五",
+      "reading": "ゴ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 2,
+      "end": 3
+    },
+    {
+      "surface": "夜",
+      "reading": "ヤ",
+      "accent": null,
+      "connection": "C3",
+      "pos": "接尾辞",
+      "start": 3,
+      "end": 4
+    },
+    {
+      "surface": "夢",
+      "reading": "ユメ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 10,
+      "end": 12
+    },
+    {
+      "surface": "見",
+      "reading": "ミ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 13,
+      "end": 14
+    },
+    {
+      "surface": "何",
+      "reading": "ナン",
+      "accent": 1,
+      "connection": null,
+      "pos": "代名詞",
+      "start": 19,
+      "end": 21
+    },
+    {
+      "surface": "古い",
+      "reading": "フルイ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 26,
+      "end": 29
+    },
+    {
+      "surface": "事",
+      "reading": "コト",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 29,
+      "end": 31
+    },
+    {
+      "surface": "近い",
+      "reading": "チカイ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 37,
+      "end": 40
+    },
+    {
+      "surface": "昔",
+      "reading": "ムカシ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 40,
+      "end": 43
+    },
+    {
+      "surface": "思わ",
+      "reading": "オモワ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 44,
+      "end": 47
+    },
+    {
+      "surface": "自分",
+      "reading": "ジブン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 51,
+      "end": 54
+    },
+    {
+      "surface": "運",
+      "reading": "ウン",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 61,
+      "end": 63
+    },
+    {
+      "surface": "悪く",
+      "reading": "ワルク",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 63,
+      "end": 66
+    },
+    {
+      "surface": "敵",
+      "reading": "テキ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 82,
+      "end": 84
+    },
+    {
+      "surface": "大将",
+      "reading": "タイショウ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 85,
+      "end": 90
+    },
+    {
+      "surface": "前",
+      "reading": "マエ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 91,
+      "end": 93
+    },
+    {
+      "surface": "引き",
+      "reading": "ヒキ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 94,
+      "end": 96
+    },
+    {
+      "surface": "頃",
+      "reading": "コロ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 107,
+      "end": 109
+    },
+    {
+      "surface": "人",
+      "reading": "ヒト",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 110,
+      "end": 112
+    },
+    {
+      "surface": "背",
+      "reading": "セ",
+      "accent": null,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 116,
+      "end": 117
+    },
+    {
+      "surface": "高かっ",
+      "reading": "タカカッ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 118,
+      "end": 122
+    },
+    {
+      "surface": "長い",
+      "reading": "ナガイ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 132,
+      "end": 135
+    },
+    {
+      "surface": "髯",
+      "reading": "ヒゲ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 135,
+      "end": 137
+    },
+    {
+      "surface": "革",
+      "reading": "カワ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 145,
+      "end": 147
+    },
+    {
+      "surface": "帯",
+      "reading": "オビ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 148,
+      "end": 150
+    },
+    {
+      "surface": "棒",
+      "reading": "ボウ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 158,
+      "end": 160
+    },
+    {
+      "surface": "釣る",
+      "reading": "ツル",
+      "accent": 0,
+      "connection": "C4",
+      "pos": "動詞",
+      "start": 164,
+      "end": 166
+    },
+    {
+      "surface": "弓",
+      "reading": "ユミ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 175,
+      "end": 177
+    },
+    {
+      "surface": "太い",
+      "reading": "フトイ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 183,
+      "end": 186
+    },
+    {
+      "surface": "用い",
+      "reading": "モチイ",
+      "accent": null,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 192,
+      "end": 195
+    },
+    {
+      "surface": "見え",
+      "reading": "ミエ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 199,
+      "end": 201
+    },
+    {
+      "surface": "塗っ",
+      "reading": "ヌッ",
+      "accent": 0,
+      "connection": "C4",
+      "pos": "動詞",
+      "start": 207,
+      "end": 209
+    },
+    {
+      "surface": "敵",
+      "reading": "テキ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 242,
+      "end": 244
+    },
+    {
+      "surface": "大将",
+      "reading": "タイショウ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 245,
+      "end": 250
+    },
+    {
+      "surface": "弓",
+      "reading": "ユミ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 252,
+      "end": 254
+    },
+    {
+      "surface": "真中",
+      "reading": "マンナカ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 255,
+      "end": 259
+    },
+    {
+      "surface": "右",
+      "reading": "ミギ",
+      "accent": null,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 260,
+      "end": 262
+    },
+    {
+      "surface": "手",
+      "reading": "テ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 263,
+      "end": 264
+    },
+    {
+      "surface": "握っ",
+      "reading": "ニギッ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 265,
+      "end": 268
+    },
+    {
+      "surface": "弓",
+      "reading": "ユミ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 272,
+      "end": 274
+    },
+    {
+      "surface": "草",
+      "reading": "クサ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 275,
+      "end": 277
+    },
+    {
+      "surface": "上",
+      "reading": "ウエ",
+      "accent": null,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 278,
+      "end": 280
+    },
+    {
+      "surface": "突い",
+      "reading": "ツイ",
+      "accent": null,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 281,
+      "end": 283
+    },
+    {
+      "surface": "伏せ",
+      "reading": "フセ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 290,
+      "end": 292
+    },
+    {
+      "surface": "上",
+      "reading": "ウエ",
+      "accent": null,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 299,
+      "end": 301
+    },
+    {
+      "surface": "腰",
+      "reading": "コシ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 302,
+      "end": 304
+    },
+    {
+      "surface": "顔",
+      "reading": "カオ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 313,
+      "end": 315
+    },
+    {
+      "surface": "見る",
+      "reading": "ミル",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 316,
+      "end": 318
+    },
+    {
+      "surface": "鼻",
+      "reading": "ハナ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 320,
+      "end": 322
+    },
+    {
+      "surface": "上",
+      "reading": "ウエ",
+      "accent": null,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 323,
+      "end": 325
+    },
+    {
+      "surface": "左右",
+      "reading": "サユウ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 327,
+      "end": 330
+    },
+    {
+      "surface": "太く",
+      "reading": "フトク",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 334,
+      "end": 337
+    },
+    {
+      "surface": "頃",
+      "reading": "コロ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 347,
+      "end": 349
+    },
+    {
+      "surface": "云う",
+      "reading": "イウ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 354,
+      "end": 356
+    },
+    {
+      "surface": "無論",
+      "reading": "ムロン",
+      "accent": 0,
+      "connection": null,
+      "pos": "副詞",
+      "start": 359,
+      "end": 362
+    },
+    {
+      "surface": "自分",
+      "reading": "ジブン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 370,
+      "end": 373
+    },
+    {
+      "surface": "腰",
+      "reading": "コシ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 381,
+      "end": 383
+    },
+    {
+      "surface": "訳",
+      "reading": "ワケ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 387,
+      "end": 389
+    },
+    {
+      "surface": "行か",
+      "reading": "イカ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 390,
+      "end": 392
+    },
+    {
+      "surface": "草",
+      "reading": "クサ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 395,
+      "end": 397
+    },
+    {
+      "surface": "上",
+      "reading": "ウエ",
+      "accent": null,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 398,
+      "end": 400
+    },
+    {
+      "surface": "足",
+      "reading": "アシ",
+      "accent": 2,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 411,
+      "end": 413
+    },
+    {
+      "surface": "大きな",
+      "reading": "オオキナ",
+      "accent": 1,
+      "connection": null,
+      "pos": "連体詞",
+      "start": 415,
+      "end": 419
+    },
+    {
+      "surface": "時代",
+      "reading": "ジダイ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 432,
+      "end": 435
+    },
+    {
+      "surface": "深い",
+      "reading": "フカイ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 441,
+      "end": 444
+    },
+    {
+      "surface": "立つ",
+      "reading": "タツ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 451,
+      "end": 453
+    },
+    {
+      "surface": "来",
+      "reading": "キ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 461,
+      "end": 462
+    },
+    {
+      "surface": "所",
+      "reading": "トコロ",
+      "accent": null,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 469,
+      "end": 472
+    },
+    {
+      "surface": "少し",
+      "reading": "スコシ",
+      "accent": 2,
+      "connection": null,
+      "pos": "副詞",
+      "start": 476,
+      "end": 479
+    },
+    {
+      "surface": "房",
+      "reading": "フサ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 486,
+      "end": 488
+    },
+    {
+      "surface": "下げ",
+      "reading": "サゲ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 492,
+      "end": 494
+    },
+    {
+      "surface": "歩く",
+      "reading": "アルク",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 496,
+      "end": 499
+    },
+    {
+      "surface": "動く",
+      "reading": "ウゴク",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 504,
+      "end": 507
+    },
+    {
+      "surface": "飾り",
+      "reading": "カザリ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 513,
+      "end": 516
+    },
+    {
+      "surface": "大将",
+      "reading": "タイショウ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 525,
+      "end": 530
+    },
+    {
+      "surface": "自分",
+      "reading": "ジブン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 536,
+      "end": 539
+    },
+    {
+      "surface": "顔",
+      "reading": "カオ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 540,
+      "end": 542
+    },
+    {
+      "surface": "見",
+      "reading": "ミ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 543,
+      "end": 544
+    },
+    {
+      "surface": "死ぬ",
+      "reading": "シヌ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 546,
+      "end": 548
+    },
+    {
+      "surface": "生きる",
+      "reading": "イキル",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 549,
+      "end": 552
+    },
+    {
+      "surface": "聞い",
+      "reading": "キイ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 554,
+      "end": 556
+    },
+    {
+      "surface": "頃",
+      "reading": "コロ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 563,
+      "end": 565
+    },
+    {
+      "surface": "習慣",
+      "reading": "シュウカン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 566,
+      "end": 571
+    },
+    {
+      "surface": "一応",
+      "reading": "イチオウ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 582,
+      "end": 586
+    },
+    {
+      "surface": "聞い",
+      "reading": "キイ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 589,
+      "end": 591
+    },
+    {
+      "surface": "生きる",
+      "reading": "イキル",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 598,
+      "end": 601
+    },
+    {
+      "surface": "答える",
+      "reading": "コタエル",
+      "accent": null,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 602,
+      "end": 606
+    },
+    {
+      "surface": "降参",
+      "reading": "コウサン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 607,
+      "end": 611
+    },
+    {
+      "surface": "意味",
+      "reading": "イミ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 613,
+      "end": 615
+    },
+    {
+      "surface": "死ぬ",
+      "reading": "シヌ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 617,
+      "end": 619
+    },
+    {
+      "surface": "云う",
+      "reading": "イウ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 620,
+      "end": 622
+    },
+    {
+      "surface": "云う",
+      "reading": "イウ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 631,
+      "end": 633
+    },
+    {
+      "surface": "事",
+      "reading": "コト",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 633,
+      "end": 635
+    },
+    {
+      "surface": "自分",
+      "reading": "ジブン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 639,
+      "end": 642
+    },
+    {
+      "surface": "死ぬ",
+      "reading": "シヌ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 647,
+      "end": 649
+    },
+    {
+      "surface": "答え",
+      "reading": "コタエ",
+      "accent": null,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 650,
+      "end": 653
+    },
+    {
+      "surface": "大将",
+      "reading": "タイショウ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 655,
+      "end": 660
+    },
+    {
+      "surface": "草",
+      "reading": "クサ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 661,
+      "end": 663
+    },
+    {
+      "surface": "上",
+      "reading": "ウエ",
+      "accent": null,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 664,
+      "end": 666
+    },
+    {
+      "surface": "突い",
+      "reading": "ツイ",
+      "accent": null,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 667,
+      "end": 669
+    },
+    {
+      "surface": "弓",
+      "reading": "ユミ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 672,
+      "end": 674
+    },
+    {
+      "surface": "向う",
+      "reading": "ムコウ",
+      "accent": null,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 675,
+      "end": 678
+    },
+    {
+      "surface": "腰",
+      "reading": "コシ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 683,
+      "end": 685
+    },
+    {
+      "surface": "釣る",
+      "reading": "ツル",
+      "accent": 0,
+      "connection": "C4",
+      "pos": "動詞",
+      "start": 686,
+      "end": 688
+    },
+    {
+      "surface": "棒",
+      "reading": "ボウ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 690,
+      "end": 692
+    },
+    {
+      "surface": "抜き",
+      "reading": "ヌキ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 703,
+      "end": 705
+    },
+    {
+      "surface": "風",
+      "reading": "フウ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 712,
+      "end": 714
+    },
+    {
+      "surface": "横",
+      "reading": "ヨコ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 724,
+      "end": 726
+    },
+    {
+      "surface": "吹きつけ",
+      "reading": "フキツケ",
+      "accent": null,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 728,
+      "end": 732
+    },
+    {
+      "surface": "自分",
+      "reading": "ジブン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 734,
+      "end": 737
+    },
+    {
+      "surface": "右",
+      "reading": "ミギ",
+      "accent": null,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 738,
+      "end": 740
+    },
+    {
+      "surface": "手",
+      "reading": "テ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 741,
+      "end": 742
+    },
+    {
+      "surface": "開い",
+      "reading": "ヒライ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 750,
+      "end": 753
+    },
+    {
+      "surface": "大将",
+      "reading": "タイショウ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 761,
+      "end": 766
+    },
+    {
+      "surface": "方",
+      "reading": "ホウ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 767,
+      "end": 769
+    },
+    {
+      "surface": "向け",
+      "reading": "ムケ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 770,
+      "end": 772
+    },
+    {
+      "surface": "眼",
+      "reading": "メ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 774,
+      "end": 775
+    },
+    {
+      "surface": "上",
+      "reading": "ウエ",
+      "accent": null,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 776,
+      "end": 778
+    },
+    {
+      "surface": "差し上げ",
+      "reading": "サシアゲ",
+      "accent": null,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 779,
+      "end": 783
+    },
+    {
+      "surface": "待て",
+      "reading": "マテ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 785,
+      "end": 787
+    },
+    {
+      "surface": "云う",
+      "reading": "イウ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 788,
+      "end": 790
+    },
+    {
+      "surface": "相図",
+      "reading": "アイズ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 790,
+      "end": 793
+    },
+    {
+      "surface": "大将",
+      "reading": "タイショウ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 797,
+      "end": 802
+    },
+    {
+      "surface": "太い",
+      "reading": "フトイ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 803,
+      "end": 806
+    },
+    {
+      "surface": "剣",
+      "reading": "ケン",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 806,
+      "end": 808
+    },
+    {
+      "surface": "収め",
+      "reading": "オサメ",
+      "accent": 3,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 817,
+      "end": 820
+    },
+    {
+      "surface": "頃",
+      "reading": "コロ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 827,
+      "end": 829
+    },
+    {
+      "surface": "恋",
+      "reading": "コイ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 831,
+      "end": 833
+    },
+    {
+      "surface": "自分",
+      "reading": "ジブン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 838,
+      "end": 841
+    },
+    {
+      "surface": "死ぬ",
+      "reading": "シヌ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 842,
+      "end": 844
+    },
+    {
+      "surface": "前",
+      "reading": "マエ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 844,
+      "end": 846
+    },
+    {
+      "surface": "一目",
+      "reading": "ヒトメ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 847,
+      "end": 850
+    },
+    {
+      "surface": "思う",
+      "reading": "オモウ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 850,
+      "end": 853
+    },
+    {
+      "surface": "女",
+      "reading": "オンナ",
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 853,
+      "end": 856
+    },
+    {
+      "surface": "云っ",
+      "reading": "イッ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 862,
+      "end": 864
+    },
+    {
+      "surface": "大将",
+      "reading": "タイショウ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 866,
+      "end": 871
+    },
+    {
+      "surface": "夜",
+      "reading": "ヨル",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 872,
+      "end": 874
+    },
+    {
+      "surface": "開け",
+      "reading": "アケ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 875,
+      "end": 877
+    },
+    {
+      "surface": "鳴く",
+      "reading": "ナク",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 881,
+      "end": 883
+    },
+    {
+      "surface": "待つ",
+      "reading": "マツ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 887,
+      "end": 889
+    },
+    {
+      "surface": "云っ",
+      "reading": "イッ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 890,
+      "end": 892
+    },
+    {
+      "surface": "鶏",
+      "reading": "ニワトリ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 894,
+      "end": 898
+    },
+    {
+      "surface": "鳴く",
+      "reading": "ナク",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 899,
+      "end": 901
+    },
+    {
+      "surface": "女",
+      "reading": "オンナ",
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 904,
+      "end": 907
+    },
+    {
+      "surface": "呼ば",
+      "reading": "ヨバ",
+      "accent": 0,
+      "connection": "C4",
+      "pos": "動詞",
+      "start": 911,
+      "end": 913
+    },
+    {
+      "surface": "鶏",
+      "reading": "ニワトリ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 922,
+      "end": 926
+    },
+    {
+      "surface": "鳴い",
+      "reading": "ナイ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 927,
+      "end": 929
+    },
+    {
+      "surface": "女",
+      "reading": "オンナ",
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 931,
+      "end": 934
+    },
+    {
+      "surface": "来",
+      "reading": "コ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 935,
+      "end": 936
+    },
+    {
+      "surface": "自分",
+      "reading": "ジブン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 941,
+      "end": 944
+    },
+    {
+      "surface": "逢わ",
+      "reading": "アワ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 945,
+      "end": 947
+    },
+    {
+      "surface": "殺さ",
+      "reading": "コロサ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 949,
+      "end": 952
+    },
+    {
+      "surface": "大将",
+      "reading": "タイショウ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 961,
+      "end": 966
+    },
+    {
+      "surface": "腰",
+      "reading": "コシ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 967,
+      "end": 969
+    },
+    {
+      "surface": "眺め",
+      "reading": "ナガメ",
+      "accent": 3,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 981,
+      "end": 984
+    },
+    {
+      "surface": "自分",
+      "reading": "ジブン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 988,
+      "end": 991
+    },
+    {
+      "surface": "大きな",
+      "reading": "オオキナ",
+      "accent": 1,
+      "connection": null,
+      "pos": "連体詞",
+      "start": 992,
+      "end": 996
+    },
+    {
+      "surface": "組み合わし",
+      "reading": "クミアワシ",
+      "accent": null,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1001,
+      "end": 1006
+    },
+    {
+      "surface": "草",
+      "reading": "クサ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1010,
+      "end": 1012
+    },
+    {
+      "surface": "上",
+      "reading": "ウエ",
+      "accent": null,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1013,
+      "end": 1015
+    },
+    {
+      "surface": "女",
+      "reading": "オンナ",
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1016,
+      "end": 1019
+    },
+    {
+      "surface": "待っ",
+      "reading": "マッ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1020,
+      "end": 1022
+    },
+    {
+      "surface": "夜",
+      "reading": "ヨル",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1026,
+      "end": 1028
+    },
+    {
+      "surface": "時々",
+      "reading": "トキドキ",
+      "accent": null,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 1040,
+      "end": 1044
+    },
+    {
+      "surface": "音",
+      "reading": "オト",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1053,
+      "end": 1055
+    },
+    {
+      "surface": "崩れる",
+      "reading": "クズレル",
+      "accent": 3,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1059,
+      "end": 1063
+    },
+    {
+      "surface": "大将",
+      "reading": "タイショウ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 1078,
+      "end": 1083
+    },
+    {
+      "surface": "真黒",
+      "reading": "マックロ",
+      "accent": 3,
+      "connection": "C1",
+      "pos": "形状詞",
+      "start": 1091,
+      "end": 1095
+    },
+    {
+      "surface": "下",
+      "reading": "モト",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1099,
+      "end": 1101
+    },
+    {
+      "surface": "大将",
+      "reading": "タイショウ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 1103,
+      "end": 1108
+    },
+    {
+      "surface": "眼",
+      "reading": "メ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1109,
+      "end": 1110
+    },
+    {
+      "surface": "光っ",
+      "reading": "ヒカッ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1116,
+      "end": 1119
+    },
+    {
+      "surface": "誰",
+      "reading": "ダレ",
+      "accent": 1,
+      "connection": null,
+      "pos": "代名詞",
+      "start": 1126,
+      "end": 1128
+    },
+    {
+      "surface": "来",
+      "reading": "キ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1130,
+      "end": 1131
+    },
+    {
+      "surface": "新しい",
+      "reading": "アタラシイ",
+      "accent": 4,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 1133,
+      "end": 1138
+    },
+    {
+      "surface": "枝",
+      "reading": "エダ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1138,
+      "end": 1140
+    },
+    {
+      "surface": "火",
+      "reading": "ヒ",
+      "accent": 1,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1145,
+      "end": 1146
+    },
+    {
+      "surface": "中",
+      "reading": "ナカ",
+      "accent": 1,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1147,
+      "end": 1149
+    },
+    {
+      "surface": "行く",
+      "reading": "イク",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 1155,
+      "end": 1157
+    },
+    {
+      "surface": "火",
+      "reading": "ヒ",
+      "accent": 1,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1166,
+      "end": 1167
+    },
+    {
+      "surface": "鳴る",
+      "reading": "ナル",
+      "accent": 0,
+      "connection": "C4",
+      "pos": "動詞",
+      "start": 1173,
+      "end": 1175
+    },
+    {
+      "surface": "勇ましい",
+      "reading": "イサマシイ",
+      "accent": 4,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 1190,
+      "end": 1195
+    },
+    {
+      "surface": "音",
+      "reading": "オト",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1195,
+      "end": 1197
+    },
+    {
+      "surface": "時",
+      "reading": "トキ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1207,
+      "end": 1209
+    },
+    {
+      "surface": "女",
+      "reading": "オンナ",
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1209,
+      "end": 1212
+    },
+    {
+      "surface": "裏",
+      "reading": "ウラ",
+      "accent": 2,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1214,
+      "end": 1216
+    },
+    {
+      "surface": "木",
+      "reading": "キ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1220,
+      "end": 1221
+    },
+    {
+      "surface": "白い",
+      "reading": "シロイ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 1229,
+      "end": 1232
+    },
+    {
+      "surface": "馬",
+      "reading": "ウマ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1232,
+      "end": 1234
+    },
+    {
+      "surface": "引き出し",
+      "reading": "ヒキダシ",
+      "accent": 3,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1235,
+      "end": 1239
+    },
+    {
+      "surface": "三",
+      "reading": "サン",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1246,
+      "end": 1248
+    },
+    {
+      "surface": "度",
+      "reading": "ド",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1248,
+      "end": 1249
+    },
+    {
+      "surface": "高い",
+      "reading": "タカイ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 1252,
+      "end": 1255
+    },
+    {
+      "surface": "背",
+      "reading": "セ",
+      "accent": null,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1255,
+      "end": 1256
+    },
+    {
+      "surface": "飛び乗っ",
+      "reading": "トビノッ",
+      "accent": 3,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1261,
+      "end": 1265
+    },
+    {
+      "surface": "長く",
+      "reading": "ナガク",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 1288,
+      "end": 1291
+    },
+    {
+      "surface": "白い",
+      "reading": "シロイ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 1291,
+      "end": 1294
+    },
+    {
+      "surface": "足",
+      "reading": "アシ",
+      "accent": 2,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1294,
+      "end": 1296
+    },
+    {
+      "surface": "馬",
+      "reading": "ウマ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1307,
+      "end": 1309
+    },
+    {
+      "surface": "け出し",
+      "reading": "ケダシ",
+      "accent": null,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 1316,
+      "end": 1319
+    },
+    {
+      "surface": "誰",
+      "reading": "ダレ",
+      "accent": 1,
+      "connection": null,
+      "pos": "代名詞",
+      "start": 1321,
+      "end": 1323
+    },
+    {
+      "surface": "篝",
+      "reading": "カガリ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1325,
+      "end": 1328
+    },
+    {
+      "surface": "遠く",
+      "reading": "トオク",
+      "accent": null,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1338,
+      "end": 1341
+    },
+    {
+      "surface": "空",
+      "reading": "ソラ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 1342,
+      "end": 1344
+    },
+    {
+      "surface": "薄明るく",
+      "reading": "ウスアカルク",
+      "accent": null,
+      "connection": "C2",
+      "pos": "形容詞",
+      "start": 1345,
+      "end": 1351
+    },
+    {
+      "surface": "見える",
+      "reading": "ミエル",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1351,
+      "end": 1354
+    },
+    {
+      "surface": "馬",
+      "reading": "ウマ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1355,
+      "end": 1357
+    },
+    {
+      "surface": "明るい",
+      "reading": "アカルイ",
+      "accent": null,
+      "connection": "C2",
+      "pos": "形容詞",
+      "start": 1360,
+      "end": 1364
+    },
+    {
+      "surface": "闇",
+      "reading": "ヤミ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1371,
+      "end": 1373
+    },
+    {
+      "surface": "中",
+      "reading": "ナカ",
+      "accent": 1,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1374,
+      "end": 1376
+    },
+    {
+      "surface": "飛ん",
+      "reading": "トン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 1377,
+      "end": 1379
+    },
+    {
+      "surface": "来る",
+      "reading": "クル",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1380,
+      "end": 1382
+    },
+    {
+      "surface": "鼻",
+      "reading": "ハナ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1383,
+      "end": 1385
+    },
+    {
+      "surface": "火",
+      "reading": "ヒ",
+      "accent": 1,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1387,
+      "end": 1388
+    },
+    {
+      "surface": "柱",
+      "reading": "ハシラ",
+      "accent": null,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1389,
+      "end": 1392
+    },
+    {
+      "surface": "息",
+      "reading": "イキ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 1396,
+      "end": 1398
+    },
+    {
+      "surface": "二",
+      "reading": "ニ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1399,
+      "end": 1400
+    },
+    {
+      "surface": "本",
+      "reading": "ポン",
+      "accent": null,
+      "connection": "C3",
+      "pos": "接尾辞",
+      "start": 1400,
+      "end": 1402
+    },
+    {
+      "surface": "出し",
+      "reading": "ダシ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1402,
+      "end": 1404
+    },
+    {
+      "surface": "飛ん",
+      "reading": "トン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 1405,
+      "end": 1407
+    },
+    {
+      "surface": "来る",
+      "reading": "クル",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1408,
+      "end": 1410
+    },
+    {
+      "surface": "女",
+      "reading": "オンナ",
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1415,
+      "end": 1418
+    },
+    {
+      "surface": "細い",
+      "reading": "ホソイ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 1419,
+      "end": 1422
+    },
+    {
+      "surface": "足",
+      "reading": "アシ",
+      "accent": 2,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1422,
+      "end": 1424
+    },
+    {
+      "surface": "馬",
+      "reading": "ウマ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1431,
+      "end": 1433
+    },
+    {
+      "surface": "腹",
+      "reading": "ハラ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1434,
+      "end": 1436
+    },
+    {
+      "surface": "馬",
+      "reading": "ウマ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1443,
+      "end": 1445
+    },
+    {
+      "surface": "音",
+      "reading": "オト",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1450,
+      "end": 1452
+    },
+    {
+      "surface": "宙",
+      "reading": "チュウ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1453,
+      "end": 1456
+    },
+    {
+      "surface": "鳴る",
+      "reading": "ナル",
+      "accent": 0,
+      "connection": "C4",
+      "pos": "動詞",
+      "start": 1457,
+      "end": 1459
+    },
+    {
+      "surface": "早く",
+      "reading": "ハヤク",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 1461,
+      "end": 1464
+    },
+    {
+      "surface": "飛ん",
+      "reading": "トン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 1464,
+      "end": 1466
+    },
+    {
+      "surface": "来る",
+      "reading": "クル",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1467,
+      "end": 1469
+    },
+    {
+      "surface": "女",
+      "reading": "オンナ",
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1470,
+      "end": 1473
+    },
+    {
+      "surface": "髪",
+      "reading": "カミ",
+      "accent": 2,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1474,
+      "end": 1476
+    },
+    {
+      "surface": "吹流し",
+      "reading": "フキナガシ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1477,
+      "end": 1482
+    },
+    {
+      "surface": "中",
+      "reading": "ナカ",
+      "accent": 1,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1489,
+      "end": 1491
+    },
+    {
+      "surface": "尾",
+      "reading": "オ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1492,
+      "end": 1493
+    },
+    {
+      "surface": "所",
+      "reading": "トコロ",
+      "accent": null,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1510,
+      "end": 1513
+    },
+    {
+      "surface": "来",
+      "reading": "コ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1515,
+      "end": 1516
+    },
+    {
+      "surface": "道",
+      "reading": "ミチ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1532,
+      "end": 1534
+    },
+    {
+      "surface": "鶏",
+      "reading": "ニワトリ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1552,
+      "end": 1556
+    },
+    {
+      "surface": "声",
+      "reading": "コエ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1557,
+      "end": 1559
+    },
+    {
+      "surface": "女",
+      "reading": "オンナ",
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1563,
+      "end": 1566
+    },
+    {
+      "surface": "身",
+      "reading": "ミ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1567,
+      "end": 1568
+    },
+    {
+      "surface": "両手",
+      "reading": "リョウテ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1575,
+      "end": 1579
+    },
+    {
+      "surface": "握っ",
+      "reading": "ニギッ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 1580,
+      "end": 1583
+    },
+    {
+      "surface": "馬",
+      "reading": "ウマ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1596,
+      "end": 1598
+    },
+    {
+      "surface": "前足",
+      "reading": "マエアシ",
+      "accent": null,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1599,
+      "end": 1603
+    },
+    {
+      "surface": "堅い",
+      "reading": "カタイ",
+      "accent": null,
+      "connection": "C2",
+      "pos": "形容詞",
+      "start": 1608,
+      "end": 1611
+    },
+    {
+      "surface": "岩",
+      "reading": "イワ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1611,
+      "end": 1613
+    },
+    {
+      "surface": "上",
+      "reading": "ウエ",
+      "accent": null,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1614,
+      "end": 1616
+    },
+    {
+      "surface": "込ん",
+      "reading": "コン",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1624,
+      "end": 1626
+    },
+    {
+      "surface": "鳴い",
+      "reading": "ナイ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 1649,
+      "end": 1651
+    },
+    {
+      "surface": "女",
+      "reading": "オンナ",
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1656,
+      "end": 1659
+    },
+    {
+      "surface": "云っ",
+      "reading": "イッ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 1663,
+      "end": 1665
+    },
+    {
+      "surface": "一",
+      "reading": "イチ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1674,
+      "end": 1676
+    },
+    {
+      "surface": "度",
+      "reading": "ド",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1676,
+      "end": 1677
+    },
+    {
+      "surface": "馬",
+      "reading": "ウマ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1683,
+      "end": 1685
+    },
+    {
+      "surface": "折る",
+      "reading": "オル",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1691,
+      "end": 1693
+    },
+    {
+      "surface": "乗っ",
+      "reading": "ノッ",
+      "accent": 0,
+      "connection": "C4",
+      "pos": "動詞",
+      "start": 1694,
+      "end": 1696
+    },
+    {
+      "surface": "人",
+      "reading": "ヒト",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1697,
+      "end": 1699
+    },
+    {
+      "surface": "共",
+      "reading": "トモ",
+      "accent": null,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1700,
+      "end": 1702
+    },
+    {
+      "surface": "前",
+      "reading": "マエ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": 1707,
+      "end": 1709
+    },
+    {
+      "surface": "岩",
+      "reading": "イワ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1715,
+      "end": 1717
+    },
+    {
+      "surface": "下",
+      "reading": "シタ",
+      "accent": 0,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1718,
+      "end": 1720
+    },
+    {
+      "surface": "深い",
+      "reading": "フカイ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
+      "start": 1721,
+      "end": 1724
+    },
+    {
+      "surface": "蹄",
+      "reading": "ヒズメ",
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1734,
+      "end": 1737
+    },
+    {
+      "surface": "岩",
+      "reading": "イワ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1745,
+      "end": 1747
+    },
+    {
+      "surface": "上",
+      "reading": "ウエ",
+      "accent": null,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": 1748,
+      "end": 1750
+    },
+    {
+      "surface": "残っ",
+      "reading": "ノコッ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1751,
+      "end": 1754
+    },
+    {
+      "surface": "鶏",
+      "reading": "ニワトリ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1758,
+      "end": 1762
+    },
+    {
+      "surface": "鳴く",
+      "reading": "ナク",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": 1763,
+      "end": 1765
+    },
+    {
+      "surface": "蹄",
+      "reading": "ヒズメ",
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1785,
+      "end": 1788
+    },
+    {
+      "surface": "岩",
+      "reading": "イワ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 1792,
+      "end": 1794
+    },
+    {
+      "surface": "刻みつけ",
+      "reading": "キザミツケ",
+      "accent": 5,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": 1795,
+      "end": 1800
+    },
+    {
+      "surface": "間",
+      "reading": "アイダ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1805,
+      "end": 1808
+    },
+    {
+      "surface": "天",
+      "reading": "テン",
+      "accent": 1,
+      "connection": null,
+      "pos": "名詞",
+      "start": 1809,
+      "end": 1811
+    },
+    {
+      "surface": "探",
+      "reading": "モトム",
+      "accent": 0,
+      "connection": null,
+      "pos": "名詞",
+      "start": 1811,
+      "end": 1814
+    },
+    {
+      "surface": "女",
+      "reading": "オンナ",
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1814,
+      "end": 1817
+    },
+    {
+      "surface": "自分",
+      "reading": "ジブン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": 1818,
+      "end": 1821
+    }
+  ]
+}

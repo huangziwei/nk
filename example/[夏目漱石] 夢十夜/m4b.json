@@ -1,0 +1,69 @@
+{
+  "name": "夢十夜",
+  "album": "夢十夜",
+  "artist": "夏目漱石",
+  "tracks": [
+    {
+      "file": "001_夢十夜.mp3",
+      "chapter": "夢十夜",
+      "index": 1
+    },
+    {
+      "file": "002_第一夜.mp3",
+      "chapter": "第一夜",
+      "index": 2
+    },
+    {
+      "file": "003_第二夜.mp3",
+      "chapter": "第二夜",
+      "index": 3
+    },
+    {
+      "file": "004_第三夜.mp3",
+      "chapter": "第三夜",
+      "index": 4
+    },
+    {
+      "file": "005_第四夜.mp3",
+      "chapter": "第四夜",
+      "index": 5
+    },
+    {
+      "file": "006_第五夜.mp3",
+      "chapter": "第五夜",
+      "index": 6
+    },
+    {
+      "file": "007_第六夜.mp3",
+      "chapter": "第六夜",
+      "index": 7
+    },
+    {
+      "file": "008_第七夜.mp3",
+      "chapter": "第七夜",
+      "index": 8
+    },
+    {
+      "file": "009_第八夜.mp3",
+      "chapter": "第八夜",
+      "index": 9
+    },
+    {
+      "file": "010_第九夜.mp3",
+      "chapter": "第九夜",
+      "index": 10
+    },
+    {
+      "file": "011_第十夜.mp3",
+      "chapter": "第十夜",
+      "index": 11
+    },
+    {
+      "file": "012_底本_「夏目漱石全集10巻」ちくま文庫、筑摩書房.mp3",
+      "chapter": "底本:「夏目漱石全集10巻」ちくま文庫、筑摩書房",
+      "index": 12
+    }
+  ],
+  "version": 1,
+  "cover": "cover.jpg"
+}

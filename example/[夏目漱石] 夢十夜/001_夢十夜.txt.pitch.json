@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "text_sha1": "2354e622cdfcef9bf595603e26b9efacb99ca2da",
+  "tokens": [
+    {
+      "surface": "夢",
+      "reading": "ユメ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 0,
+      "end": 2
+    },
+    {
+      "surface": "十",
+      "reading": "ジュウ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 2,
+      "end": 5
+    },
+    {
+      "surface": "夜",
+      "reading": "ヤ",
+      "accent": null,
+      "connection": "C3",
+      "pos": "接尾辞",
+      "start": 5,
+      "end": 6
+    },
+    {
+      "surface": "夏目",
+      "reading": "ナツメ",
+      "accent": 0,
+      "connection": null,
+      "pos": "名詞",
+      "start": 7,
+      "end": 10
+    },
+    {
+      "surface": "漱石",
+      "reading": "ソウセキ",
+      "accent": 1,
+      "connection": null,
+      "pos": "名詞",
+      "start": 10,
+      "end": 14
+    }
+  ]
+}

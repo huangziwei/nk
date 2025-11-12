@@ -1,0 +1,16 @@
+{
+  "overrides": [
+    {
+      "pattern": "ソガシャハジ",
+      "replacement": "ソガノシャチ",
+      "reading": "ソガノシャチ",
+      "accent": 1,
+      "pos": "名詞"
+    },
+    {
+      "pattern": "クラウゼル",
+      "reading": "クラウゼル",
+      "accent": 2
+    }
+  ]
+}
