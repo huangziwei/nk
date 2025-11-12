@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "text_sha1": "648b2e98cd13a9e5f508f77df5f7fbe026acf7ce",
+  "text_sha1": "ac5b1212b0424144d719b64e834964e22cb447cd",
   "tokens": [
     {
       "surface": "第",
@@ -444,30 +444,12 @@
       "end": 347
     },
     {
-      "surface": "御",
-      "reading": "オ",
-      "accent": null,
-      "connection": "P2",
-      "pos": "接頭辞",
-      "start": 349,
-      "end": 350
-    },
-    {
-      "surface": "父",
-      "reading": "トウ",
-      "accent": null,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": 350,
-      "end": 352
-    },
-    {
-      "surface": "様",
-      "reading": "サマ",
-      "accent": null,
-      "connection": "C3",
+      "surface": "ッ様",
+      "reading": "ッサマ",
+      "accent": 0,
+      "connection": "C4",
       "pos": "接尾辞",
-      "start": 352,
+      "start": 351,
       "end": 354
     },
     {
@@ -705,30 +687,12 @@
       "end": 520
     },
     {
-      "surface": "御",
-      "reading": "オ",
-      "accent": null,
-      "connection": "P2",
-      "pos": "接頭辞",
-      "start": 522,
-      "end": 523
-    },
-    {
-      "surface": "父",
-      "reading": "トウ",
-      "accent": null,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": 523,
-      "end": 525
-    },
-    {
-      "surface": "様",
-      "reading": "サマ",
-      "accent": null,
-      "connection": "C3",
+      "surface": "ッ様",
+      "reading": "ッサマ",
+      "accent": 0,
+      "connection": "C4",
       "pos": "接尾辞",
-      "start": 525,
+      "start": 524,
       "end": 527
     },
     {
@@ -1009,15 +973,6 @@
       "pos": "連体詞",
       "start": 734,
       "end": 738
-    },
-    {
-      "surface": "銀杏",
-      "reading": "ギンナン",
-      "accent": 3,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 748,
-      "end": 752
     },
     {
       "surface": "右",
@@ -1660,7 +1615,7 @@
     },
     {
       "surface": "弓矢",
-      "reading": "ユミャ",
+      "reading": "ユミヤ",
       "accent": 2,
       "connection": "C1",
       "pos": "名詞",

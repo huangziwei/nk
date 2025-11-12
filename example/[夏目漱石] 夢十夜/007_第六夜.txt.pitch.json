@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "text_sha1": "2e3fdb4a92bd32b162e45d1966b5ced4795d9362",
+  "text_sha1": "32fe8c1c605b50fa204d8ffa8b214ed05367b4b4",
   "tokens": [
     {
       "surface": "第",
@@ -2479,7 +2479,7 @@
     },
     {
       "surface": "理由",
-      "reading": "リュウ",
+      "reading": "リユウ",
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",

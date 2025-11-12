@@ -67,6 +67,32 @@ CHAPTER_MARKER_PREFIX = "[[NKCHAP:"
 CHAPTER_MARKER_SUFFIX = "]]"
 CHAPTER_MARKER_PATTERN = re.compile(r"\[\[NKCHAP:(\d+)\]\]")
 
+SMALL_KANA_BASE_MAP = {
+    "ァ": "ア",
+    "ィ": "イ",
+    "ゥ": "ウ",
+    "ェ": "エ",
+    "ォ": "オ",
+    "ャ": "ヤ",
+    "ュ": "ユ",
+    "ョ": "ヨ",
+    "ッ": "ツ",
+    "ヮ": "ワ",
+    "ヵ": "カ",
+    "ヶ": "ケ",
+    "ぁ": "ア",
+    "ぃ": "イ",
+    "ぅ": "ウ",
+    "ぇ": "エ",
+    "ぉ": "オ",
+    "ゃ": "ヤ",
+    "ゅ": "ユ",
+    "ょ": "ヨ",
+    "っ": "ツ",
+    "ゎ": "ワ",
+}
+SMALL_KANA_SET = set(SMALL_KANA_BASE_MAP.keys())
+
 PropagationMode = Literal["fast", "advanced"]
 
 
@@ -984,6 +1010,30 @@ def _reading_matches(candidate: str, variants: set[str]) -> bool:
     return False
 
 
+def _strip_small_kana_variants(text: str) -> str:
+    return "".join(SMALL_KANA_BASE_MAP.get(ch, ch) for ch in text)
+
+
+def _differs_only_by_small_kana(a: str, b: str) -> bool:
+    if len(a) != len(b):
+        return False
+    if _strip_small_kana_variants(a) != _strip_small_kana_variants(b):
+        return False
+    for ch_a, ch_b in zip(a, b):
+        if ch_a == ch_b:
+            continue
+        if ch_a not in SMALL_KANA_SET and ch_b not in SMALL_KANA_SET:
+            return False
+    return True
+
+
+def _aligned_variant_for_small_kana(reading: str, variants: set[str]) -> str | None:
+    for variant in variants:
+        if _differs_only_by_small_kana(reading, variant):
+            return variant
+    return None
+
+
 def _select_reading_mapping(
     accumulators: dict[str, _ReadingAccumulator],
     mode: PropagationMode,
@@ -1027,6 +1077,10 @@ def _select_reading_mapping(
             variants = nlp.reading_variants(base)
             if _reading_matches(top_reading, variants):
                 tier3[base] = top_reading
+                continue
+            aligned_variant = _aligned_variant_for_small_kana(top_reading, variants)
+            if aligned_variant:
+                tier3[base] = aligned_variant
                 continue
             if share >= 0.9 and _is_likely_name_candidate(base, flags):
                 tier3[base] = top_reading

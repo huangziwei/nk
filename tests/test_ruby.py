@@ -60,14 +60,32 @@ def test_name_ruby_with_dict_mismatch_is_preserved() -> None:
     assert unique.get("馬締") == "マジメ"
 
 
-def test_nlp_backend_normalizes_cross_token_small_kana() -> None:
+def test_small_kana_alignment_prefers_dictionary_variant() -> None:
+    class _SmallMock:
+        def reading_variants(self, text: str) -> set[str]:
+            if text == "宮崎":
+                return {"ミャザキ"}
+            return set()
+
+    html = """
+    <p>
+      <ruby><rb>宮崎</rb><rt>みやざき</rt></ruby>に会った。
+    </p>
+    """
+    soup = _soup(html)
+    accumulators = _collect_reading_counts_from_soup(soup)
+    unique, _ = _select_reading_mapping(accumulators, mode="advanced", nlp=_SmallMock())
+    assert unique.get("宮崎") == "ミャザキ"
+
+
+def test_nlp_backend_preserves_and_reports_kana_forms() -> None:
     pytest.importorskip("fugashi")
     from nk.nlp import NLPBackend
 
     backend = NLPBackend()
+    assert backend.to_reading_text("宮") == "ミヤ"
     reading = backend.to_reading_text("行事予算")
-    assert "ジヨ" not in reading
-    assert "ギョウジョサン" in reading
+    assert "ギョウジヨサン" in reading
 
 
 def test_nlp_backend_prefers_hoka_for_independent_ta() -> None:

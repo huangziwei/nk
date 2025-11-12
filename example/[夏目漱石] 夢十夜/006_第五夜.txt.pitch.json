@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "text_sha1": "0cc37ff6892c6a31a597ee5b9853964e49b40e4b",
+  "text_sha1": "f3082bda6699a932cff96d074dd48c8b8942c306",
   "tokens": [
     {
       "surface": "第",
@@ -2505,40 +2505,13 @@
       "end": 1808
     },
     {
-      "surface": "天",
-      "reading": "テン",
-      "accent": 1,
-      "connection": null,
-      "pos": "名詞",
-      "start": 1809,
-      "end": 1811
-    },
-    {
-      "surface": "探",
-      "reading": "モトム",
-      "accent": 0,
-      "connection": null,
-      "pos": "名詞",
-      "start": 1811,
-      "end": 1814
-    },
-    {
-      "surface": "女",
-      "reading": "オンナ",
-      "accent": 3,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1814,
-      "end": 1817
-    },
-    {
       "surface": "自分",
       "reading": "ジブン",
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 1818,
-      "end": 1821
+      "start": 1816,
+      "end": 1819
     }
   ]
 }

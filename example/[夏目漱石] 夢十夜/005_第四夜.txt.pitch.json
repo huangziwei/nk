@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "text_sha1": "e0e942c80a0f76724f7a168dceecb6077a3ed543",
+  "text_sha1": "af95e233939d9462b030dc04955fc580fb202658",
   "tokens": [
     {
       "surface": "第",
@@ -1164,22 +1164,13 @@
       "end": 859
     },
     {
-      "surface": "真直",
-      "reading": "マナオ",
-      "accent": 0,
-      "connection": null,
-      "pos": "名詞",
-      "start": 862,
-      "end": 865
-    },
-    {
       "surface": "柳",
       "reading": "ヤナギ",
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 866,
-      "end": 869
+      "start": 867,
+      "end": 870
     },
     {
       "surface": "下",
@@ -1187,8 +1178,8 @@
       "accent": 0,
       "connection": "C4",
       "pos": "名詞",
-      "start": 870,
-      "end": 872
+      "start": 871,
+      "end": 873
     },
     {
       "surface": "来",
@@ -1196,8 +1187,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 874,
-      "end": 875
+      "start": 875,
+      "end": 876
     },
     {
       "surface": "柳",
@@ -1205,8 +1196,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 877,
-      "end": 880
+      "start": 878,
+      "end": 881
     },
     {
       "surface": "下",
@@ -1214,8 +1205,8 @@
       "accent": 0,
       "connection": "C4",
       "pos": "名詞",
-      "start": 881,
-      "end": 883
+      "start": 882,
+      "end": 884
     },
     {
       "surface": "子供",
@@ -1223,8 +1214,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 884,
-      "end": 887
+      "start": 885,
+      "end": 888
     },
     {
       "surface": "三四",
@@ -1232,8 +1223,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 888,
-      "end": 891
+      "start": 889,
+      "end": 892
     },
     {
       "surface": "人",
@@ -1241,8 +1232,8 @@
       "accent": null,
       "connection": "C4",
       "pos": "接尾辞",
-      "start": 891,
-      "end": 893
+      "start": 892,
+      "end": 894
     },
     {
       "surface": "爺",
@@ -1250,8 +1241,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 896,
-      "end": 898
+      "start": 897,
+      "end": 899
     },
     {
       "surface": "笑い",
@@ -1259,8 +1250,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 901,
-      "end": 904
+      "start": 902,
+      "end": 905
     },
     {
       "surface": "腰",
@@ -1268,8 +1259,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 907,
-      "end": 909
+      "start": 908,
+      "end": 910
     },
     {
       "surface": "出し",
@@ -1277,8 +1268,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 920,
-      "end": 922
+      "start": 921,
+      "end": 923
     },
     {
       "surface": "細長く",
@@ -1286,8 +1277,8 @@
       "accent": null,
       "connection": "C1",
       "pos": "形容詞",
-      "start": 937,
-      "end": 942
+      "start": 938,
+      "end": 943
     },
     {
       "surface": "真中",
@@ -1295,8 +1286,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 954,
-      "end": 958
+      "start": 955,
+      "end": 959
     },
     {
       "surface": "置い",
@@ -1304,8 +1295,8 @@
       "accent": 0,
       "connection": "C4",
       "pos": "動詞",
-      "start": 959,
-      "end": 961
+      "start": 960,
+      "end": 962
     },
     {
       "surface": "大きな",
@@ -1313,8 +1304,8 @@
       "accent": 1,
       "connection": null,
       "pos": "連体詞",
-      "start": 977,
-      "end": 981
+      "start": 978,
+      "end": 982
     },
     {
       "surface": "丸い",
@@ -1322,8 +1313,8 @@
       "accent": null,
       "connection": "C2",
       "pos": "形容詞",
-      "start": 981,
-      "end": 984
+      "start": 982,
+      "end": 985
     },
     {
       "surface": "輪",
@@ -1331,8 +1322,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 984,
-      "end": 985
+      "start": 985,
+      "end": 986
     },
     {
       "surface": "肩",
@@ -1340,8 +1331,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "名詞",
-      "start": 994,
-      "end": 996
+      "start": 995,
+      "end": 997
     },
     {
       "surface": "箱",
@@ -1349,8 +1340,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1000,
-      "end": 1002
+      "start": 1001,
+      "end": 1003
     },
     {
       "surface": "中",
@@ -1358,8 +1349,8 @@
       "accent": 1,
       "connection": "C4",
       "pos": "名詞",
-      "start": 1003,
-      "end": 1005
+      "start": 1004,
+      "end": 1006
     },
     {
       "surface": "出し",
@@ -1367,8 +1358,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1025,
-      "end": 1027
+      "start": 1026,
+      "end": 1028
     },
     {
       "surface": "今",
@@ -1376,8 +1367,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1032,
-      "end": 1034
+      "start": 1033,
+      "end": 1035
     },
     {
       "surface": "見",
@@ -1385,8 +1376,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1050,
-      "end": 1051
+      "start": 1051,
+      "end": 1052
     },
     {
       "surface": "見",
@@ -1394,8 +1385,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1056,
-      "end": 1057
+      "start": 1057,
+      "end": 1058
     },
     {
       "surface": "云っ",
@@ -1403,8 +1394,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1069,
-      "end": 1071
+      "start": 1070,
+      "end": 1072
     },
     {
       "surface": "子供",
@@ -1412,8 +1403,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 1076,
-      "end": 1079
+      "start": 1077,
+      "end": 1080
     },
     {
       "surface": "一生",
@@ -1421,8 +1412,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 1080,
-      "end": 1085
+      "start": 1081,
+      "end": 1086
     },
     {
       "surface": "懸命",
@@ -1430,8 +1421,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "形状詞",
-      "start": 1085,
-      "end": 1089
+      "start": 1086,
+      "end": 1090
     },
     {
       "surface": "見",
@@ -1439,8 +1430,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1095,
-      "end": 1096
+      "start": 1096,
+      "end": 1097
     },
     {
       "surface": "自分",
@@ -1448,8 +1439,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 1100,
-      "end": 1103
+      "start": 1101,
+      "end": 1104
     },
     {
       "surface": "見",
@@ -1457,8 +1448,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1104,
-      "end": 1105
+      "start": 1105,
+      "end": 1106
     },
     {
       "surface": "見",
@@ -1466,8 +1457,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1112,
-      "end": 1113
+      "start": 1113,
+      "end": 1114
     },
     {
       "surface": "見",
@@ -1475,8 +1466,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1118,
-      "end": 1119
+      "start": 1119,
+      "end": 1120
     },
     {
       "surface": "好い",
@@ -1484,8 +1475,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "形容詞",
-      "start": 1124,
-      "end": 1126
+      "start": 1125,
+      "end": 1127
     },
     {
       "surface": "云い",
@@ -1493,8 +1484,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1129,
-      "end": 1131
+      "start": 1130,
+      "end": 1132
     },
     {
       "surface": "爺",
@@ -1502,8 +1493,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1134,
-      "end": 1136
+      "start": 1135,
+      "end": 1137
     },
     {
       "surface": "笛",
@@ -1511,8 +1502,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1139,
-      "end": 1141
+      "start": 1140,
+      "end": 1142
     },
     {
       "surface": "吹い",
@@ -1520,8 +1511,8 @@
       "accent": null,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1142,
-      "end": 1144
+      "start": 1143,
+      "end": 1145
     },
     {
       "surface": "輪",
@@ -1529,8 +1520,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1146,
-      "end": 1147
+      "start": 1147,
+      "end": 1148
     },
     {
       "surface": "上",
@@ -1538,8 +1529,8 @@
       "accent": null,
       "connection": "C4",
       "pos": "名詞",
-      "start": 1148,
-      "end": 1150
+      "start": 1149,
+      "end": 1151
     },
     {
       "surface": "廻り",
@@ -1547,8 +1538,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1155,
-      "end": 1158
+      "start": 1156,
+      "end": 1159
     },
     {
       "surface": "出し",
@@ -1556,8 +1547,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1158,
-      "end": 1160
+      "start": 1159,
+      "end": 1161
     },
     {
       "surface": "自分",
@@ -1565,8 +1556,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 1162,
-      "end": 1165
+      "start": 1163,
+      "end": 1166
     },
     {
       "surface": "見",
@@ -1574,8 +1565,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1173,
-      "end": 1174
+      "start": 1174,
+      "end": 1175
     },
     {
       "surface": "動か",
@@ -1583,8 +1574,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1191,
-      "end": 1194
+      "start": 1192,
+      "end": 1195
     },
     {
       "surface": "爺",
@@ -1592,8 +1583,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1202,
-      "end": 1204
+      "start": 1203,
+      "end": 1205
     },
     {
       "surface": "笛",
@@ -1601,8 +1592,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1207,
-      "end": 1209
+      "start": 1208,
+      "end": 1210
     },
     {
       "surface": "吹い",
@@ -1610,8 +1601,8 @@
       "accent": null,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1214,
-      "end": 1216
+      "start": 1215,
+      "end": 1217
     },
     {
       "surface": "輪",
@@ -1619,8 +1610,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1222,
-      "end": 1223
+      "start": 1223,
+      "end": 1224
     },
     {
       "surface": "上",
@@ -1628,8 +1619,8 @@
       "accent": null,
       "connection": "C4",
       "pos": "名詞",
-      "start": 1224,
-      "end": 1226
+      "start": 1225,
+      "end": 1227
     },
     {
       "surface": "何",
@@ -1637,8 +1628,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1227,
-      "end": 1229
+      "start": 1228,
+      "end": 1230
     },
     {
       "surface": "遍",
@@ -1646,8 +1637,8 @@
       "accent": null,
       "connection": "C3",
       "pos": "接尾辞",
-      "start": 1229,
-      "end": 1231
+      "start": 1230,
+      "end": 1232
     },
     {
       "surface": "廻っ",
@@ -1655,8 +1646,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1232,
-      "end": 1235
+      "start": 1233,
+      "end": 1236
     },
     {
       "surface": "抜",
@@ -1664,8 +1655,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1250,
-      "end": 1252
+      "start": 1251,
+      "end": 1253
     },
     {
       "surface": "足",
@@ -1673,8 +1664,8 @@
       "accent": 2,
       "connection": "C4",
       "pos": "名詞",
-      "start": 1252,
-      "end": 1254
+      "start": 1253,
+      "end": 1255
     },
     {
       "surface": "遠慮",
@@ -1682,8 +1673,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 1266,
-      "end": 1270
+      "start": 1267,
+      "end": 1271
     },
     {
       "surface": "廻っ",
@@ -1691,8 +1682,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1277,
-      "end": 1280
+      "start": 1278,
+      "end": 1281
     },
     {
       "surface": "見え",
@@ -1700,8 +1691,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1288,
-      "end": 1290
+      "start": 1289,
+      "end": 1291
     },
     {
       "surface": "面白",
@@ -1709,8 +1700,8 @@
       "accent": 4,
       "connection": "C1",
       "pos": "形容詞",
-      "start": 1292,
-      "end": 1296
+      "start": 1293,
+      "end": 1297
     },
     {
       "surface": "爺",
@@ -1718,8 +1709,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1310,
-      "end": 1312
+      "start": 1311,
+      "end": 1313
     },
     {
       "surface": "笛",
@@ -1727,8 +1718,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1315,
-      "end": 1317
+      "start": 1316,
+      "end": 1318
     },
     {
       "surface": "肩",
@@ -1736,8 +1727,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "名詞",
-      "start": 1331,
-      "end": 1333
+      "start": 1332,
+      "end": 1334
     },
     {
       "surface": "掛け",
@@ -1745,8 +1736,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1334,
-      "end": 1336
+      "start": 1335,
+      "end": 1337
     },
     {
       "surface": "箱",
@@ -1754,8 +1745,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1337,
-      "end": 1339
+      "start": 1338,
+      "end": 1340
     },
     {
       "surface": "口",
@@ -1763,8 +1754,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1340,
-      "end": 1342
+      "start": 1341,
+      "end": 1343
     },
     {
       "surface": "開け",
@@ -1772,8 +1763,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1343,
-      "end": 1345
+      "start": 1344,
+      "end": 1346
     },
     {
       "surface": "首",
@@ -1781,8 +1772,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1352,
-      "end": 1354
+      "start": 1353,
+      "end": 1355
     },
     {
       "surface": "箱",
@@ -1790,8 +1781,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1386,
-      "end": 1388
+      "start": 1387,
+      "end": 1389
     },
     {
       "surface": "中",
@@ -1799,8 +1790,8 @@
       "accent": 1,
       "connection": "C4",
       "pos": "名詞",
-      "start": 1389,
-      "end": 1391
+      "start": 1390,
+      "end": 1392
     },
     {
       "surface": "今",
@@ -1808,8 +1799,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1398,
-      "end": 1400
+      "start": 1399,
+      "end": 1401
     },
     {
       "surface": "見せ",
@@ -1817,8 +1808,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1401,
-      "end": 1403
+      "start": 1402,
+      "end": 1404
     },
     {
       "surface": "今",
@@ -1826,8 +1817,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1407,
-      "end": 1409
+      "start": 1408,
+      "end": 1410
     },
     {
       "surface": "見せ",
@@ -1835,8 +1826,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1410,
-      "end": 1412
+      "start": 1411,
+      "end": 1413
     },
     {
       "surface": "云い",
@@ -1844,8 +1835,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1417,
-      "end": 1419
+      "start": 1418,
+      "end": 1420
     },
     {
       "surface": "爺",
@@ -1853,17 +1844,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1423,
-      "end": 1425
-    },
-    {
-      "surface": "真直",
-      "reading": "マナオ",
-      "accent": 0,
-      "connection": null,
-      "pos": "名詞",
-      "start": 1428,
-      "end": 1431
+      "start": 1424,
+      "end": 1426
     },
     {
       "surface": "歩き",
@@ -1871,8 +1853,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1432,
-      "end": 1435
+      "start": 1434,
+      "end": 1437
     },
     {
       "surface": "出し",
@@ -1880,8 +1862,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1435,
-      "end": 1437
+      "start": 1437,
+      "end": 1439
     },
     {
       "surface": "柳",
@@ -1889,8 +1871,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 1439,
-      "end": 1442
+      "start": 1441,
+      "end": 1444
     },
     {
       "surface": "下",
@@ -1898,8 +1880,8 @@
       "accent": 0,
       "connection": "C4",
       "pos": "名詞",
-      "start": 1443,
-      "end": 1445
+      "start": 1445,
+      "end": 1447
     },
     {
       "surface": "抜け",
@@ -1907,8 +1889,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1446,
-      "end": 1448
+      "start": 1448,
+      "end": 1450
     },
     {
       "surface": "細い",
@@ -1916,8 +1898,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "形容詞",
-      "start": 1450,
-      "end": 1453
+      "start": 1452,
+      "end": 1455
     },
     {
       "surface": "路",
@@ -1925,17 +1907,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1453,
-      "end": 1455
-    },
-    {
-      "surface": "真直",
-      "reading": "マナオ",
-      "accent": 0,
-      "connection": null,
-      "pos": "名詞",
-      "start": 1456,
-      "end": 1459
+      "start": 1455,
+      "end": 1457
     },
     {
       "surface": "下り",
@@ -1943,8 +1916,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1460,
-      "end": 1462
+      "start": 1463,
+      "end": 1465
     },
     {
       "surface": "行っ",
@@ -1952,8 +1925,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1463,
-      "end": 1465
+      "start": 1466,
+      "end": 1468
     },
     {
       "surface": "自分",
@@ -1961,8 +1934,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 1467,
-      "end": 1470
+      "start": 1470,
+      "end": 1473
     },
     {
       "surface": "蛇",
@@ -1970,8 +1943,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1471,
-      "end": 1473
+      "start": 1474,
+      "end": 1476
     },
     {
       "surface": "見",
@@ -1979,8 +1952,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1474,
-      "end": 1475
+      "start": 1477,
+      "end": 1478
     },
     {
       "surface": "細い",
@@ -1988,8 +1961,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "形容詞",
-      "start": 1480,
-      "end": 1483
+      "start": 1483,
+      "end": 1486
     },
     {
       "surface": "道",
@@ -1997,8 +1970,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1483,
-      "end": 1485
+      "start": 1486,
+      "end": 1488
     },
     {
       "surface": "行っ",
@@ -2006,8 +1979,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1494,
-      "end": 1496
+      "start": 1497,
+      "end": 1499
     },
     {
       "surface": "爺",
@@ -2015,8 +1988,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1498,
-      "end": 1500
+      "start": 1501,
+      "end": 1503
     },
     {
       "surface": "時々",
@@ -2024,8 +1997,8 @@
       "accent": null,
       "connection": "C1",
       "pos": "名詞",
-      "start": 1503,
-      "end": 1507
+      "start": 1506,
+      "end": 1510
     },
     {
       "surface": "今",
@@ -2033,8 +2006,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1508,
-      "end": 1510
+      "start": 1511,
+      "end": 1513
     },
     {
       "surface": "云っ",
@@ -2042,8 +2015,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1515,
-      "end": 1517
+      "start": 1518,
+      "end": 1520
     },
     {
       "surface": "蛇",
@@ -2051,8 +2024,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1521,
-      "end": 1523
+      "start": 1524,
+      "end": 1526
     },
     {
       "surface": "云っ",
@@ -2060,8 +2033,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1528,
-      "end": 1530
+      "start": 1531,
+      "end": 1533
     },
     {
       "surface": "歩い",
@@ -2069,8 +2042,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1534,
-      "end": 1537
+      "start": 1537,
+      "end": 1540
     },
     {
       "surface": "行く",
@@ -2078,8 +2051,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1538,
-      "end": 1540
+      "start": 1541,
+      "end": 1543
     },
     {
       "surface": "今",
@@ -2087,8 +2060,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1551,
-      "end": 1553
+      "start": 1554,
+      "end": 1556
     },
     {
       "surface": "蛇",
@@ -2096,8 +2069,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1557,
-      "end": 1559
+      "start": 1560,
+      "end": 1562
     },
     {
       "surface": "笛",
@@ -2105,8 +2078,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1573,
-      "end": 1575
+      "start": 1576,
+      "end": 1578
     },
     {
       "surface": "鳴る",
@@ -2114,8 +2087,8 @@
       "accent": 0,
       "connection": "C4",
       "pos": "動詞",
-      "start": 1576,
-      "end": 1578
+      "start": 1579,
+      "end": 1581
     },
     {
       "surface": "河",
@@ -2123,8 +2096,8 @@
       "accent": 2,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1594,
-      "end": 1596
+      "start": 1597,
+      "end": 1599
     },
     {
       "surface": "岸",
@@ -2132,8 +2105,8 @@
       "accent": 2,
       "connection": "C4",
       "pos": "名詞",
-      "start": 1597,
-      "end": 1599
+      "start": 1600,
+      "end": 1602
     },
     {
       "surface": "出",
@@ -2141,8 +2114,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1600,
-      "end": 1601
+      "start": 1603,
+      "end": 1604
     },
     {
       "surface": "橋",
@@ -2150,8 +2123,8 @@
       "accent": 2,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1603,
-      "end": 1605
+      "start": 1606,
+      "end": 1608
     },
     {
       "surface": "舟",
@@ -2159,8 +2132,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1606,
-      "end": 1608
+      "start": 1609,
+      "end": 1611
     },
     {
       "surface": "休ん",
@@ -2168,8 +2141,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1617,
-      "end": 1620
+      "start": 1620,
+      "end": 1623
     },
     {
       "surface": "箱",
@@ -2177,8 +2150,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1621,
-      "end": 1623
+      "start": 1624,
+      "end": 1626
     },
     {
       "surface": "中",
@@ -2186,8 +2159,8 @@
       "accent": 1,
       "connection": "C4",
       "pos": "名詞",
-      "start": 1624,
-      "end": 1626
+      "start": 1627,
+      "end": 1629
     },
     {
       "surface": "蛇",
@@ -2195,8 +2168,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1627,
-      "end": 1629
+      "start": 1630,
+      "end": 1632
     },
     {
       "surface": "見せる",
@@ -2204,8 +2177,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1630,
-      "end": 1633
+      "start": 1633,
+      "end": 1636
     },
     {
       "surface": "思っ",
@@ -2213,8 +2186,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1637,
-      "end": 1640
+      "start": 1640,
+      "end": 1643
     },
     {
       "surface": "爺",
@@ -2222,8 +2195,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1645,
-      "end": 1647
+      "start": 1648,
+      "end": 1650
     },
     {
       "surface": "河",
@@ -2231,8 +2204,8 @@
       "accent": 2,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1654,
-      "end": 1656
+      "start": 1657,
+      "end": 1659
     },
     {
       "surface": "中",
@@ -2240,8 +2213,8 @@
       "accent": 1,
       "connection": "C4",
       "pos": "名詞",
-      "start": 1657,
-      "end": 1659
+      "start": 1660,
+      "end": 1662
     },
     {
       "surface": "出し",
@@ -2249,8 +2222,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1663,
-      "end": 1665
+      "start": 1666,
+      "end": 1668
     },
     {
       "surface": "始め",
@@ -2258,8 +2231,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 1667,
-      "end": 1670
+      "start": 1670,
+      "end": 1673
     },
     {
       "surface": "深",
@@ -2267,8 +2240,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "形容詞",
-      "start": 1677,
-      "end": 1679
+      "start": 1680,
+      "end": 1682
     },
     {
       "surface": "腰",
@@ -2276,8 +2249,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1690,
-      "end": 1692
+      "start": 1693,
+      "end": 1695
     },
     {
       "surface": "胸",
@@ -2285,8 +2258,8 @@
       "accent": 2,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1695,
-      "end": 1697
+      "start": 1698,
+      "end": 1700
     },
     {
       "surface": "方",
@@ -2294,8 +2267,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1698,
-      "end": 1700
+      "start": 1701,
+      "end": 1703
     },
     {
       "surface": "水",
@@ -2303,8 +2276,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1702,
-      "end": 1704
+      "start": 1705,
+      "end": 1707
     },
     {
       "surface": "見え",
@@ -2312,8 +2285,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1709,
-      "end": 1711
+      "start": 1712,
+      "end": 1714
     },
     {
       "surface": "爺",
@@ -2321,8 +2294,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1720,
-      "end": 1722
+      "start": 1723,
+      "end": 1725
     },
     {
       "surface": "深く",
@@ -2330,8 +2303,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "形容詞",
-      "start": 1729,
-      "end": 1732
+      "start": 1732,
+      "end": 1735
     },
     {
       "surface": "夜",
@@ -2339,17 +2312,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1735,
-      "end": 1737
-    },
-    {
-      "surface": "真直",
-      "reading": "マナオ",
-      "accent": 0,
-      "connection": null,
-      "pos": "名詞",
-      "start": 1745,
-      "end": 1748
+      "start": 1738,
+      "end": 1740
     },
     {
       "surface": "唄い",
@@ -2357,17 +2321,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1755,
-      "end": 1758
-    },
-    {
-      "surface": "真直",
-      "reading": "マナオ",
-      "accent": 0,
-      "connection": null,
-      "pos": "名詞",
-      "start": 1767,
-      "end": 1770
+      "start": 1759,
+      "end": 1762
     },
     {
       "surface": "歩い",
@@ -2375,8 +2330,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1771,
-      "end": 1774
+      "start": 1776,
+      "end": 1779
     },
     {
       "surface": "行っ",
@@ -2384,8 +2339,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1775,
-      "end": 1777
+      "start": 1780,
+      "end": 1782
     },
     {
       "surface": "顔",
@@ -2393,8 +2348,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1786,
-      "end": 1788
+      "start": 1791,
+      "end": 1793
     },
     {
       "surface": "頭",
@@ -2402,8 +2357,8 @@
       "accent": null,
       "connection": "C1",
       "pos": "名詞",
-      "start": 1789,
-      "end": 1792
+      "start": 1794,
+      "end": 1797
     },
     {
       "surface": "見え",
@@ -2411,8 +2366,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1800,
-      "end": 1802
+      "start": 1805,
+      "end": 1807
     },
     {
       "surface": "自分",
@@ -2420,8 +2375,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 1815,
-      "end": 1818
+      "start": 1820,
+      "end": 1823
     },
     {
       "surface": "爺",
@@ -2429,8 +2384,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1819,
-      "end": 1821
+      "start": 1824,
+      "end": 1826
     },
     {
       "surface": "上がっ",
@@ -2438,8 +2393,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1830,
-      "end": 1833
+      "start": 1835,
+      "end": 1838
     },
     {
       "surface": "時",
@@ -2447,8 +2402,8 @@
       "accent": 2,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1834,
-      "end": 1836
+      "start": 1839,
+      "end": 1841
     },
     {
       "surface": "蛇",
@@ -2456,8 +2411,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1838,
-      "end": 1840
+      "start": 1843,
+      "end": 1845
     },
     {
       "surface": "見せる",
@@ -2465,8 +2420,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1841,
-      "end": 1844
+      "start": 1846,
+      "end": 1849
     },
     {
       "surface": "思っ",
@@ -2474,8 +2429,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1848,
-      "end": 1851
+      "start": 1853,
+      "end": 1856
     },
     {
       "surface": "鳴る",
@@ -2483,8 +2438,8 @@
       "accent": 0,
       "connection": "C4",
       "pos": "動詞",
-      "start": 1856,
-      "end": 1858
+      "start": 1861,
+      "end": 1863
     },
     {
       "surface": "所",
@@ -2492,8 +2447,8 @@
       "accent": null,
       "connection": "C2",
       "pos": "名詞",
-      "start": 1858,
-      "end": 1861
+      "start": 1863,
+      "end": 1866
     },
     {
       "surface": "立っ",
@@ -2501,8 +2456,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1862,
-      "end": 1864
+      "start": 1867,
+      "end": 1869
     },
     {
       "surface": "一人",
@@ -2510,8 +2465,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "名詞",
-      "start": 1869,
-      "end": 1872
+      "start": 1874,
+      "end": 1877
     },
     {
       "surface": "待っ",
@@ -2519,8 +2474,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1877,
-      "end": 1879
+      "start": 1882,
+      "end": 1884
     },
     {
       "surface": "爺",
@@ -2528,8 +2483,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 1887,
-      "end": 1889
+      "start": 1892,
+      "end": 1894
     },
     {
       "surface": "上がっ",
@@ -2537,8 +2492,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "start": 1897,
-      "end": 1900
+      "start": 1902,
+      "end": 1905
     },
     {
       "surface": "来",
@@ -2546,8 +2501,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "start": 1901,
-      "end": 1902
+      "start": 1906,
+      "end": 1907
     }
   ]
 }

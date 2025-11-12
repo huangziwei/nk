@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "text_sha1": "8139d5033fb7a775ad7ffaa0514ab551e5117825",
+  "text_sha1": "29688944acb9a1bbe09ee5214d17b85e5be29857",
   "tokens": [
     {
       "surface": "第",
@@ -13,7 +13,7 @@
     },
     {
       "surface": "七夜",
-      "reading": "シチャ",
+      "reading": "シチヤ",
       "accent": null,
       "connection": "C2",
       "pos": "名詞",
@@ -2416,7 +2416,7 @@
     },
     {
       "surface": "利用",
-      "reading": "リョウ",
+      "reading": "リヨウ",
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",

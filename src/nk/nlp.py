@@ -63,35 +63,7 @@ def _normalize_katakana(text: str) -> str:
     text = text.replace("ヂ", "ジ").replace("ヅ", "ズ")
     text = text.replace("ヮ", "ワ").replace("ヵ", "カ").replace("ヶ", "ケ")
     text = text.replace("ゕ", "カ").replace("ゖ", "ケ")
-    small_map = {"ヤ": "ャ", "ユ": "ュ", "ヨ": "ョ"}
-    digraph_bases = {
-        "キ",
-        "ギ",
-        "シ",
-        "ジ",
-        "チ",
-        "ヂ",
-        "ニ",
-        "ヒ",
-        "ビ",
-        "ピ",
-        "ミ",
-        "リ",
-    }
-    chars: list[str] = []
-    idx = 0
-    while idx < len(text):
-        ch = text[idx]
-        if idx + 1 < len(text) and ch in digraph_bases:
-            nxt = text[idx + 1]
-            if nxt in small_map:
-                chars.append(ch)
-                chars.append(small_map[nxt])
-                idx += 2
-                continue
-        chars.append(ch)
-        idx += 1
-    return "".join(chars)
+    return text
 
 
 HONORIFIC_PREFIX_SET = {"お", "御", "ご"}
