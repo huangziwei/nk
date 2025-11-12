@@ -49,3 +49,31 @@ def test_nlp_backend_normalizes_cross_token_small_kana() -> None:
     reading = backend.to_reading_text("行事予算")
     assert "ジヨ" not in reading
     assert "ギョウジョサン" in reading
+
+
+def test_nlp_backend_prefers_hoka_for_independent_ta() -> None:
+    pytest.importorskip("fugashi")
+    from nk.nlp import NLPBackend
+
+    backend = NLPBackend()
+    assert backend.to_reading_text("他は") == "ホカは"
+    assert backend.to_reading_text("他にも") == "ホカにも"
+    assert backend.to_reading_text("他、質問は？") == "ホカ、シツモンは?"
+    assert backend.to_reading_text("その他") == "そのホカ"
+    assert backend.to_reading_text("他人") == "タニン"
+    assert backend.to_reading_text("他界") == "タカイ"
+
+
+def test_nlp_backend_handles_parent_titles_and_oyaji() -> None:
+    pytest.importorskip("fugashi")
+    from nk.nlp import NLPBackend
+
+    backend = NLPBackend()
+    assert backend.to_reading_text("父上") == "チチウエ"
+    assert backend.to_reading_text("お父上") == "おチチウエ"
+    assert backend.to_reading_text("お父上様") == "おチチウエサマ"
+    assert backend.to_reading_text("父親") == "オヤジ"
+    assert backend.to_reading_text("父親は") == "オヤジは"
+    assert backend.to_reading_text("母上") == "ハハウエ"
+    assert backend.to_reading_text("お母上") == "おハハウエ"
+    assert backend.to_reading_text("お母上様") == "おハハウエサマ"

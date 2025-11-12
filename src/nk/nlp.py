@@ -133,6 +133,32 @@ HONORIFIC_SUFFIX_REPLACEMENTS = {
     "君": "ギミ",
 }
 
+_BASE_READING_OVERRIDES = {
+    "父親": "オヤジ",
+    "父上": "チチウエ",
+    "母上": "ハハウエ",
+}
+
+_PARENT_HONORIFICS = {
+    "父": "チチ",
+    "母": "ハハ",
+}
+
+_OTHER_SURFACE = "他"
+_OTHER_PREVIOUS_HINTS = {
+    "この",
+    "その",
+    "あの",
+    "どの",
+    "こんな",
+    "そんな",
+    "あんな",
+    "どんな",
+    "此の",
+    "其の",
+    "彼の",
+}
+
 
 @dataclass
 class _Token:
@@ -312,6 +338,17 @@ class NLPBackend:
             return HONORIFIC_SUFFIX_REPLACEMENTS[cleaned_surface]
         reading = self._extract_reading(token)
         if reading and not _contains_cjk(reading):
+            pos_label = self._extract_pos(token)
+            override = self._resolve_contextual_override(
+                base,
+                pos_label,
+                reading,
+                previous_surface,
+                previous_lemma,
+                next_surface,
+            )
+            if override:
+                return override
             return reading
         # Fallback: break surface into characters and resolve individually.
         chars: list[str] = []
@@ -324,6 +361,66 @@ class NLPBackend:
             else:
                 chars.append(ch)
         return "".join(chars)
+
+    def _resolve_contextual_override(
+        self,
+        base: str,
+        pos_label: str | None,
+        reading: str,
+        previous_surface: str,
+        previous_lemma: str,
+        next_surface: str,
+    ) -> str | None:
+        normalized_base = base.strip()
+        normalized_next = (next_surface or "").strip()
+        override = _BASE_READING_OVERRIDES.get(normalized_base)
+        if override:
+            return override
+        parent_override = self._parent_ue_override(normalized_base, normalized_next)
+        if parent_override and reading != parent_override:
+            return parent_override
+        if self._should_force_hoka(base, pos_label, previous_surface, previous_lemma, next_surface):
+            if reading != "ホカ":
+                return "ホカ"
+        return None
+
+    def _should_force_hoka(
+        self,
+        base: str,
+        pos_label: str | None,
+        previous_surface: str,
+        previous_lemma: str,
+        next_surface: str,
+    ) -> bool:
+        if base != _OTHER_SURFACE:
+            return False
+        if not pos_label or not pos_label.startswith("名詞"):
+            return False
+        normalized_base = base.strip()
+        if len(normalized_base) != 1:
+            return False
+        normalized_next = (next_surface or "").strip()
+        if not normalized_next:
+            return True
+        if not _contains_cjk(normalized_next):
+            return True
+        normalized_prev_surface = (previous_surface or "").strip()
+        normalized_prev_lemma = (previous_lemma or "").strip()
+        if normalized_prev_surface in _OTHER_PREVIOUS_HINTS:
+            return True
+        if normalized_prev_lemma in _OTHER_PREVIOUS_HINTS:
+            return True
+        return False
+
+    def _parent_ue_override(self, base: str, next_surface: str) -> str | None:
+        if not next_surface:
+            return None
+        base_reading = _PARENT_HONORIFICS.get(base)
+        if not base_reading:
+            return None
+        if not next_surface.startswith("上"):
+            return None
+        return base_reading
 
     def _reading_for_char(self, ch: str) -> str:
         # Try re-tokenizing the single character to get dictionary reading.
