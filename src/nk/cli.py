@@ -6,6 +6,7 @@ import shutil
 import socket
 import sys
 import tempfile
+from importlib import metadata
 from pathlib import Path
 import threading
 from typing import Mapping
@@ -22,6 +23,8 @@ from rich.progress import (
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
+
+import tomllib
 
 from .book_io import (
     BOOK_METADATA_FILENAME,
@@ -53,10 +56,39 @@ from .refine import load_override_config, refine_book
 from .web import WebConfig, create_app
 
 
+def _read_local_version() -> str | None:
+    try:
+        pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    except IndexError:  # pragma: no cover - defensive
+        return None
+    try:
+        with pyproject_path.open("rb") as fh:
+            data = tomllib.load(fh)
+    except (FileNotFoundError, tomllib.TOMLDecodeError):
+        return None
+    return data.get("project", {}).get("version")
+
+
+try:
+    __version__ = metadata.version("nk")
+except metadata.PackageNotFoundError:
+    __version__ = _read_local_version() or "0.0.0+unknown"
+
+
+def _add_version_flag(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-v",
+        "--version",
+        action="version",
+        version=f"nk {__version__}",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="EPUB → TXT with ruby propagation and base removal. Use `nk tts` for speech.",
     )
+    _add_version_flag(ap)
     ap.add_argument(
         "input_path",
         help="Path to input .epub or a directory containing .epub files",
@@ -88,6 +120,7 @@ def build_convert_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="Convert arbitrary text to kana using the NLP backend.",
     )
+    _add_version_flag(ap)
     ap.add_argument(
         "text",
         nargs="+",
@@ -100,6 +133,7 @@ def build_tts_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="Synthesize MP3s from .txt files using a running VoiceVox engine.",
     )
+    _add_version_flag(ap)
     ap.add_argument(
         "input_path",
         nargs="?",
@@ -248,6 +282,7 @@ def build_dav_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="Serve nk-generated MP3 files over WebDAV (ideal for Flacbox).",
     )
+    _add_version_flag(ap)
     ap.add_argument(
         "root",
         help="Directory containing chapterized books (only .mp3 files will be exposed).",
@@ -276,6 +311,7 @@ def build_web_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="Serve chapterized text as a browser-based VoiceVox player.",
     )
+    _add_version_flag(ap)
     ap.add_argument(
         "root",
         help="Directory containing chapterized .txt files (one subdirectory per book).",
@@ -366,12 +402,14 @@ def build_web_parser() -> argparse.ArgumentParser:
 
 def build_refine_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Apply custom pitch overrides to a chapterized book.")
+    _add_version_flag(ap)
     ap.add_argument("book_dir", help="Path to the chapterized book directory.")
     return ap
 
 
 def build_tools_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="nk helper utilities")
+    _add_version_flag(ap)
     subparsers = ap.add_subparsers(dest="tool_cmd")
 
     install = subparsers.add_parser(
