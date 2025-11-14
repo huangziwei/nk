@@ -17,7 +17,7 @@ case "$UNAME_OUT" in
     fi
     if [[ "${ID:-}" == "ubuntu" || "${ID_LIKE:-}" == *"ubuntu"* ]]; then
       LINUX_DISTRO="ubuntu"
-      DEFAULT_VOICEVOX_TARGET="linux-x64-cpu"
+      DEFAULT_VOICEVOX_TARGET="linux-cpu-x64"
     else
       echo "Unsupported Linux distribution. Only Ubuntu is supported by install.sh." >&2
       exit 1
