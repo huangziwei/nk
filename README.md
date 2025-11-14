@@ -21,7 +21,7 @@ It will:
 - call `uv run nk tools install-unidic` so fugashi can see UniDic 3.1.1.
 - fetch the latest VoiceVox engine release from GitHub, log the tag it grabbed, and unpack it under `${VOICEVOX_ROOT:-$HOME/opt/voicevox}/$VOICEVOX_TARGET` (with the tag recorded in `.nk-voicevox-version`; `cat "$HOME/opt/voicevox/$VOICEVOX_TARGET/.nk-voicevox-version"` to check later).
 
-> On Linux the default is `VOICEVOX_TARGET=linux-x64`. Set `VOICEVOX_TARGET=linux-x64-gpu` (and optionally `VOICEVOX_ASSET_PATTERN`) if you prefer the GPU build. Run `install.sh` with `sudo` or as root when your distro requires elevated privileges to install packages.
+> On Linux the default is `VOICEVOX_TARGET=linux-x64`. Set `VOICEVOX_TARGET=linux-x64-gpu` (and optionally `VOICEVOX_ASSET_PATTERN`) if you prefer the GPU build. Run `install.sh` with `sudo` or as root when your distro requires elevated privileges to install packages. The script also installs the ALSA development headers (`libasound2-dev`, `alsa-lib-devel`, etc.) so that `simpleaudio` can build successfully during `uv sync`.
 
 > Regenerate the UniDic data any time you recreate the virtualenv with `uv run nk tools install-unidic`.
 

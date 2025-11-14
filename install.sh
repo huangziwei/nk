@@ -30,11 +30,11 @@ VOICEVOX_RELEASE_TAG=""
 VOICEVOX_ARCHIVE_PATH=""
 
 BREW_DEPS=(curl ffmpeg jq p7zip uv)
-APT_PACKAGES=(curl ffmpeg jq p7zip-full)
-DNF_PACKAGES=(curl ffmpeg jq p7zip p7zip-plugins)
-YUM_PACKAGES=(curl ffmpeg jq p7zip p7zip-plugins)
-PACMAN_PACKAGES=(curl ffmpeg jq p7zip)
-ZYPER_PACKAGES=(curl ffmpeg jq p7zip-full)
+APT_PACKAGES=(curl ffmpeg jq p7zip-full libasound2-dev)
+DNF_PACKAGES=(curl ffmpeg jq p7zip p7zip-plugins alsa-lib-devel)
+YUM_PACKAGES=(curl ffmpeg jq p7zip p7zip-plugins alsa-lib-devel)
+PACMAN_PACKAGES=(curl ffmpeg jq p7zip alsa-lib)
+ZYPER_PACKAGES=(curl ffmpeg jq p7zip-full alsa-devel)
 REQUIRED_COMMANDS=(curl ffmpeg jq 7z uv)
 
 PACKAGE_MANAGER=""
