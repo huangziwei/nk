@@ -308,11 +308,11 @@ def _ensure_custom_pitch_template(output_dir: Path) -> None:
     template = {
         "overrides": [
             {
-                "pattern": "ソガシャハジ",
-                "replacement": "ソガノシャチ",
-                "reading": "ソガノシャチ",
-                "accent": 1,
-                "pos": "名詞",
+                "pattern": "テイアラ",
+                "replacement": "ティアラ",
+                "reading": "ティアラ",
+                "accent": 2,
+                "surface": "天愛星",
             },
             {
                 "pattern": "クラウゼル",

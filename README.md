@@ -140,11 +140,11 @@ If MeCab splits a word incorrectly or assigns the wrong accent, add a `custom_pi
 {
   "overrides": [
     {
-      "pattern": "ソガシャハジ",
-      "replacement": "ソガノシャチ",
-      "reading": "ソガノシャチ",
-      "accent": 1,
-      "pos": "名詞"
+      "pattern": "テイアラ",
+      "replacement": "ティアラ",
+      "reading": "ティアラ",
+      "accent": 2,
+      "surface": "天愛星"
     },
     {
       "pattern": "クラウゼル",
@@ -158,6 +158,7 @@ If MeCab splits a word incorrectly or assigns the wrong accent, add a `custom_pi
 - `pattern` matches against the katakana `.txt` output (set `"regex": true` if you need a regular expression).
 - `replacement` rewrites the `.txt` text before re-tokenizing (omit it for pitch-only fixes).
 - `reading`/`accent` describe the curated pronunciation to inject into `.pitch.json` (defaults to `replacement` when omitted).
+- `surface` lets you keep the kanji label (“天愛星”) in the pitch metadata even if the katakana body uses the ruby form.
 
 Apply the overrides with:
 
