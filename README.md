@@ -1,6 +1,8 @@
 # nk
 
-Convert Japanese EPUBs into TTS-ready text and narrate it with VoiceVox (tested on macOS and Ubuntu).
+Convert Japanese EPUBs into ruby-expanded chapterized text, synthesize VoiceVox MP3s, and stream them via WebDAV.
+
+Tested on macOS and Ubuntu.
 
 ## Installation
 
