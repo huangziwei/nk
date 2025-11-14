@@ -1,6 +1,6 @@
 # nk
 
-Convert Japanese EPUBs into TTS-ready text with VoiceVox (tested on macOS and Ubuntu).
+Convert Japanese EPUBs into TTS-ready text and narrate it with VoiceVox (tested on macOS and Ubuntu).
 
 ## Installation
 
