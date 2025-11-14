@@ -222,9 +222,7 @@ install_unidic() {
   (
     cd "$ROOT_DIR"
     uv run nk tools install-unidic
-  ) | while IFS= read -r line || [[ -n "$line" ]]; do
-    log "$line"
-  done
+  )
 }
 
 download_voicevox_release() {
