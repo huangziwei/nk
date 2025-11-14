@@ -386,6 +386,8 @@ def discover_voicevox_runtime(
             yield root
             yield root / "macos-x64"
             yield root / "linux-x64"
+            yield root / "linux-cpu-x64"
+            yield root / "linux-gpu-x64"
             yield root / "win-x64"
             yield root / "run"
         yield home / "opt" / "voicevox-engine"
