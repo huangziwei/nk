@@ -1,10 +1,10 @@
 # nk
 
-Convert Japanese EPUBs into TTS-ready text and narrate them with VoiceVox on macOS.
+Convert Japanese EPUBs into TTS-ready text and narrate them with VoiceVox on macOS or Linux.
 
 ---
 
-## 1. Clone & bootstrap (macOS)
+## 1. Clone & bootstrap (macOS / Linux)
 
 ```bash
 git clone https://github.com/huangziwei/nk
@@ -12,12 +12,16 @@ cd nk
 ./install.sh
 ```
 
-`install.sh` assumes you already have `brew`, `curl`, and `uv` on your path. It will:
+`install.sh` auto-detects your platform. On macOS it requires [Homebrew](https://brew.sh/) and installs everything (including `uv`) via `brew`. On Linux it prefers Linuxbrew when available, otherwise it falls back to the native package manager (`apt`, `dnf`, `yum`, `pacman`, or `zypper`) for `curl`, `ffmpeg`, `jq`, and `p7zip`, then installs `uv` via [the official installer](https://astral.sh/uv).
 
-- install/upgrade `p7zip`, `ffmpeg`, and `jq` via Homebrew.
+It will:
+
+- install/upgrade the runtime dependencies (`curl`, `ffmpeg`, `jq`, `p7zip`, `uv`) via the detected package manager.
 - run `uv sync` to create/update `.venv` and install all Python deps.
 - call `uv run nk tools install-unidic` so fugashi can see UniDic 3.1.1.
-- fetch the latest VoiceVox engine release from GitHub, log the tag it grabbed, and unpack it under `${VOICEVOX_ROOT:-$HOME/opt/voicevox}/macos-x64` (with the tag recorded in `.nk-voicevox-version` under that directory; `cat "$HOME/opt/voicevox/macos-x64/.nk-voicevox-version"` to check later).
+- fetch the latest VoiceVox engine release from GitHub, log the tag it grabbed, and unpack it under `${VOICEVOX_ROOT:-$HOME/opt/voicevox}/$VOICEVOX_TARGET` (with the tag recorded in `.nk-voicevox-version`; `cat "$HOME/opt/voicevox/$VOICEVOX_TARGET/.nk-voicevox-version"` to check later).
+
+> On Linux the default is `VOICEVOX_TARGET=linux-x64`. Set `VOICEVOX_TARGET=linux-x64-gpu` (and optionally `VOICEVOX_ASSET_PATTERN`) if you prefer the GPU build. Run `install.sh` with `sudo` or as root when your distro requires elevated privileges to install packages.
 
 > Regenerate the UniDic data any time you recreate the virtualenv with `uv run nk tools install-unidic`.
 
@@ -25,7 +29,7 @@ Environment knobs:
 
 - `NK_SKIP_VOICEVOX=1 ./install.sh` &rarr; skip the VoiceVox download.
 - `VOICEVOX_VERSION=v0.15.4 ./install.sh` &rarr; pin to a specific release tag.
-- `VOICEVOX_URL=https://.../voicevox_engine-macos-x64-*.7z.001 ./install.sh` &rarr; use a pre-downloaded asset URL.
+- `VOICEVOX_URL=https://.../voicevox_engine-${VOICEVOX_TARGET:-macos-x64}-*.7z.001 ./install.sh` &rarr; use a pre-downloaded asset URL.
 - `VOICEVOX_FORCE=1 ./install.sh` &rarr; overwrite an existing install.
 - `VOICEVOX_ROOT=/custom/path ./install.sh` &rarr; choose a different install prefix.
 
@@ -41,14 +45,14 @@ uv run nk my_book.epub
 
 ## 2. Install the VoiceVox engine manually (optional)
 
-`install.sh` already installs the latest VoiceVox runtime. If you prefer to manage it yourself, grab `voicevox_engine-macos-x64-*.7z.001` from the [VoiceVox engine releases](https://github.com/VOICEVOX/voicevox_engine/releases) and extract it:
+`install.sh` already installs the latest VoiceVox runtime. If you prefer to manage it yourself, grab `voicevox_engine-${VOICEVOX_TARGET:-macos-x64}-*.7z.001` from the [VoiceVox engine releases](https://github.com/VOICEVOX/voicevox_engine/releases) and extract it:
 
 ```bash
 mkdir -p "$HOME/opt/voicevox"
 cd "$HOME/Downloads"
-7z x voicevox_engine-macos-x64-<VERSION>.7z.001 -o"$HOME/opt/voicevox"
+7z x voicevox_engine-${VOICEVOX_TARGET:-macos-x64}-<VERSION>.7z.001 -o"$HOME/opt/voicevox"
 
-cd "$HOME/opt/voicevox/macos-x64"
+cd "$HOME/opt/voicevox/${VOICEVOX_TARGET:-macos-x64}"
 chmod +x run
 ```
 
@@ -89,7 +93,7 @@ nk tts books/novel.epub --mode fast --speaker 20
 
 # Custom speaker, engine location, and parallelism
 nk tts output/chapters --speaker 20 \
-                       --engine-runtime "$HOME/opt/voicevox/macos-x64" \
+                       --engine-runtime "$HOME/opt/voicevox/${VOICEVOX_TARGET:-macos-x64}" \
                        --jobs 3
 ```
 

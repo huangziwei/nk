@@ -30,17 +30,74 @@ VOICEVOX_RELEASE_TAG=""
 VOICEVOX_ARCHIVE_PATH=""
 
 BREW_DEPS=(curl ffmpeg jq p7zip uv)
+APT_PACKAGES=(curl ffmpeg jq p7zip-full)
+DNF_PACKAGES=(curl ffmpeg jq p7zip p7zip-plugins)
+YUM_PACKAGES=(curl ffmpeg jq p7zip p7zip-plugins)
+PACMAN_PACKAGES=(curl ffmpeg jq p7zip)
+ZYPER_PACKAGES=(curl ffmpeg jq p7zip-full)
 REQUIRED_COMMANDS=(curl ffmpeg jq 7z uv)
+
+PACKAGE_MANAGER=""
+SUDO_CMD=""
+LOCAL_BIN="$HOME/.local/bin"
+
+if [[ -d "$LOCAL_BIN" && ":$PATH:" != *":$LOCAL_BIN:"* ]]; then
+  export PATH="$LOCAL_BIN:$PATH"
+fi
 
 log() {
   echo "[nk install] $*" >&2
 }
 
-require_cmd() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "Error: $1 is required but not installed. Please install it and re-run install.sh." >&2
+run_with_sudo() {
+  if [[ -n "$SUDO_CMD" ]]; then
+    "$SUDO_CMD" "$@"
+  else
+    "$@"
+  fi
+}
+
+detect_package_manager() {
+  if command -v brew >/dev/null 2>&1; then
+    PACKAGE_MANAGER="brew"
+    return
+  fi
+
+  if [[ "$UNAME_OUT" == "Darwin" ]]; then
+    echo "Homebrew is required on macOS. Install it from https://brew.sh/ and re-run install.sh." >&2
     exit 1
   fi
+
+  for candidate in apt-get dnf yum pacman zypper; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      PACKAGE_MANAGER="$candidate"
+      return
+    fi
+  done
+
+  echo "Could not detect a supported package manager (brew, apt-get, dnf, yum, pacman, zypper)." >&2
+  echo "Install curl, ffmpeg, jq, p7zip, and uv manually, then re-run install.sh." >&2
+  exit 1
+}
+
+configure_sudo_helper() {
+  if [[ "$PACKAGE_MANAGER" == "brew" ]]; then
+    SUDO_CMD=""
+    return
+  fi
+
+  if [[ "$EUID" -eq 0 ]]; then
+    SUDO_CMD=""
+    return
+  fi
+
+  if command -v sudo >/dev/null 2>&1; then
+    SUDO_CMD="sudo"
+    return
+  fi
+
+  echo "Installing packages with $PACKAGE_MANAGER requires root privileges. Re-run install.sh as root or ensure sudo is available." >&2
+  exit 1
 }
 
 install_brew_deps() {
@@ -61,6 +118,60 @@ install_brew_deps() {
   done
 }
 
+install_apt_deps() {
+  log "Installing packages via apt-get: ${APT_PACKAGES[*]}"
+  run_with_sudo apt-get update
+  run_with_sudo apt-get install -y "${APT_PACKAGES[@]}"
+}
+
+install_dnf_deps() {
+  log "Installing packages via dnf: ${DNF_PACKAGES[*]}"
+  run_with_sudo dnf install -y "${DNF_PACKAGES[@]}"
+}
+
+install_yum_deps() {
+  log "Installing packages via yum: ${YUM_PACKAGES[*]}"
+  run_with_sudo yum install -y "${YUM_PACKAGES[@]}"
+}
+
+install_pacman_deps() {
+  log "Installing packages via pacman: ${PACMAN_PACKAGES[*]}"
+  run_with_sudo pacman -Sy --noconfirm --needed "${PACMAN_PACKAGES[@]}"
+}
+
+install_zypper_deps() {
+  log "Installing packages via zypper: ${ZYPER_PACKAGES[*]}"
+  run_with_sudo zypper --non-interactive refresh
+  run_with_sudo zypper --non-interactive install --auto-agree-with-licenses "${ZYPER_PACKAGES[@]}"
+}
+
+install_system_deps() {
+  case "$PACKAGE_MANAGER" in
+    brew)
+      install_brew_deps
+      ;;
+    apt-get)
+      install_apt_deps
+      ;;
+    dnf)
+      install_dnf_deps
+      ;;
+    yum)
+      install_yum_deps
+      ;;
+    pacman)
+      install_pacman_deps
+      ;;
+    zypper)
+      install_zypper_deps
+      ;;
+    *)
+      echo "Unsupported package manager: $PACKAGE_MANAGER" >&2
+      exit 1
+      ;;
+  esac
+}
+
 verify_required_commands() {
   local missing=()
 
@@ -71,8 +182,32 @@ verify_required_commands() {
   done
 
   if ((${#missing[@]} > 0)); then
-    echo "Error: Missing required commands after Homebrew install: ${missing[*]}" >&2
-    echo "Please ensure Homebrew packages are on your PATH and rerun install.sh." >&2
+    echo "Error: Missing required commands after the dependency install step: ${missing[*]}" >&2
+    echo "Ensure they are on your PATH (or install them manually) and rerun install.sh." >&2
+    exit 1
+  fi
+}
+
+install_uv_if_missing() {
+  if command -v uv >/dev/null 2>&1; then
+    return
+  fi
+
+  if [[ "$PACKAGE_MANAGER" == "brew" ]]; then
+    echo "uv should have been installed via Homebrew but is still missing from PATH." >&2
+    exit 1
+  fi
+
+  local installer_url="${UV_INSTALLER_URL:-https://astral.sh/uv/install.sh}"
+  log "uv not found. Installing via upstream installer ($installer_url)"
+  curl -LsSf "$installer_url" | sh
+
+  if [[ -d "$LOCAL_BIN" && ":$PATH:" != *":$LOCAL_BIN:"* ]]; then
+    export PATH="$LOCAL_BIN:$PATH"
+  fi
+
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "uv installation completed but the command is still unavailable. Add $LOCAL_BIN to your PATH or install uv manually." >&2
     exit 1
   fi
 }
@@ -210,9 +345,10 @@ install_voicevox() {
 }
 
 main() {
-  require_cmd brew
-
-  install_brew_deps
+  detect_package_manager
+  configure_sudo_helper
+  install_system_deps
+  install_uv_if_missing
   verify_required_commands "${REQUIRED_COMMANDS[@]}"
   sync_python_dependencies
   install_unidic
