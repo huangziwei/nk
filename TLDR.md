@@ -287,6 +287,7 @@ nk tools unidic-status
 
 - `nk dav` exposes only `.mp3` files via WebDAV using your macOS login (PAM) and mirrors new MP3s as they are added under `books/`. Point clients such as Flacbox at `http://<your-mac-ip>:PORT/` to stream your nk library without copying files.
 > Note: `-o/--output-name` is only honored when `--single-file` is provided.
+```
 
 ---
 
