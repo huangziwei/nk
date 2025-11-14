@@ -12,7 +12,8 @@ VOICEVOX_URL="${VOICEVOX_URL:-}"
 VOICEVOX_RELEASE_TAG=""
 VOICEVOX_ARCHIVE_PATH=""
 
-BREW_DEPS=(p7zip ffmpeg jq)
+BREW_DEPS=(curl ffmpeg jq p7zip uv)
+REQUIRED_COMMANDS=(curl ffmpeg jq 7z uv)
 
 log() {
   echo "[nk install] $*" >&2
@@ -41,6 +42,22 @@ install_brew_deps() {
       brew install "$dep"
     fi
   done
+}
+
+verify_required_commands() {
+  local missing=()
+
+  for cmd in "$@"; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      missing+=("$cmd")
+    fi
+  done
+
+  if ((${#missing[@]} > 0)); then
+    echo "Error: Missing required commands after Homebrew install: ${missing[*]}" >&2
+    echo "Please ensure Homebrew packages are on your PATH and rerun install.sh." >&2
+    exit 1
+  fi
 }
 
 sync_python_dependencies() {
@@ -176,10 +193,9 @@ install_voicevox() {
 
 main() {
   require_cmd brew
-  require_cmd curl
-  require_cmd uv
 
   install_brew_deps
+  verify_required_commands "${REQUIRED_COMMANDS[@]}"
   sync_python_dependencies
   install_unidic
   install_voicevox
