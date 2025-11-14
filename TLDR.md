@@ -287,4 +287,21 @@ nk tools unidic-status
 
 - `nk dav` exposes only `.mp3` files via WebDAV using your macOS login (PAM) and mirrors new MP3s as they are added under `books/`. Point clients such as Flacbox at `http://<your-mac-ip>:PORT/` to stream your nk library without copying files.
 > Note: `-o/--output-name` is only honored when `--single-file` is provided.
+
+---
+
+## 10. Uninstall
+
+Everything nk installs lives either in the repo itself or under your home directory, so removal is just deleting those directories:
+
+1. Remove the project (and its virtualenv, cache, etc.):
+   ```bash
+   rm -rf /path/to/nk
+   ```
+2. Remove the nk-managed VoiceVox runtime (if you’re not sharing the install with other tools):
+   ```bash
+   rm -rf "$HOME/opt/voicevox"
+   ```
+
+> nk installs Homebrew/apt packages only if they’re missing. If you added them specifically for nk, remove them manually via `brew uninstall ...` or `sudo apt remove ...`. Otherwise, leave them installed for other projects.
 ```

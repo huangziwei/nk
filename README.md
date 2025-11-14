@@ -24,4 +24,4 @@ uv run nk tts my_book/
 
 ## More
 
-- [TL;DR (installation knobs, VoiceVox tips, pitch overrides, web and WebDav etc.)](TLDR.md)
+- [TL;DR](TLDR.md) (more detailed installation and uninstall guide, VoiceVox tips, pitch overrides, web and WebDav etc.)
