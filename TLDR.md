@@ -305,4 +305,3 @@ Everything nk installs lives either in the repo itself or under your home direct
    ```
 
 > nk installs Homebrew/apt packages only if they’re missing. If you added them specifically for nk, remove them manually via `brew uninstall ...` or `sudo apt remove ...`. Otherwise, leave them installed for other projects.
-```
