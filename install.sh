@@ -3,7 +3,24 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VOICEVOX_ROOT="${VOICEVOX_ROOT:-"$HOME/opt/voicevox"}"
-VOICEVOX_INSTALL_DIR="$VOICEVOX_ROOT/macos-x64"
+
+UNAME_OUT="$(uname -s)"
+case "$UNAME_OUT" in
+  Darwin)
+    DEFAULT_VOICEVOX_TARGET="macos-x64"
+    ;;
+  Linux)
+    DEFAULT_VOICEVOX_TARGET="linux-x64"
+    ;;
+  *)
+    echo "Unsupported operating system: $UNAME_OUT" >&2
+    exit 1
+    ;;
+esac
+
+VOICEVOX_TARGET="${VOICEVOX_TARGET:-$DEFAULT_VOICEVOX_TARGET}"
+VOICEVOX_INSTALL_DIR="$VOICEVOX_ROOT/$VOICEVOX_TARGET"
+VOICEVOX_ASSET_PATTERN="${VOICEVOX_ASSET_PATTERN:-voicevox_engine-${VOICEVOX_TARGET}.*\\.7z\\.001$}"
 VOICEVOX_VERSION="${VOICEVOX_VERSION:-latest}"
 VOICEVOX_FORCE="${VOICEVOX_FORCE:-0}"
 NK_SKIP_VOICEVOX="${NK_SKIP_VOICEVOX:-0}"
@@ -96,20 +113,21 @@ download_voicevox_release() {
       echo "Unable to determine VoiceVox release tag (API: $target_api)" >&2
       exit 1
     fi
-    asset_url="$(echo "$release_json" | jq -r '.assets[] | select(.name | test("voicevox_engine-macos-x64-.*\\.7z\\.001$")) | .browser_download_url' | head -n 1)"
-    asset_name="$(echo "$release_json" | jq -r '.assets[] | select(.name | test("voicevox_engine-macos-x64-.*\\.7z\\.001$")) | .name' | head -n 1)"
+    asset_url="$(echo "$release_json" | jq -r --arg pattern "$VOICEVOX_ASSET_PATTERN" '.assets[] | select(.name | test($pattern)) | .browser_download_url' | head -n 1)"
+    asset_name="$(echo "$release_json" | jq -r --arg pattern "$VOICEVOX_ASSET_PATTERN" '.assets[] | select(.name | test($pattern)) | .name' | head -n 1)"
     if [[ -z "$asset_url" || "$asset_url" == "null" ]]; then
-      echo "Could not find a macOS VoiceVox engine asset in release $tag" >&2
+      echo "Could not find a VoiceVox engine asset matching pattern '$VOICEVOX_ASSET_PATTERN' in release $tag" >&2
       exit 1
     fi
   fi
 
-  local temp_dir download_path
+  local temp_dir download_path default_asset_name
   temp_dir="$(mktemp -d)"
-  download_path="$temp_dir/${asset_name:-voicevox_engine-macos-x64.7z.001}"
+  default_asset_name="voicevox_engine-${VOICEVOX_TARGET}.7z.001"
+  download_path="$temp_dir/${asset_name:-$default_asset_name}"
 
   VOICEVOX_RELEASE_TAG="$tag"
-  local display_name="${asset_name:-voicevox_engine-macos-x64.7z.001}"
+  local display_name="${asset_name:-$default_asset_name}"
   log "Downloading VoiceVox engine release: $tag ($display_name)"
   curl -fL "$asset_url" -o "$download_path"
 
@@ -134,10 +152,10 @@ finalize_voicevox_install() {
   rm -rf "$install_dir"
 
   local candidate=""
-  if [[ -d "$extract_dir/macos-x64" ]]; then
-    candidate="$extract_dir/macos-x64"
+  if [[ -d "$extract_dir/$VOICEVOX_TARGET" ]]; then
+    candidate="$extract_dir/$VOICEVOX_TARGET"
   else
-    candidate="$(find "$extract_dir" -maxdepth 1 -type d -name "voicevox_engine-macos-x64*" | head -n 1 || true)"
+    candidate="$(find "$extract_dir" -maxdepth 1 -type d -name "voicevox_engine-${VOICEVOX_TARGET}*" | head -n 1 || true)"
   fi
 
   if [[ -z "$candidate" ]]; then
