@@ -1,10 +1,10 @@
 # nk
 
-Convert Japanese EPUBs into TTS-ready text and narrate them with VoiceVox on macOS or Linux.
+Convert Japanese EPUBs into TTS-ready text and narrate them with VoiceVox on macOS or Ubuntu.
 
 ---
 
-## 1. Clone & bootstrap (macOS / Linux)
+## 1. Clone & bootstrap (macOS / Ubuntu)
 
 ```bash
 git clone https://github.com/huangziwei/nk
@@ -12,7 +12,7 @@ cd nk
 ./install.sh
 ```
 
-`install.sh` auto-detects your platform. On macOS it requires [Homebrew](https://brew.sh/) and installs everything (including `uv`) via `brew`. On Linux it prefers Linuxbrew when available, otherwise it falls back to the native package manager (`apt`, `dnf`, `yum`, `pacman`, or `zypper`) for `curl`, `ffmpeg`, `jq`, and `p7zip`, then installs `uv` via [the official installer](https://astral.sh/uv).
+`install.sh` auto-detects your platform (macOS or Ubuntu). On macOS it requires [Homebrew](https://brew.sh/) and installs everything (including `uv`) via `brew`. On Ubuntu it uses `apt-get` for the runtime dependencies (and will happily use Linuxbrew instead if `brew` is already on your `PATH`), then installs `uv` via [the official installer](https://astral.sh/uv).
 
 It will:
 
@@ -21,7 +21,7 @@ It will:
 - call `uv run nk tools install-unidic` so fugashi can see UniDic 3.1.1.
 - fetch the latest VoiceVox engine release from GitHub, log the tag it grabbed, and unpack it under `${VOICEVOX_ROOT:-$HOME/opt/voicevox}/$VOICEVOX_TARGET` (with the tag recorded in `.nk-voicevox-version`; `cat "$HOME/opt/voicevox/$VOICEVOX_TARGET/.nk-voicevox-version"` to check later).
 
-> On Linux the default is `VOICEVOX_TARGET=linux-x64`. Set `VOICEVOX_TARGET=linux-x64-gpu` (and optionally `VOICEVOX_ASSET_PATTERN`) if you prefer the GPU build. Run `install.sh` with `sudo` or as root when your distro requires elevated privileges to install packages. The script also installs the ALSA development headers (`libasound2-dev`, `alsa-lib-devel`, etc.) so that `simpleaudio` can build successfully during `uv sync`.
+> On macOS the default VoiceVox target is `macos-x64`; on Ubuntu it is `linux-x64-cpu`. Set `VOICEVOX_TARGET=linux-x64-gpu` (and optionally `VOICEVOX_ASSET_PATTERN`) if you prefer the GPU build. Run `install.sh` with `sudo` (or as root) on Ubuntu so `apt-get` can install the required packages, including `libasound2-dev` for the `simpleaudio` build step.
 
 > Regenerate the UniDic data any time you recreate the virtualenv with `uv run nk tools install-unidic`.
 
@@ -29,7 +29,7 @@ Environment knobs:
 
 - `NK_SKIP_VOICEVOX=1 ./install.sh` &rarr; skip the VoiceVox download.
 - `VOICEVOX_VERSION=v0.15.4 ./install.sh` &rarr; pin to a specific release tag.
-- `VOICEVOX_URL=https://.../voicevox_engine-${VOICEVOX_TARGET:-macos-x64}-*.7z.001 ./install.sh` &rarr; use a pre-downloaded asset URL.
+- `VOICEVOX_URL=https://.../voicevox_engine-macos-x64-*.7z.001 ./install.sh` &rarr; use a pre-downloaded macOS asset (on Ubuntu, set `VOICEVOX_TARGET=linux-x64-cpu` and point `VOICEVOX_URL` at the matching `voicevox_engine-linux-x64-cpu-*.7z.001` archive instead).
 - `VOICEVOX_FORCE=1 ./install.sh` &rarr; overwrite an existing install.
 - `VOICEVOX_ROOT=/custom/path ./install.sh` &rarr; choose a different install prefix.
 
@@ -45,14 +45,16 @@ uv run nk my_book.epub
 
 ## 2. Install the VoiceVox engine manually (optional)
 
-`install.sh` already installs the latest VoiceVox runtime. If you prefer to manage it yourself, grab `voicevox_engine-${VOICEVOX_TARGET:-macos-x64}-*.7z.001` from the [VoiceVox engine releases](https://github.com/VOICEVOX/voicevox_engine/releases) and extract it:
+`install.sh` already installs the latest VoiceVox runtime. If you prefer to manage it yourself, grab the appropriate archive (`voicevox_engine-macos-x64-*.7z.001` on macOS or `voicevox_engine-linux-x64-cpu-*.7z.001` on Ubuntu) from the [VoiceVox engine releases](https://github.com/VOICEVOX/voicevox_engine/releases) and extract it:
 
 ```bash
+TARGET="macos-x64"  # use linux-x64-cpu on Ubuntu (or whichever build you downloaded)
+
 mkdir -p "$HOME/opt/voicevox"
 cd "$HOME/Downloads"
-7z x voicevox_engine-${VOICEVOX_TARGET:-macos-x64}-<VERSION>.7z.001 -o"$HOME/opt/voicevox"
+7z x voicevox_engine-${TARGET}-<VERSION>.7z.001 -o"$HOME/opt/voicevox"
 
-cd "$HOME/opt/voicevox/${VOICEVOX_TARGET:-macos-x64}"
+cd "$HOME/opt/voicevox/${TARGET}"
 chmod +x run
 ```
 
@@ -92,8 +94,9 @@ nk tts output/
 nk tts books/novel.epub --mode fast --speaker 20
 
 # Custom speaker, engine location, and parallelism
+# (point --engine-runtime at ~/opt/voicevox/macos-x64 on macOS or ~/opt/voicevox/linux-x64-cpu on Ubuntu)
 nk tts output/chapters --speaker 20 \
-                       --engine-runtime "$HOME/opt/voicevox/${VOICEVOX_TARGET:-macos-x64}" \
+                       --engine-runtime "$HOME/opt/voicevox/macos-x64" \
                        --jobs 3
 ```
 

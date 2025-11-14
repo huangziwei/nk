@@ -5,12 +5,23 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VOICEVOX_ROOT="${VOICEVOX_ROOT:-"$HOME/opt/voicevox"}"
 
 UNAME_OUT="$(uname -s)"
+LINUX_DISTRO=""
 case "$UNAME_OUT" in
   Darwin)
     DEFAULT_VOICEVOX_TARGET="macos-x64"
     ;;
   Linux)
-    DEFAULT_VOICEVOX_TARGET="linux-x64"
+    if [[ -r /etc/os-release ]]; then
+      # shellcheck disable=SC1091
+      . /etc/os-release
+    fi
+    if [[ "${ID:-}" == "ubuntu" || "${ID_LIKE:-}" == *"ubuntu"* ]]; then
+      LINUX_DISTRO="ubuntu"
+      DEFAULT_VOICEVOX_TARGET="linux-x64-cpu"
+    else
+      echo "Unsupported Linux distribution. Only Ubuntu is supported by install.sh." >&2
+      exit 1
+    fi
     ;;
   *)
     echo "Unsupported operating system: $UNAME_OUT" >&2
@@ -31,10 +42,6 @@ VOICEVOX_ARCHIVE_PATH=""
 
 BREW_DEPS=(curl ffmpeg jq p7zip uv)
 APT_PACKAGES=(curl ffmpeg jq p7zip-full libasound2-dev)
-DNF_PACKAGES=(curl ffmpeg jq p7zip p7zip-plugins alsa-lib-devel)
-YUM_PACKAGES=(curl ffmpeg jq p7zip p7zip-plugins alsa-lib-devel)
-PACMAN_PACKAGES=(curl ffmpeg jq p7zip alsa-lib)
-ZYPER_PACKAGES=(curl ffmpeg jq p7zip-full alsa-devel)
 REQUIRED_COMMANDS=(curl ffmpeg jq 7z uv)
 
 PACKAGE_MANAGER=""
@@ -68,15 +75,12 @@ detect_package_manager() {
     exit 1
   fi
 
-  for candidate in apt-get dnf yum pacman zypper; do
-    if command -v "$candidate" >/dev/null 2>&1; then
-      PACKAGE_MANAGER="$candidate"
-      return
-    fi
-  done
+  if [[ "$LINUX_DISTRO" == "ubuntu" && -x /usr/bin/apt-get ]]; then
+    PACKAGE_MANAGER="apt-get"
+    return
+  fi
 
-  echo "Could not detect a supported package manager (brew, apt-get, dnf, yum, pacman, zypper)." >&2
-  echo "Install curl, ffmpeg, jq, p7zip, and uv manually, then re-run install.sh." >&2
+  echo "Could not detect a supported package manager. On macOS install Homebrew; on Ubuntu ensure apt-get is available." >&2
   exit 1
 }
 
@@ -96,7 +100,7 @@ configure_sudo_helper() {
     return
   fi
 
-  echo "Installing packages with $PACKAGE_MANAGER requires root privileges. Re-run install.sh as root or ensure sudo is available." >&2
+  echo "Installing packages with apt-get requires root privileges. Re-run install.sh as root or ensure sudo is available." >&2
   exit 1
 }
 
@@ -124,27 +128,6 @@ install_apt_deps() {
   run_with_sudo apt-get install -y "${APT_PACKAGES[@]}"
 }
 
-install_dnf_deps() {
-  log "Installing packages via dnf: ${DNF_PACKAGES[*]}"
-  run_with_sudo dnf install -y "${DNF_PACKAGES[@]}"
-}
-
-install_yum_deps() {
-  log "Installing packages via yum: ${YUM_PACKAGES[*]}"
-  run_with_sudo yum install -y "${YUM_PACKAGES[@]}"
-}
-
-install_pacman_deps() {
-  log "Installing packages via pacman: ${PACMAN_PACKAGES[*]}"
-  run_with_sudo pacman -Sy --noconfirm --needed "${PACMAN_PACKAGES[@]}"
-}
-
-install_zypper_deps() {
-  log "Installing packages via zypper: ${ZYPER_PACKAGES[*]}"
-  run_with_sudo zypper --non-interactive refresh
-  run_with_sudo zypper --non-interactive install --auto-agree-with-licenses "${ZYPER_PACKAGES[@]}"
-}
-
 install_system_deps() {
   case "$PACKAGE_MANAGER" in
     brew)
@@ -152,18 +135,6 @@ install_system_deps() {
       ;;
     apt-get)
       install_apt_deps
-      ;;
-    dnf)
-      install_dnf_deps
-      ;;
-    yum)
-      install_yum_deps
-      ;;
-    pacman)
-      install_pacman_deps
-      ;;
-    zypper)
-      install_zypper_deps
       ;;
     *)
       echo "Unsupported package manager: $PACKAGE_MANAGER" >&2
