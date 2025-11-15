@@ -891,6 +891,18 @@
       ]
     },
     {
+      "surface": "自分",
+      "reading": "ジブン",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 378,
+      "end": 381,
+      "sources": [
+        "nhk"
+      ]
+    },
+    {
       "surface": "透",
       "reading": "ス",
       "accent": null,
@@ -3891,6 +3903,18 @@
       ]
     },
     {
+      "surface": "勘定",
+      "reading": "カンジョウ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 1714,
+      "end": 1719,
+      "sources": [
+        "propagation"
+      ]
+    },
+    {
       "surface": "自分",
       "reading": "ジブン",
       "accent": null,
@@ -4030,6 +4054,18 @@
       "pos": null,
       "start": 1773,
       "end": 1778,
+      "sources": [
+        "propagation"
+      ]
+    },
+    {
+      "surface": "勘定",
+      "reading": "カンジョウ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 1782,
+      "end": 1787,
       "sources": [
         "propagation"
       ]
@@ -4635,6 +4671,18 @@
       ]
     },
     {
+      "surface": "百合",
+      "reading": "ユリ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 2032,
+      "end": 2034,
+      "sources": [
+        "ruby"
+      ]
+    },
+    {
       "surface": "鼻",
       "reading": "ハナ",
       "accent": 0,
@@ -4860,6 +4908,18 @@
       "end": 2119,
       "sources": [
         "unidic"
+      ]
+    },
+    {
+      "surface": "滴",
+      "reading": "シタタ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 2120,
+      "end": 2123,
+      "sources": [
+        "ruby"
       ]
     },
     {

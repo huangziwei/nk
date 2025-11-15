@@ -3987,6 +3987,18 @@
       ]
     },
     {
+      "surface": "様子",
+      "reading": "ヨウス",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 1678,
+      "end": 1681,
+      "sources": [
+        "nhk"
+      ]
+    },
+    {
       "surface": "膝",
       "reading": "ヒザ",
       "accent": null,
@@ -4176,6 +4188,18 @@
       "end": 1768,
       "sources": [
         "unidic"
+      ]
+    },
+    {
+      "surface": "円札",
+      "reading": "エンサツ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 1768,
+      "end": 1772,
+      "sources": [
+        "nhk"
       ]
     },
     {
@@ -4623,6 +4647,18 @@
       ]
     },
     {
+      "surface": "痩",
+      "reading": "ヤ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 1971,
+      "end": 1972,
+      "sources": [
+        "ruby"
+      ]
+    },
+    {
       "surface": "金魚",
       "reading": "キンギョ",
       "accent": null,
@@ -4824,6 +4860,18 @@
       "end": 2072,
       "sources": [
         "unidic"
+      ]
+    },
+    {
+      "surface": "往来",
+      "reading": "オウライ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 2072,
+      "end": 2076,
+      "sources": [
+        "ruby"
       ]
     },
     {

@@ -351,6 +351,18 @@
       ]
     },
     {
+      "surface": "つ",
+      "reading": "ツ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 144,
+      "end": 145,
+      "sources": [
+        "nhk"
+      ]
+    },
+    {
       "surface": "大人",
       "reading": "オトナ",
       "accent": null,
@@ -3495,6 +3507,18 @@
       ]
     },
     {
+      "surface": "辰年",
+      "reading": "タツドシ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 1695,
+      "end": 1699,
+      "sources": [
+        "propagation"
+      ]
+    },
+    {
       "surface": "思わ",
       "reading": "オモワ",
       "accent": 2,
@@ -3912,6 +3936,18 @@
       "end": 1870,
       "sources": [
         "ruby"
+      ]
+    },
+    {
+      "surface": "背中",
+      "reading": "セナカ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 1872,
+      "end": 1875,
+      "sources": [
+        "propagation"
       ]
     },
     {

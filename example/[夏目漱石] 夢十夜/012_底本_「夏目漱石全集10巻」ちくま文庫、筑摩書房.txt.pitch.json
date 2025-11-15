@@ -135,6 +135,18 @@
       ]
     },
     {
+      "surface": "6日",
+      "reading": "ムイカ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 60,
+      "end": 63,
+      "sources": [
+        "nhk"
+      ]
+    },
+    {
       "surface": "第",
       "reading": "ダイ",
       "accent": null,
@@ -171,6 +183,18 @@
       ]
     },
     {
+      "surface": "平成",
+      "reading": "ヘイセイ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 82,
+      "end": 86,
+      "sources": [
+        "nhk"
+      ]
+    },
+    {
       "surface": "年",
       "reading": "ネン",
       "accent": 1,
@@ -192,6 +216,18 @@
       "end": 93,
       "sources": [
         "unidic"
+      ]
+    },
+    {
+      "surface": "5日",
+      "reading": "イツカ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 94,
+      "end": 97,
+      "sources": [
+        "nhk"
       ]
     },
     {
@@ -627,6 +663,18 @@
       ]
     },
     {
+      "surface": "6日",
+      "reading": "ムイカ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 282,
+      "end": 285,
+      "sources": [
+        "nhk"
+      ]
+    },
+    {
       "surface": "公開",
       "reading": "コウカイ",
       "accent": null,
@@ -672,6 +720,18 @@
       "end": 301,
       "sources": [
         "unidic"
+      ]
+    },
+    {
+      "surface": "7日",
+      "reading": "ナノカ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 302,
+      "end": 305,
+      "sources": [
+        "nhk"
       ]
     },
     {

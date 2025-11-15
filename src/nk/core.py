@@ -372,6 +372,33 @@ class _TransformationTracker:
         return _TextFragment(text="".join(result_chars), tokens=tokens)
 
 
+def _tracker_marker_spans(text: str) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    prefix = _TransformationTracker._START_PREFIX
+    close_prefix = _TransformationTracker._CLOSE_PREFIX
+    suffix = _TransformationTracker._SUFFIX
+    idx = 0
+    length = len(text)
+    while idx < length:
+        start_idx = text.find(prefix, idx)
+        if start_idx == -1:
+            break
+        id_start = start_idx + len(prefix)
+        id_end = text.find(suffix, id_start)
+        if id_end == -1:
+            break
+        token_id = text[id_start:id_end]
+        close_marker = f"{close_prefix}{token_id}{suffix}"
+        close_idx = text.find(close_marker, id_end + len(suffix))
+        if close_idx == -1:
+            idx = id_end + len(suffix)
+            continue
+        span_end = close_idx + len(close_marker)
+        spans.append((start_idx, span_end))
+        idx = span_end
+    return spans
+
+
 def _is_cjk_char(ch: str) -> bool:
     if not ch:
         return False
@@ -433,10 +460,12 @@ def _apply_mapping_with_pattern(
     if pattern is None:
         return text
     protected_spans: list[tuple[int, int]] = []
-    protected_starts: list[int] = []
     if skip_chapter_markers:
         protected_spans = _chapter_marker_spans(text)
-        protected_starts = [span[0] for span in protected_spans]
+    if tracker is not None:
+        protected_spans.extend(_tracker_marker_spans(text))
+    protected_spans = sorted(protected_spans)
+    protected_starts: list[int] = [span[0] for span in protected_spans] if protected_spans else []
 
     def repl(match: re.Match[str]) -> str:
         base = match.group(0)
@@ -522,6 +551,8 @@ def _apply_mapping_to_plain_text(
     text: str,
     mapping: dict[str, str],
     context_rules: dict[str, _ContextRule] | None = None,
+    tracker: _TransformationTracker | None = None,
+    source_labels: dict[str, str] | None = None,
 ) -> str:
     pattern = _build_mapping_pattern(mapping)
     if pattern is None:
@@ -530,8 +561,8 @@ def _apply_mapping_to_plain_text(
         text,
         mapping,
         pattern,
-        tracker=None,
-        source_labels=None,
+        tracker=tracker,
+        source_labels=source_labels,
         context_rules=context_rules,
         skip_chapter_markers=True,
     )
@@ -1862,8 +1893,20 @@ def epub_to_chapter_texts(
             _collapse_ruby_to_readings(soup, tracker=tracker)
             # 3) strip remaining html to text
             piece = _strip_html_to_text(soup)
-            piece = _apply_mapping_to_plain_text(piece, unique_mapping, context_rules)
-            piece = _apply_mapping_to_plain_text(piece, common_mapping, context_rules)
+            piece = _apply_mapping_to_plain_text(
+                piece,
+                unique_mapping,
+                context_rules,
+                tracker=tracker,
+                source_labels=unique_sources,
+            )
+            piece = _apply_mapping_to_plain_text(
+                piece,
+                common_mapping,
+                context_rules,
+                tracker=tracker,
+                source_labels=common_sources,
+            )
             filtered_lines: list[str] = []
             skip_blank_after_title = False
             for line in piece.splitlines():
