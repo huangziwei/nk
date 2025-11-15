@@ -263,7 +263,29 @@ class NLPBackend:
                 previous_surface = surface
                 previous_reading = ""
                 previous_lemma = self._extract_lemma(raw) or surface
+        self._adjust_day_suffix_tokens(tokens)
         return tokens
+
+    def _adjust_day_suffix_tokens(self, tokens: list[_Token]) -> None:
+        if not tokens:
+            return
+        for idx, token in enumerate(tokens):
+            if token.surface != "日":
+                continue
+            reading = token.reading
+            if not reading or _normalize_katakana(reading) != "カ":
+                continue
+            digit_run = 0
+            j = idx - 1
+            while j >= 0:
+                prev_surface = tokens[j].surface
+                if prev_surface and all(ch.isdigit() for ch in prev_surface):
+                    digit_run += len(prev_surface)
+                    j -= 1
+                    continue
+                break
+            if digit_run >= 2:
+                token.reading = "ニチ"
 
     def to_reading_with_pitch(self, text: str) -> tuple[str, list[PitchToken]]:
         tokens = self._tokenize(text)

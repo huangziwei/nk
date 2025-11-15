@@ -484,6 +484,11 @@ def _apply_mapping_with_pattern(
                     return base
         prev_ch = text[start - 1] if start > 0 else ""
         next_ch = text[end] if end < len(text) else ""
+        if base:
+            if base[0].isdigit() and prev_ch and prev_ch.isdigit():
+                return base
+            if base[-1].isdigit() and next_ch and next_ch.isdigit():
+                return base
         if len(base) == 1:
             if (_is_cjk_char(prev_ch) and prev_ch != "\n") or _is_cjk_char(next_ch):
                 return base

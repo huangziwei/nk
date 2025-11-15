@@ -32,3 +32,19 @@ def test_numeric_mapping_applies_with_non_digit_boundary() -> None:
     assert fragment.text == "ハタチ歳"
     assert len(fragment.tokens) == 1
     assert fragment.tokens[0].reading == "ハタチ"
+
+
+def test_digit_prefixed_base_skips_when_part_of_larger_number() -> None:
+    tracker = _TransformationTracker()
+    mapping = {"7日": "ナノカ"}
+    text = "17日"
+    result = _apply_mapping_to_plain_text(
+        text,
+        mapping,
+        context_rules=None,
+        tracker=tracker,
+        source_labels={"7日": "nhk"},
+    )
+    fragment = tracker.extract(result)
+    assert fragment.text == "17日"
+    assert not fragment.tokens
