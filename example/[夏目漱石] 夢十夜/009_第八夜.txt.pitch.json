@@ -3759,27 +3759,15 @@
       ]
     },
     {
-      "surface": "円",
-      "reading": "エン",
-      "accent": 1,
-      "connection": "C3",
-      "pos": "名詞",
+      "surface": "円札",
+      "reading": "エンサツ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": 1585,
-      "end": 1587,
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
-      "surface": "札",
-      "reading": "サツ",
-      "accent": 0,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": 1587,
       "end": 1589,
       "sources": [
-        "unidic"
+        "nhk"
       ]
     },
     {
@@ -4203,27 +4191,15 @@
       ]
     },
     {
-      "surface": "円",
-      "reading": "エン",
-      "accent": 1,
-      "connection": "C3",
-      "pos": "名詞",
+      "surface": "円札",
+      "reading": "エンサツ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": 1768,
-      "end": 1770,
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
-      "surface": "札",
-      "reading": "サツ",
-      "accent": 0,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": 1770,
       "end": 1772,
       "sources": [
-        "unidic"
+        "nhk"
       ]
     },
     {

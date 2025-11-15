@@ -119,6 +119,8 @@ class _ReadingAccumulator:
     single_kanji_only: bool | None = None
     suffix_counts: Counter[str] = field(default_factory=Counter)
     suffix_samples: list[str] = field(default_factory=list)
+    prefix_counts: Counter[str] = field(default_factory=Counter)
+    prefix_samples: list[str] = field(default_factory=list)
 
     def register(
         self,
@@ -127,6 +129,7 @@ class _ReadingAccumulator:
         raw_reading: str,
         has_hiragana: bool,
         suffix: str,
+        prefix: str,
     ) -> None:
         self.total += 1
         self.counts[reading] += 1
@@ -141,6 +144,10 @@ class _ReadingAccumulator:
             self.suffix_counts[suffix] += 1
             if len(self.suffix_samples) < _MAX_SUFFIX_SAMPLES:
                 self.suffix_samples.append(suffix)
+        if prefix:
+            self.prefix_counts[prefix] += 1
+            if len(self.prefix_samples) < _MAX_PREFIX_SAMPLES:
+                self.prefix_samples.append(prefix)
         single_occurrence = _is_single_kanji_base(base)
         if self.single_kanji_only is None:
             self.single_kanji_only = single_occurrence
@@ -165,11 +172,52 @@ class _ReadingAccumulator:
         if other.suffix_samples and len(self.suffix_samples) < _MAX_SUFFIX_SAMPLES:
             remaining = _MAX_SUFFIX_SAMPLES - len(self.suffix_samples)
             self.suffix_samples.extend(other.suffix_samples[:remaining])
+        self.prefix_counts.update(other.prefix_counts)
+        if other.prefix_samples and len(self.prefix_samples) < _MAX_PREFIX_SAMPLES:
+            remaining = _MAX_PREFIX_SAMPLES - len(self.prefix_samples)
+            self.prefix_samples.extend(other.prefix_samples[:remaining])
 
 
 _CORPUS_READING_CACHE: dict[str, _ReadingAccumulator] | None = None
 _MAX_SUFFIX_SAMPLES = 12
 _MAX_SUFFIX_CONTEXTS = 8
+_MAX_PREFIX_SAMPLES = 12
+_MAX_PREFIX_CONTEXTS = 6
+_NUMERIC_PREFIX_CHARS = set("0123456789０１２３４５６７８９一二三四五六七八九十百千〇零")
+
+
+@dataclass
+class _ContextRule:
+    prefixes: tuple[str, ...] = ()
+    max_prefix: int = 0
+
+
+def _normalize_numeric_prefix(text: str) -> str:
+    return unicodedata.normalize("NFKC", text or "")
+
+
+def _context_rule_for_accumulator(base: str, accumulator: _ReadingAccumulator) -> _ContextRule | None:
+    if not _is_single_kanji_base(base):
+        return None
+    if not accumulator.prefix_counts:
+        return None
+    total = sum(accumulator.prefix_counts.values())
+    if total <= 0:
+        return None
+    prefixes: list[str] = []
+    for value, count in accumulator.prefix_counts.most_common(_MAX_PREFIX_CONTEXTS):
+        if not value:
+            continue
+        share = count / total
+        if share < 0.1:
+            break
+        normalized = _normalize_numeric_prefix(value)
+        if normalized not in prefixes:
+            prefixes.append(normalized)
+    if not prefixes:
+        return None
+    max_prefix = max(len(prefix) for prefix in prefixes)
+    return _ContextRule(prefixes=tuple(prefixes), max_prefix=max_prefix)
 
 
 @dataclass
@@ -335,12 +383,34 @@ def _build_mapping_pattern(mapping: dict[str, str]) -> re.Pattern[str] | None:
     return re.compile("|".join(re.escape(k) for k in keys))
 
 
+def _extract_numeric_prefix_context(text: str, start: int, max_len: int) -> str:
+    if max_len <= 0 or start <= 0:
+        return ""
+    chars: list[str] = []
+    idx = start - 1
+    while idx >= 0 and len(chars) < max_len:
+        ch = text[idx]
+        if ch.isspace():
+            if chars:
+                break
+            idx -= 1
+            continue
+        if ch not in _NUMERIC_PREFIX_CHARS:
+            break
+        chars.append(ch)
+        idx -= 1
+    if not chars:
+        return ""
+    return _normalize_numeric_prefix("".join(reversed(chars)))
+
+
 def _apply_mapping_with_pattern(
     text: str,
     mapping: dict[str, str],
     pattern: re.Pattern[str],
     tracker: _TransformationTracker | None = None,
     source_labels: dict[str, str] | None = None,
+    context_rules: dict[str, _ContextRule] | None = None,
 ) -> str:
     if pattern is None:
         return text
@@ -358,6 +428,12 @@ def _apply_mapping_with_pattern(
                     next_ch.isascii() and next_ch.isalnum()
                 ):
                     return base
+        rule = context_rules.get(base) if context_rules else None
+        if rule:
+            start, _ = match.span()
+            prefix = _extract_numeric_prefix_context(text, start, rule.max_prefix)
+            if not prefix or prefix not in rule.prefixes:
+                return base
         replacement = mapping[base]
         if tracker and replacement:
             source = (source_labels.get(base) if source_labels else None) or "propagation"
@@ -1222,6 +1298,30 @@ def _load_corpus_reading_accumulators() -> dict[str, _ReadingAccumulator]:
             accumulator.suffix_counts[suffix_norm] = count
             if suffix_norm not in accumulator.suffix_samples:
                 accumulator.suffix_samples.append(suffix_norm)
+        prefix_entries = entry.get("prefixes")
+        if isinstance(prefix_entries, list):
+            for prefix_entry in prefix_entries:
+                if not isinstance(prefix_entry, dict):
+                    continue
+                prefix_value = prefix_entry.get("value")
+                prefix_count = prefix_entry.get("count")
+                if not isinstance(prefix_value, str):
+                    continue
+                try:
+                    prefix_count_int = int(prefix_count)
+                except (TypeError, ValueError):
+                    prefix_count_int = 0
+                if prefix_count_int <= 0:
+                    continue
+                prefix_norm = _normalize_numeric_prefix(prefix_value)
+                if not prefix_norm:
+                    continue
+                accumulator.prefix_counts[prefix_norm] += prefix_count_int
+                if (
+                    prefix_norm not in accumulator.prefix_samples
+                    and len(accumulator.prefix_samples) < _MAX_PREFIX_SAMPLES
+                ):
+                    accumulator.prefix_samples.append(prefix_norm)
         accumulator.single_kanji_only = _is_single_kanji_base(base_norm)
         cache[base_norm] = accumulator
     _CORPUS_READING_CACHE = cache
@@ -1259,7 +1359,7 @@ def _collect_reading_counts_from_soup(soup: BeautifulSoup) -> dict[str, _Reading
         has_hira = any(0x3040 <= ord(ch) <= 0x309F for ch in reading_raw)
         suffix = _collect_kana_suffix(ruby)
         accumulator = accumulators[base_norm]
-        accumulator.register(base_norm, reading_norm, reading_raw, has_hira, suffix)
+        accumulator.register(base_norm, reading_norm, reading_raw, has_hira, suffix, "")
 
         if not _is_single_kanji_base(base_norm):
             continue
@@ -1307,6 +1407,7 @@ def _collect_reading_counts_from_soup(soup: BeautifulSoup) -> dict[str, _Reading
             combined_reading_raw,
             combined_has_hira,
             suffix,
+            "",
         )
     return accumulators
 
@@ -1417,9 +1518,17 @@ def _select_reading_mapping(
     accumulators: dict[str, _ReadingAccumulator],
     mode: PropagationMode,
     nlp: "NLPBackend" | None,
-) -> tuple[dict[str, str], dict[str, str]]:
+) -> tuple[dict[str, str], dict[str, str], dict[str, _ContextRule]]:
     tier3: dict[str, str] = {}
     tier2: dict[str, str] = {}
+    context_rules: dict[str, _ContextRule] = {}
+
+    def _maybe_register_rule(base: str, accumulator: _ReadingAccumulator) -> None:
+        if base in context_rules:
+            return
+        rule = _context_rule_for_accumulator(base, accumulator)
+        if rule:
+            context_rules[base] = rule
 
     for base, accumulator in accumulators.items():
         if not accumulator.counts or accumulator.total < 2:
@@ -1437,6 +1546,7 @@ def _select_reading_mapping(
         flags = accumulator.flags.get(top_reading, _ReadingFlags())
         if _looks_like_ascii_word(base):
             tier3[base] = top_reading
+            _maybe_register_rule(base, accumulator)
             continue
         if _looks_like_translation(flags, top_reading):
             continue
@@ -1448,33 +1558,39 @@ def _select_reading_mapping(
                 continue
             if share >= 0.95:
                 tier3[base] = top_reading
+                _maybe_register_rule(base, accumulator)
             elif share >= 0.9 and total >= 3:
                 tier2[base] = top_reading
+                _maybe_register_rule(base, accumulator)
         else:  # advanced
             if nlp is None:
                 continue
             variants = _reading_variants_for_base(base, accumulator, nlp)
             if _reading_matches(top_reading, variants):
                 tier3[base] = top_reading
+                _maybe_register_rule(base, accumulator)
                 continue
             aligned_variant = _aligned_variant_for_small_kana(top_reading, variants)
             if aligned_variant:
                 tier3[base] = aligned_variant
+                _maybe_register_rule(base, accumulator)
                 continue
             if share >= 0.9 and _is_likely_name_candidate(base, flags):
                 tier3[base] = top_reading
+                _maybe_register_rule(base, accumulator)
                 continue
             if total >= 3 and share >= 0.95:
                 tier3[base] = top_reading
+                _maybe_register_rule(base, accumulator)
 
-    return tier3, tier2
+    return tier3, tier2, context_rules
 
 
 def _build_book_mapping(
     zf: zipfile.ZipFile,
     mode: PropagationMode,
     nlp: "NLPBackend" | None,
-) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
+) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, _ContextRule]]:
     accumulators: dict[str, _ReadingAccumulator] = defaultdict(_ReadingAccumulator)
     base_sources: dict[str, str] = {}
     for name in zf.namelist():
@@ -1497,10 +1613,10 @@ def _build_book_mapping(
                 if existing.total == 0:
                     existing.merge_from(corpus_acc)
                     base_sources.setdefault(base, "nhk")
-    tier3, tier2 = _select_reading_mapping(accumulators, mode, nlp)
+    tier3, tier2, context_rules = _select_reading_mapping(accumulators, mode, nlp)
     tier3_sources = {base: base_sources.get(base, "propagation") for base in tier3}
     tier2_sources = {base: base_sources.get(base, "propagation") for base in tier2}
-    return tier3, tier2, tier3_sources, tier2_sources
+    return tier3, tier2, tier3_sources, tier2_sources, context_rules
 
 
 def _replace_outside_ruby_with_readings(
@@ -1508,6 +1624,7 @@ def _replace_outside_ruby_with_readings(
     mapping: dict[str, str],
     tracker: _TransformationTracker | None = None,
     source_labels: dict[str, str] | None = None,
+    context_rules: dict[str, _ContextRule] | None = None,
 ) -> None:
     """
     Replace text nodes NOT inside ruby/rt/rp/script/style using {base->reading}.
@@ -1529,6 +1646,7 @@ def _replace_outside_ruby_with_readings(
             pat,
             tracker=tracker,
             source_labels=source_labels,
+            context_rules=context_rules,
         )
         if new_text != text:
             node.replace_with(new_text)
@@ -1601,7 +1719,7 @@ def epub_to_chapter_texts(
 
         backend = NLPBackend()
     with zipfile.ZipFile(inp_epub, "r") as zf:
-        unique_mapping, common_mapping, unique_sources, common_sources = _build_book_mapping(zf, mode, backend)
+        unique_mapping, common_mapping, unique_sources, common_sources, context_rules = _build_book_mapping(zf, mode, backend)
         spine = _spine_items(zf)
         nav_points = _toc_nav_points(zf, spine)
         nav_buckets: dict[int, dict[str, list[object]]] = {
@@ -1664,12 +1782,14 @@ def epub_to_chapter_texts(
                 unique_mapping,
                 tracker=tracker,
                 source_labels=unique_sources,
+                context_rules=context_rules,
             )
             _replace_outside_ruby_with_readings(
                 soup,
                 common_mapping,
                 tracker=tracker,
                 source_labels=common_sources,
+                context_rules=context_rules,
             )
             _insert_nav_markers(soup, nav_entries_for_file)
             # 2) drop bases inside ruby, keep only readings

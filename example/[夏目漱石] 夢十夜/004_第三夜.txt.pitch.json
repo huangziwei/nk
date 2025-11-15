@@ -3567,27 +3567,15 @@
       ]
     },
     {
-      "surface": "年",
-      "reading": "ネン",
-      "accent": 1,
-      "connection": "C3",
-      "pos": "名詞",
+      "surface": "年前",
+      "reading": "ネンマエ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": 1735,
-      "end": 1737,
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
-      "surface": "前",
-      "reading": "マエ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
-      "start": 1737,
       "end": 1739,
       "sources": [
-        "unidic"
+        "nhk"
       ]
     },
     {
@@ -3663,27 +3651,15 @@
       ]
     },
     {
-      "surface": "年",
-      "reading": "ネン",
-      "accent": 1,
-      "connection": "C3",
-      "pos": "名詞",
+      "surface": "年前",
+      "reading": "ネンマエ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": 1769,
-      "end": 1771,
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
-      "surface": "前",
-      "reading": "マエ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
-      "start": 1771,
       "end": 1773,
       "sources": [
-        "unidic"
+        "nhk"
       ]
     },
     {
