@@ -16,13 +16,13 @@ cd nk
 
 ```bash
 source .venv/bin/activate
-nk my_book.epub
-nk tts my_book/
-
-# or stay outside the venv
-uv run nk my_book.epub
-uv run nk tts my_book/
+nk nk example/\[夏目漱石\]\ 夢十夜.epub # convert epubs into kana-based chapterized txt files
+nk tts example/\[夏目漱石\]\ 夢十夜 # convert txt files into mp3s
+nk web example --host 0.0.0.0 --port 2046 # start a local server to allow stream via browser
+nk dav example # start start a local server to allow stream via webdav compatible clients
 ```
+
+run `-h` to see all usages.
 
 ## More
 

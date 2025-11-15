@@ -1173,6 +1173,11 @@ def _run_web(args: argparse.Namespace) -> None:
     )
 
     app = create_app(config)
+    public_ip = _resolve_local_ip(args.host)
+    url = f"http://{public_ip}:{args.port}/"
+    print(f"Serving nk web from {root}")
+    print(f"Web URL: {url}")
+    print("Press Ctrl+C to stop.\n")
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 
