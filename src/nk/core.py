@@ -488,11 +488,22 @@ def _get_book_author(zf: zipfile.ZipFile) -> str | None:
         return None
 
 
-def _apply_mapping_to_plain_text(text: str, mapping: dict[str, str]) -> str:
+def _apply_mapping_to_plain_text(
+    text: str,
+    mapping: dict[str, str],
+    context_rules: dict[str, _ContextRule] | None = None,
+) -> str:
     pattern = _build_mapping_pattern(mapping)
     if pattern is None:
         return text
-    return _apply_mapping_with_pattern(text, mapping, pattern)
+    return _apply_mapping_with_pattern(
+        text,
+        mapping,
+        pattern,
+        tracker=None,
+        source_labels=None,
+        context_rules=context_rules,
+    )
 
 
 def _align_pitch_tokens(text: str, tokens: list[PitchToken]) -> list[PitchToken]:
@@ -1294,7 +1305,30 @@ def _load_corpus_reading_accumulators() -> dict[str, _ReadingAccumulator]:
         accumulator.counts[reading_norm] = count
         accumulator.total = count
         accumulator.flags[reading_norm] = flags
-        if suffix_norm:
+        suffix_entries = entry.get("suffixes")
+        if isinstance(suffix_entries, list):
+            for suffix_entry in suffix_entries:
+                if not isinstance(suffix_entry, dict):
+                    continue
+                suffix_value = suffix_entry.get("value")
+                suffix_count = suffix_entry.get("count")
+                if not isinstance(suffix_value, str):
+                    continue
+                try:
+                    suffix_count_int = int(suffix_count)
+                except (TypeError, ValueError):
+                    suffix_count_int = 0
+                if suffix_count_int <= 0:
+                    continue
+                normalized_suffix = _normalize_katakana(_hiragana_to_katakana(suffix_value))
+                accumulator.suffix_counts[normalized_suffix] += suffix_count_int
+                if (
+                    normalized_suffix
+                    and normalized_suffix not in accumulator.suffix_samples
+                    and len(accumulator.suffix_samples) < _MAX_SUFFIX_SAMPLES
+                ):
+                    accumulator.suffix_samples.append(normalized_suffix)
+        elif suffix_norm:
             accumulator.suffix_counts[suffix_norm] = count
             if suffix_norm not in accumulator.suffix_samples:
                 accumulator.suffix_samples.append(suffix_norm)
@@ -1739,9 +1773,10 @@ def epub_to_chapter_texts(
             if normalized_title:
                 title_candidates.append(normalized_title)
                 title_variant = unicodedata.normalize(
-                    "NFKC", _apply_mapping_to_plain_text(normalized_title, unique_mapping)
+                    "NFKC",
+                    _apply_mapping_to_plain_text(normalized_title, unique_mapping, context_rules),
                 )
-                title_variant = _apply_mapping_to_plain_text(title_variant, common_mapping)
+                title_variant = _apply_mapping_to_plain_text(title_variant, common_mapping, context_rules)
                 variant_stripped = title_variant.strip()
                 if variant_stripped and variant_stripped not in title_candidates:
                     title_candidates.append(variant_stripped)
@@ -1796,6 +1831,8 @@ def epub_to_chapter_texts(
             _collapse_ruby_to_readings(soup, tracker=tracker)
             # 3) strip remaining html to text
             piece = _strip_html_to_text(soup)
+            piece = _apply_mapping_to_plain_text(piece, unique_mapping, context_rules)
+            piece = _apply_mapping_to_plain_text(piece, common_mapping, context_rules)
             filtered_lines: list[str] = []
             skip_blank_after_title = False
             for line in piece.splitlines():

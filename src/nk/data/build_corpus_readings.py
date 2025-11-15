@@ -225,8 +225,7 @@ def aggregate(epub: Path) -> dict[str, dict[str, dict[str, object]]]:
     for record in iter_ruby_records(epub):
         bucket = data[record.base][record.reading]
         bucket["total"] = bucket.get("total", 0) + 1
-        if record.suffix:
-            bucket["suffix_counts"].update([record.suffix])
+        bucket["suffix_counts"][record.suffix] += 1
         if record.prefix:
             bucket["prefix_counts"].update([record.prefix])
     return data
@@ -248,7 +247,12 @@ def filter_records(
             continue
         info = readings[top_reading]
         suffix_counts: Counter[str] = info.get("suffix_counts", Counter())
-        suffix = suffix_counts.most_common(1)[0][0] if suffix_counts else ""
+        suffixes: list[dict[str, object]] = []
+        dominant_suffix = ""
+        if suffix_counts:
+            for value, count in suffix_counts.most_common(8):
+                suffixes.append({"value": value, "count": count})
+            dominant_suffix = suffixes[0]["value"] if suffixes else ""
         prefix_counts: Counter[str] = info.get("prefix_counts", Counter())
         prefixes: list[dict[str, object]] = []
         if prefix_counts:
@@ -258,8 +262,10 @@ def filter_records(
             "base": base,
             "reading": top_reading,
             "count": top_count,
-            "suffix": suffix,
+            "suffix": dominant_suffix,
         }
+        if suffixes:
+            entry["suffixes"] = suffixes
         if prefixes:
             entry["prefixes"] = prefixes
         results.append(entry)
