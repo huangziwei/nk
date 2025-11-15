@@ -54,6 +54,12 @@ from .tts import (
 )
 from .refine import load_override_config, refine_book
 from .web import WebConfig, create_app
+from .voice_defaults import (
+    DEFAULT_INTONATION_SCALE,
+    DEFAULT_PITCH_SCALE,
+    DEFAULT_SPEAKER_ID,
+    DEFAULT_SPEED_SCALE,
+)
 
 
 def _read_local_version() -> str | None:
@@ -73,11 +79,6 @@ try:
     __version__ = metadata.version("nk")
 except metadata.PackageNotFoundError:
     __version__ = _read_local_version() or "0.0.0+unknown"
-
-DEFAULT_SPEAKER_ID = 2
-DEFAULT_SPEED_SCALE = 1.0
-DEFAULT_PITCH_SCALE = -0.08
-DEFAULT_INTONATION_SCALE = 1.25
 
 
 def _add_version_flag(parser: argparse.ArgumentParser) -> None:

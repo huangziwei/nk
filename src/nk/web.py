@@ -15,10 +15,17 @@ from .book_io import (
     ChapterMetadata,
     LoadedBookMetadata,
     load_book_metadata,
+    update_book_tts_defaults,
     write_book_package,
 )
 from .core import epub_to_chapter_texts, get_epub_cover
 from .nlp import NLPBackend, NLPBackendUnavailableError
+from .voice_defaults import (
+    DEFAULT_INTONATION_SCALE,
+    DEFAULT_PITCH_SCALE,
+    DEFAULT_SPEAKER_ID,
+    DEFAULT_SPEED_SCALE,
+)
 from .tts import (
     FFmpegError,
     TTSTarget,
@@ -209,6 +216,45 @@ INDEX_HTML = """<!DOCTYPE html>
       flex-wrap: wrap;
       margin-bottom: 1rem;
     }
+    .voice-controls {
+      margin-bottom: 1rem;
+      background: rgba(20, 23, 36, 0.8);
+      border-radius: calc(var(--radius) - 6px);
+      padding: 0.8rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .voice-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.6rem;
+    }
+    .voice-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .voice-field input {
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(10, 12, 22, 0.8);
+      color: var(--text);
+      padding: 0.4rem 0.6rem;
+      font-size: 1rem;
+    }
+    .voice-actions {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .voice-status {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
     .action-bar .left {
       display: flex;
       align-items: center;
@@ -384,6 +430,31 @@ INDEX_HTML = """<!DOCTYPE html>
           <button id="restart-book" class="secondary">Restart Book</button>
         </div>
       </div>
+      <div class="voice-controls">
+        <div class="voice-grid">
+          <label class="voice-field">
+            Speaker
+            <input type="number" id="voice-speaker" min="1" step="1">
+          </label>
+          <label class="voice-field">
+            Speed
+            <input type="number" id="voice-speed" step="0.01">
+          </label>
+          <label class="voice-field">
+            Pitch
+            <input type="number" id="voice-pitch" step="0.01">
+          </label>
+          <label class="voice-field">
+            Intonation
+            <input type="number" id="voice-intonation" step="0.01">
+          </label>
+        </div>
+        <div class="voice-actions">
+          <button id="voice-save">Save voice defaults</button>
+          <button id="voice-reset" class="secondary">Reset to global defaults</button>
+          <span class="voice-status" id="voice-status"></span>
+        </div>
+      </div>
       <div class="chapters" id="chapters-list"></div>
     </section>
 
@@ -415,6 +486,20 @@ INDEX_HTML = """<!DOCTYPE html>
     const statusLine = document.getElementById('status');
     const playerCover = document.getElementById('player-cover');
     const playerSubtitle = document.getElementById('player-subtitle');
+    const voiceSpeakerInput = document.getElementById('voice-speaker');
+    const voiceSpeedInput = document.getElementById('voice-speed');
+    const voicePitchInput = document.getElementById('voice-pitch');
+    const voiceIntonationInput = document.getElementById('voice-intonation');
+    const voiceSaveBtn = document.getElementById('voice-save');
+    const voiceResetBtn = document.getElementById('voice-reset');
+    const voiceStatus = document.getElementById('voice-status');
+
+    const DEFAULT_VOICE = {
+      speaker: 2,
+      speed: 1,
+      pitch: -0.08,
+      intonation: 1.25,
+    };
 
     const state = {
       books: [],
@@ -423,6 +508,8 @@ INDEX_HTML = """<!DOCTYPE html>
       currentChapterIndex: -1,
       autoAdvance: false,
       media: null,
+      voiceDefaults: { ...DEFAULT_VOICE },
+      savedVoiceDefaults: {},
     };
     let statusPollHandle = null;
 
@@ -516,6 +603,81 @@ INDEX_HTML = """<!DOCTYPE html>
       span.textContent = label;
       return span;
     }
+
+    function applyVoiceDefaults(effective, saved) {
+      state.voiceDefaults = { ...DEFAULT_VOICE, ...(effective || {}) };
+      state.savedVoiceDefaults = saved || {};
+      updateVoiceForm();
+    }
+
+    function updateVoiceForm() {
+      const values = state.voiceDefaults || DEFAULT_VOICE;
+      voiceSpeakerInput.value = values.speaker ?? '';
+      voiceSpeedInput.value = values.speed ?? '';
+      voicePitchInput.value = values.pitch ?? '';
+      voiceIntonationInput.value = values.intonation ?? '';
+      setVoiceStatus('', false);
+    }
+
+    function setVoiceStatus(message, isError = false) {
+      if (!voiceStatus) return;
+      voiceStatus.textContent = message;
+      voiceStatus.style.color = isError ? '#f87171' : 'var(--muted)';
+    }
+
+    function parseVoiceValue(input, { integer = false, allowEmpty = false } = {}) {
+      const raw = input.value.trim();
+      if (raw === '') {
+        if (allowEmpty) return null;
+        throw new Error('All voice fields must be set.');
+      }
+      const num = Number(raw);
+      if (!Number.isFinite(num)) {
+        throw new Error('Voice fields must be numeric.');
+      }
+      if (integer) {
+        if (!Number.isInteger(num)) {
+          throw new Error('Speaker must be an integer.');
+        }
+        if (num <= 0) {
+          throw new Error('Speaker must be positive.');
+        }
+        return Math.round(num);
+      }
+      return num;
+    }
+
+    function gatherVoicePayload() {
+      const payload = {};
+      const speaker = voiceSpeakerInput.value.trim();
+      const speed = voiceSpeedInput.value.trim();
+      const pitch = voicePitchInput.value.trim();
+      const intonation = voiceIntonationInput.value.trim();
+      payload.speaker = speaker === '' ? null : parseVoiceValue(voiceSpeakerInput, { integer: true, allowEmpty: true });
+      payload.speed = speed === '' ? null : parseVoiceValue(voiceSpeedInput, { allowEmpty: true });
+      payload.pitch = pitch === '' ? null : parseVoiceValue(voicePitchInput, { allowEmpty: true });
+      payload.intonation = intonation === '' ? null : parseVoiceValue(voiceIntonationInput, { allowEmpty: true });
+      return payload;
+    }
+
+    async function persistVoiceDefaults(payload) {
+      if (!state.currentBook) throw new Error('Select a book first.');
+      setVoiceStatus('Saving...');
+      const res = await fetch(`/api/books/${encodeURIComponent(state.currentBook.id)}/tts-defaults`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      applyVoiceDefaults(data.effective || DEFAULT_VOICE, data.saved || {});
+      setVoiceStatus('Saved.');
+    }
+
+    applyVoiceDefaults(DEFAULT_VOICE, {});
 
     function renderBooks() {
       booksGrid.innerHTML = '';
@@ -813,6 +975,12 @@ INDEX_HTML = """<!DOCTYPE html>
             state.currentBook.cover_url = data.media.cover_url;
           }
         }
+        const defaultsPayload = data.media?.tts_defaults;
+        if (defaultsPayload) {
+          applyVoiceDefaults(defaultsPayload.effective || DEFAULT_VOICE, defaultsPayload.saved || {});
+        } else {
+          applyVoiceDefaults(DEFAULT_VOICE, {});
+        }
         renderChapters(data.summary);
         chaptersPanel.classList.remove('hidden');
         startStatusPolling();
@@ -949,7 +1117,31 @@ INDEX_HTML = """<!DOCTYPE html>
         chaptersPanel.appendChild(playerDock);
       }
       updatePlayerDetails(null);
+      applyVoiceDefaults(DEFAULT_VOICE, {});
       renderBooks();
+    };
+
+    voiceSaveBtn.onclick = () => {
+      try {
+        const payload = gatherVoicePayload();
+        persistVoiceDefaults(payload).catch(err => {
+          setVoiceStatus(err.message || 'Failed to save defaults.', true);
+        });
+      } catch (err) {
+        setVoiceStatus(err.message || 'Invalid input', true);
+      }
+    };
+
+    voiceResetBtn.onclick = () => {
+      const payload = {
+        speaker: null,
+        speed: null,
+        pitch: null,
+        intonation: null,
+      };
+      persistVoiceDefaults(payload).catch(err => {
+        setVoiceStatus(err.message || 'Failed to reset defaults.', true);
+      });
     };
 
     playBookBtn.onclick = () => handlePromise(playBook(false));
@@ -1044,7 +1236,14 @@ def _fallback_cover_path(book_dir: Path) -> Path | None:
 
 def _book_media_info(
     book_dir: Path,
-) -> tuple[LoadedBookMetadata | None, str, str | None, Path | None]:
+) -> tuple[
+    LoadedBookMetadata | None,
+    str,
+    str | None,
+    Path | None,
+    dict[str, float | int],
+    dict[str, float],
+]:
     metadata = load_book_metadata(book_dir)
     title = metadata.title if metadata and metadata.title else book_dir.name
     author = metadata.author if metadata else None
@@ -1053,7 +1252,8 @@ def _book_media_info(
         cover_path = metadata.cover_path
     if cover_path is None:
         cover_path = _fallback_cover_path(book_dir)
-    return metadata, title, author, cover_path
+    saved_defaults, effective_defaults = _tts_defaults_payload(metadata)
+    return metadata, title, author, cover_path, saved_defaults, effective_defaults
 
 
 def _cover_url(book_id: str, cover_path: Path | None) -> str | None:
@@ -1064,6 +1264,31 @@ def _cover_url(book_id: str, cover_path: Path | None) -> str | None:
     except OSError:
         mtime = 0
     return f"/api/books/{book_id}/cover?ts={mtime}"
+
+
+def _tts_defaults_payload(
+    metadata: LoadedBookMetadata | None,
+) -> tuple[dict[str, float | int], dict[str, float]]:
+    saved: dict[str, float | int] = {}
+    defaults = metadata.tts_defaults if metadata else None
+    if defaults:
+        if defaults.speaker is not None:
+            saved["speaker"] = defaults.speaker
+        if defaults.speed is not None:
+            saved["speed"] = defaults.speed
+        if defaults.pitch is not None:
+            saved["pitch"] = defaults.pitch
+        if defaults.intonation is not None:
+            saved["intonation"] = defaults.intonation
+    effective: dict[str, float] = {
+        "speaker": float(saved.get("speaker", DEFAULT_SPEAKER_ID)),
+        "speed": float(saved.get("speed", DEFAULT_SPEED_SCALE)),
+        "pitch": float(saved.get("pitch", DEFAULT_PITCH_SCALE)),
+        "intonation": float(saved.get("intonation", DEFAULT_INTONATION_SCALE)),
+    }
+    # speaker should be an int, but represented as float for uniform typing; convert later where needed.
+    effective["speaker"] = int(effective["speaker"])
+    return saved, effective
 
 
 def _synthesize_sequence(
@@ -1334,7 +1559,14 @@ def create_app(config: WebConfig) -> FastAPI:
     def api_books() -> JSONResponse:
         books_payload = []
         for book_dir in _list_books(root):
-            metadata, book_title, book_author, cover_path = _book_media_info(book_dir)
+            (
+                metadata,
+                book_title,
+                book_author,
+                cover_path,
+                saved_defaults,
+                effective_defaults,
+            ) = _book_media_info(book_dir)
             chapters = _list_chapters(book_dir)
             status_snapshot = _status_snapshot(book_dir.name)
             states = [
@@ -1372,7 +1604,14 @@ def create_app(config: WebConfig) -> FastAPI:
         book_path = root / book_id
         if not book_path.is_dir():
             raise HTTPException(status_code=404, detail="Book not found")
-        metadata, book_title, book_author, cover_path = _book_media_info(book_path)
+        (
+            metadata,
+            book_title,
+            book_author,
+            cover_path,
+            saved_defaults,
+            effective_defaults,
+        ) = _book_media_info(book_path)
         chapters = _list_chapters(book_path)
         status_snapshot = _status_snapshot(book_id)
         states = [
@@ -1394,6 +1633,10 @@ def create_app(config: WebConfig) -> FastAPI:
             "album": book_title,
             "artist": book_author or book_title,
             "cover_url": _cover_url(book_id, cover_path),
+            "tts_defaults": {
+                "effective": effective_defaults,
+                "saved": saved_defaults,
+            },
         }
         return JSONResponse(
             {"chapters": states, "summary": summary, "media": media_payload}
@@ -1407,12 +1650,82 @@ def create_app(config: WebConfig) -> FastAPI:
         statuses = _status_snapshot(book_id)
         return JSONResponse({"status": statuses})
 
+    @app.post("/api/books/{book_id}/tts-defaults")
+    def api_update_tts_defaults(
+        book_id: str,
+        payload: dict[str, object] = Body(...),
+    ) -> JSONResponse:
+        book_path = root / book_id
+        if not book_path.is_dir():
+            raise HTTPException(status_code=404, detail="Book not found")
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="Invalid payload.")
+        updates: dict[str, float | int | None] = {}
+        provided = False
+        for key in ("speaker", "speed", "pitch", "intonation"):
+            if key not in payload:
+                continue
+            provided = True
+            value = payload[key]
+            if value is None:
+                updates[key] = None
+                continue
+            if key == "speaker":
+                if isinstance(value, bool):
+                    raise HTTPException(
+                        status_code=400, detail="speaker must be an integer."
+                    )
+                if isinstance(value, (int, float)):
+                    if isinstance(value, float):
+                        if not value.is_integer():
+                            raise HTTPException(
+                                status_code=400, detail="speaker must be an integer."
+                            )
+                        value = int(value)
+                    speaker_value = int(value)
+                    if speaker_value <= 0:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="speaker must be a positive integer.",
+                        )
+                    updates[key] = speaker_value
+                    continue
+                raise HTTPException(status_code=400, detail="speaker must be an integer.")
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise HTTPException(
+                    status_code=400, detail=f"{key} must be numeric or null."
+                )
+            updates[key] = float(value)
+        if not provided:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide at least one voice setting to update.",
+            )
+        changed = False
+        if updates:
+            changed = update_book_tts_defaults(book_path, updates)
+        (
+            _,
+            _book_title,
+            _book_author,
+            _cover_path,
+            saved_defaults,
+            effective_defaults,
+        ) = _book_media_info(book_path)
+        return JSONResponse(
+            {
+                "changed": bool(changed),
+                "saved": saved_defaults,
+                "effective": effective_defaults,
+            }
+        )
+
     @app.get("/api/books/{book_id}/cover")
     def api_cover(book_id: str) -> FileResponse:
         book_path = root / book_id
         if not book_path.is_dir():
             raise HTTPException(status_code=404, detail="Book not found")
-        _, _, _, cover_path = _book_media_info(book_path)
+        _, _, _, cover_path, _, _ = _book_media_info(book_path)
         if cover_path is None or not cover_path.exists():
             raise HTTPException(status_code=404, detail="Cover not found")
         return FileResponse(cover_path)
