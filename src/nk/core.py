@@ -418,6 +418,12 @@ def _is_cjk_char(ch: str) -> bool:
     )
 
 
+def _is_numeric_string(value: str) -> bool:
+    if not value:
+        return False
+    return all(ch.isdigit() for ch in value)
+
+
 def _build_mapping_pattern(mapping: dict[str, str]) -> re.Pattern[str] | None:
     if not mapping:
         return None
@@ -469,17 +475,16 @@ def _apply_mapping_with_pattern(
 
     def repl(match: re.Match[str]) -> str:
         base = match.group(0)
+        start, end = match.span()
         if protected_spans:
-            pos = match.start()
-            idx = bisect_right(protected_starts, pos) - 1
+            idx = bisect_right(protected_starts, start) - 1
             if idx >= 0:
                 span_start, span_end = protected_spans[idx]
-                if span_start <= pos < span_end:
+                if span_start <= start < span_end:
                     return base
+        prev_ch = text[start - 1] if start > 0 else ""
+        next_ch = text[end] if end < len(text) else ""
         if len(base) == 1:
-            start, end = match.span()
-            prev_ch = text[start - 1] if start > 0 else ""
-            next_ch = text[end] if end < len(text) else ""
             if (_is_cjk_char(prev_ch) and prev_ch != "\n") or _is_cjk_char(next_ch):
                 return base
             if base.isascii() and base.isalnum():
@@ -487,9 +492,11 @@ def _apply_mapping_with_pattern(
                     next_ch.isascii() and next_ch.isalnum()
                 ):
                     return base
+        elif _is_numeric_string(base):
+            if (prev_ch and prev_ch.isdigit()) or (next_ch and next_ch.isdigit()):
+                return base
         rule = context_rules.get(base) if context_rules else None
         if rule:
-            start, _ = match.span()
             prefix = _extract_numeric_prefix_context(text, start, rule.max_prefix)
             if not prefix or prefix not in rule.prefixes:
                 return base
