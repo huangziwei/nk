@@ -74,6 +74,11 @@ try:
 except metadata.PackageNotFoundError:
     __version__ = _read_local_version() or "0.0.0+unknown"
 
+DEFAULT_SPEAKER_ID = 2
+DEFAULT_SPEED_SCALE = 1.0
+DEFAULT_PITCH_SCALE = -0.08
+DEFAULT_INTONATION_SCALE = 1.25
+
 
 def _add_version_flag(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
@@ -161,17 +166,17 @@ def build_tts_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--speed",
         type=float,
-        help="Override VoiceVox speedScale (default: engine preset).",
+        help=f"Override VoiceVox speedScale (default: {DEFAULT_SPEED_SCALE}).",
     )
     ap.add_argument(
         "--pitch",
         type=float,
-        help="Override VoiceVox pitchScale (default: engine preset).",
+        help=f"Override VoiceVox pitchScale (default: {DEFAULT_PITCH_SCALE}).",
     )
     ap.add_argument(
         "--intonation",
         type=float,
-        help="Override VoiceVox intonationScale (default: engine preset).",
+        help=f"Override VoiceVox intonationScale (default: {DEFAULT_INTONATION_SCALE}).",
     )
     ap.add_argument(
         "--engine-url",
@@ -546,13 +551,22 @@ def _run_tts(args: argparse.Namespace) -> int:
         if stored_defaults and stored_defaults.speaker is not None:
             args.speaker = stored_defaults.speaker
         else:
-            args.speaker = 2
-    if args.speed is None and stored_defaults and stored_defaults.speed is not None:
-        args.speed = stored_defaults.speed
-    if args.pitch is None and stored_defaults and stored_defaults.pitch is not None:
-        args.pitch = stored_defaults.pitch
-    if args.intonation is None and stored_defaults and stored_defaults.intonation is not None:
-        args.intonation = stored_defaults.intonation
+            args.speaker = DEFAULT_SPEAKER_ID
+    if args.speed is None:
+        if stored_defaults and stored_defaults.speed is not None:
+            args.speed = stored_defaults.speed
+        else:
+            args.speed = DEFAULT_SPEED_SCALE
+    if args.pitch is None:
+        if stored_defaults and stored_defaults.pitch is not None:
+            args.pitch = stored_defaults.pitch
+        else:
+            args.pitch = DEFAULT_PITCH_SCALE
+    if args.intonation is None:
+        if stored_defaults and stored_defaults.intonation is not None:
+            args.intonation = stored_defaults.intonation
+        else:
+            args.intonation = DEFAULT_INTONATION_SCALE
 
     def _format_value(name: str, value: float | int | None) -> str | None:
         if value is None:
@@ -716,6 +730,24 @@ def _run_tts(args: argparse.Namespace) -> int:
         and (stored_defaults is None or stored_defaults.speaker != args.speaker)
     ):
         baseline_updates["speaker"] = args.speaker
+    if (
+        not speed_override_set
+        and args.speed is not None
+        and (stored_defaults is None or stored_defaults.speed != args.speed)
+    ):
+        baseline_updates["speed"] = args.speed
+    if (
+        not pitch_override_set
+        and args.pitch is not None
+        and (stored_defaults is None or stored_defaults.pitch != args.pitch)
+    ):
+        baseline_updates["pitch"] = args.pitch
+    if (
+        not intonation_override_set
+        and args.intonation is not None
+        and (stored_defaults is None or stored_defaults.intonation != args.intonation)
+    ):
+        baseline_updates["intonation"] = args.intonation
 
     engine_defaults_lock = threading.Lock()
     observed_engine_defaults: dict[str, float] = {}
