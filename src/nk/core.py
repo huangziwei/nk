@@ -201,6 +201,8 @@ _MAX_SUFFIX_CONTEXTS = 8
 _MAX_PREFIX_SAMPLES = 12
 _MAX_PREFIX_CONTEXTS = 6
 _NUMERIC_PREFIX_CHARS = set("0123456789０１２３４５６７８９一二三四五六七八九十百千〇零")
+_SURFACE_PITCH_CACHE_ATTR = "_nk_surface_pitch_cache"
+_SURFACE_PITCH_SKIP_SOURCES = {"unidic"}
 
 
 @dataclass
@@ -578,6 +580,65 @@ def _apply_mapping_to_plain_text(
         context_rules=context_rules,
         skip_chapter_markers=True,
     )
+
+
+def _lookup_surface_pitch(
+    surface: str,
+    backend: "NLPBackend",
+) -> tuple[str, PitchToken] | None:
+    if not surface:
+        return None
+    try:
+        reading_text, tokens = backend.to_reading_with_pitch(surface)
+    except Exception:
+        return None
+    if len(tokens) != 1:
+        return None
+    token = tokens[0]
+    if token.accent_type is None or not token.reading:
+        return None
+    normalized_token_reading = _normalize_katakana(token.reading)
+    normalized_surface_reading = _normalize_katakana(reading_text.strip())
+    if not normalized_surface_reading:
+        return None
+    if normalized_token_reading != normalized_surface_reading:
+        return None
+    return normalized_surface_reading, token
+
+
+def _fill_missing_pitch_from_surface(tokens: list[PitchToken], backend: "NLPBackend") -> None:
+    if not tokens:
+        return
+    cache = getattr(backend, _SURFACE_PITCH_CACHE_ATTR, None)
+    if cache is None:
+        cache = {}
+        setattr(backend, _SURFACE_PITCH_CACHE_ATTR, cache)
+    sentinel = object()
+    for token in tokens:
+        if token.accent_type is not None or not token.reading or not token.surface:
+            continue
+        sources = token.sources or ()
+        if any((source or "").lower() in _SURFACE_PITCH_SKIP_SOURCES for source in sources):
+            continue
+        normalized_reading = _normalize_katakana(token.reading)
+        if not normalized_reading:
+            continue
+        cache_key = unicodedata.normalize("NFKC", token.surface)
+        cached = cache.get(cache_key, sentinel)
+        if cached is sentinel:
+            cached = _lookup_surface_pitch(token.surface, backend)
+            cache[cache_key] = cached
+        if not cached:
+            continue
+        cached_reading, source_token = cached
+        if cached_reading != normalized_reading:
+            continue
+        if source_token.accent_type is None:
+            continue
+        token.accent_type = source_token.accent_type
+        token.accent_connection = source_token.accent_connection
+        if source_token.pos:
+            token.pos = source_token.pos
 
 
 def _align_pitch_tokens(text: str, tokens: list[PitchToken]) -> list[PitchToken]:
@@ -1068,6 +1129,7 @@ def _finalize_segment_text(
         if tokens:
             collected_tokens.extend(tokens)
         if collected_tokens:
+            _fill_missing_pitch_from_surface(collected_tokens, backend)
             collected_tokens.sort(key=lambda token: token.start)
             aligned_tokens = _align_pitch_tokens(piece_text, collected_tokens)
             if aligned_tokens:
@@ -1742,8 +1804,12 @@ def _replace_outside_ruby_with_readings(
     if pat is None:
         return
     for node in list(soup.find_all(string=True)):
-        parent = node.parent.name if isinstance(node.parent, Tag) else None
-        if parent in ("script", "style", "rt", "rp", "ruby"):
+        parent = node.parent if isinstance(node.parent, Tag) else None
+        if parent and parent.name in {"script", "style"}:
+            continue
+        if hasattr(node, "find_parent") and node.find_parent("ruby") is not None:
+            continue
+        if parent and parent.name in {"rt", "rp"}:
             continue
         text = unicodedata.normalize("NFKC", str(node))
         if not text.strip():
