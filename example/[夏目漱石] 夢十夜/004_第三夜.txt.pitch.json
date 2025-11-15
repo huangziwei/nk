@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "text_sha1": "aa4719b67452fe3b9c79611f4b45ac181e2a76b5",
+  "text_sha1": "6afb45e2da1c912374e21712d488deafd98d2bb2",
   "tokens": [
     {
       "surface": "第",
@@ -3495,18 +3495,6 @@
       ]
     },
     {
-      "surface": "辰年",
-      "reading": "タツドシ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1695,
-      "end": 1699,
-      "sources": [
-        "propagation"
-      ]
-    },
-    {
       "surface": "思わ",
       "reading": "オモワ",
       "accent": 2,
@@ -3924,18 +3912,6 @@
       "end": 1870,
       "sources": [
         "ruby"
-      ]
-    },
-    {
-      "surface": "背中",
-      "reading": "セナカ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1872,
-      "end": 1875,
-      "sources": [
-        "propagation"
       ]
     },
     {

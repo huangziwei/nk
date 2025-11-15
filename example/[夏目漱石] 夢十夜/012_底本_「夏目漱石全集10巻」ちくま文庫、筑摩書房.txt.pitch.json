@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "text_sha1": "6d02f6ce5d169bf2bfcf9785d88a2b35d7572466",
+  "text_sha1": "45a2340dcb5ffa9751866cfd89fc5a94f42ea0c4",
   "tokens": [
     {
       "surface": "底本",
@@ -135,18 +135,6 @@
       ]
     },
     {
-      "surface": "日",
-      "reading": "ニチ",
-      "accent": 1,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": 61,
-      "end": 63,
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
       "surface": "第",
       "reading": "ダイ",
       "accent": null,
@@ -183,18 +171,6 @@
       ]
     },
     {
-      "surface": "平成",
-      "reading": "ヘイセイ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 82,
-      "end": 86,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "年",
       "reading": "ネン",
       "accent": 1,
@@ -214,18 +190,6 @@
       "pos": "名詞",
       "start": 91,
       "end": 93,
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
-      "surface": "日",
-      "reading": "ニチ",
-      "accent": 1,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": 95,
-      "end": 97,
       "sources": [
         "unidic"
       ]
@@ -663,18 +627,6 @@
       ]
     },
     {
-      "surface": "日",
-      "reading": "ニチ",
-      "accent": 1,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": 283,
-      "end": 285,
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
       "surface": "公開",
       "reading": "コウカイ",
       "accent": null,
@@ -723,25 +675,13 @@
       ]
     },
     {
-      "surface": "日",
-      "reading": "カ",
-      "accent": null,
-      "connection": "C4",
-      "pos": "接尾辞",
-      "start": 303,
-      "end": 304,
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
       "surface": "修正",
       "reading": "シュウセイ",
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 304,
-      "end": 309,
+      "start": 305,
+      "end": 310,
       "sources": [
         "unidic"
       ]
@@ -752,8 +692,8 @@
       "accent": 3,
       "connection": "C1",
       "pos": "名詞",
-      "start": 311,
-      "end": 315,
+      "start": 312,
+      "end": 316,
       "sources": [
         "unidic"
       ]
@@ -764,8 +704,8 @@
       "accent": null,
       "connection": "C2",
       "pos": "名詞",
-      "start": 315,
-      "end": 318,
+      "start": 316,
+      "end": 319,
       "sources": [
         "unidic"
       ]
@@ -776,8 +716,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 318,
-      "end": 322,
+      "start": 319,
+      "end": 323,
       "sources": [
         "unidic"
       ]
@@ -788,8 +728,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "start": 345,
-      "end": 350,
+      "start": 346,
+      "end": 351,
       "sources": [
         "nhk"
       ]
@@ -800,8 +740,8 @@
       "accent": 3,
       "connection": "C1",
       "pos": "名詞",
-      "start": 351,
-      "end": 355,
+      "start": 352,
+      "end": 356,
       "sources": [
         "unidic"
       ]
@@ -812,8 +752,8 @@
       "accent": null,
       "connection": "C2",
       "pos": "名詞",
-      "start": 355,
-      "end": 358,
+      "start": 356,
+      "end": 359,
       "sources": [
         "unidic"
       ]
@@ -824,8 +764,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 385,
-      "end": 388,
+      "start": 386,
+      "end": 389,
       "sources": [
         "unidic"
       ]
@@ -836,8 +776,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "start": 393,
-      "end": 399,
+      "start": 394,
+      "end": 400,
       "sources": [
         "nhk"
       ]
@@ -848,8 +788,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 400,
-      "end": 404,
+      "start": 401,
+      "end": 405,
       "sources": [
         "unidic"
       ]
@@ -860,8 +800,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 405,
-      "end": 409,
+      "start": 406,
+      "end": 410,
       "sources": [
         "unidic"
       ]
@@ -872,8 +812,8 @@
       "accent": null,
       "connection": "C3",
       "pos": "名詞",
-      "start": 424,
-      "end": 426,
+      "start": 425,
+      "end": 427,
       "sources": [
         "unidic"
       ]

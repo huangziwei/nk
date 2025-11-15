@@ -6,6 +6,7 @@ import warnings
 import unicodedata
 import xml.etree.ElementTree as ET
 import zipfile
+from bisect import bisect_right
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field, replace
 import json
@@ -73,6 +74,22 @@ FORCE_BREAK_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6", "li", "p", "dt", "dd", "
 CHAPTER_MARKER_PREFIX = "[[NKCHAP:"
 CHAPTER_MARKER_SUFFIX = "]]"
 CHAPTER_MARKER_PATTERN = re.compile(r"\[\[NKCHAP:(\d+)\]\]")
+
+
+def _chapter_marker_spans(text: str) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    search_pos = 0
+    while True:
+        start = text.find(CHAPTER_MARKER_PREFIX, search_pos)
+        if start == -1:
+            break
+        end_marker = text.find(CHAPTER_MARKER_SUFFIX, start + len(CHAPTER_MARKER_PREFIX))
+        if end_marker == -1:
+            break
+        end = end_marker + len(CHAPTER_MARKER_SUFFIX)
+        spans.append((start, end))
+        search_pos = end
+    return spans
 
 SMALL_KANA_BASE_MAP = {
     "ァ": "ア",
@@ -411,12 +428,25 @@ def _apply_mapping_with_pattern(
     tracker: _TransformationTracker | None = None,
     source_labels: dict[str, str] | None = None,
     context_rules: dict[str, _ContextRule] | None = None,
+    skip_chapter_markers: bool = False,
 ) -> str:
     if pattern is None:
         return text
+    protected_spans: list[tuple[int, int]] = []
+    protected_starts: list[int] = []
+    if skip_chapter_markers:
+        protected_spans = _chapter_marker_spans(text)
+        protected_starts = [span[0] for span in protected_spans]
 
     def repl(match: re.Match[str]) -> str:
         base = match.group(0)
+        if protected_spans:
+            pos = match.start()
+            idx = bisect_right(protected_starts, pos) - 1
+            if idx >= 0:
+                span_start, span_end = protected_spans[idx]
+                if span_start <= pos < span_end:
+                    return base
         if len(base) == 1:
             start, end = match.span()
             prev_ch = text[start - 1] if start > 0 else ""
@@ -503,6 +533,7 @@ def _apply_mapping_to_plain_text(
         tracker=None,
         source_labels=None,
         context_rules=context_rules,
+        skip_chapter_markers=True,
     )
 
 

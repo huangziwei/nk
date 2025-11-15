@@ -3807,18 +3807,6 @@
       ]
     },
     {
-      "surface": "身体",
-      "reading": "カラダ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1699,
-      "end": 1702,
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
       "surface": "中",
       "reading": "ジュウ",
       "accent": null,
@@ -4030,18 +4018,6 @@
       "pos": null,
       "start": 1810,
       "end": 1814,
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
-      "surface": "蕪村",
-      "reading": "ブソン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1815,
-      "end": 1818,
       "sources": [
         "ruby"
       ]

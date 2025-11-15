@@ -531,18 +531,6 @@
       ]
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 222,
-      "end": 225,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "子供",
       "reading": "コドモ",
       "accent": null,
@@ -2463,18 +2451,6 @@
       ]
     },
     {
-      "surface": "飴屋",
-      "reading": "アメヤ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1019,
-      "end": 1022,
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
       "surface": "笛",
       "reading": "フエ",
       "accent": null,
@@ -2940,18 +2916,6 @@
       "end": 1236,
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "草鞋",
-      "reading": "ワラジ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1238,
-      "end": 1241,
-      "sources": [
-        "ruby"
       ]
     },
     {

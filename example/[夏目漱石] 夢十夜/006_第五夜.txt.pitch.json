@@ -4179,18 +4179,6 @@
       ]
     },
     {
-      "surface": "真向",
-      "reading": "マトモ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1703,
-      "end": 1706,
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
       "surface": "前",
       "reading": "マエ",
       "accent": 1,
@@ -4342,18 +4330,6 @@
       "pos": null,
       "start": 1765,
       "end": 1767,
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
-      "surface": "天探女",
-      "reading": "アマノジャク",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1773,
-      "end": 1779,
       "sources": [
         "ruby"
       ]

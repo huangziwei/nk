@@ -75,18 +75,6 @@
       ]
     },
     {
-      "surface": "攫",
-      "reading": "サラ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 19,
-      "end": 21,
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
       "surface": "七",
       "reading": "ナナ",
       "accent": 1,
@@ -195,18 +183,6 @@
       ]
     },
     {
-      "surface": "就",
-      "reading": "ツ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 62,
-      "end": 63,
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
       "surface": "云っ",
       "reading": "イッ",
       "accent": 0,
@@ -216,18 +192,6 @@
       "end": 70,
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "健",
-      "reading": "ケン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 71,
-      "end": 73,
-      "sources": [
-        "ruby"
       ]
     },
     {
@@ -303,30 +267,6 @@
       ]
     },
     {
-      "surface": "好男子",
-      "reading": "コウダンシ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 101,
-      "end": 106,
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
-      "surface": "至極",
-      "reading": "シゴク",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 108,
-      "end": 111,
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
       "surface": "善良",
       "reading": "ゼンリョウ",
       "accent": 0,
@@ -396,18 +336,6 @@
       "end": 149,
       "sources": [
         "nhk"
-      ]
-    },
-    {
-      "surface": "被",
-      "reading": "カブ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 150,
-      "end": 152,
-      "sources": [
-        "ruby"
       ]
     },
     {
@@ -999,18 +927,6 @@
       ]
     },
     {
-      "surface": "夏蜜柑",
-      "reading": "ナツミカン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 449,
-      "end": 454,
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
       "surface": "品評",
       "reading": "ヒンピョウ",
       "accent": 0,
@@ -1486,18 +1402,6 @@
       "pos": null,
       "start": 651,
       "end": 652,
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
-      "surface": "丁寧",
-      "reading": "テイネイ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 654,
-      "end": 658,
       "sources": [
         "ruby"
       ]
@@ -2127,18 +2031,6 @@
       ]
     },
     {
-      "surface": "大勢",
-      "reading": "オオゼイ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 940,
-      "end": 944,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "寄っ",
       "reading": "ヨッ",
       "accent": 0,
@@ -2328,18 +2220,6 @@
       "end": 1029,
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "太郎",
-      "reading": "タロウ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1029,
-      "end": 1032,
-      "sources": [
-        "nhk"
       ]
     },
     {

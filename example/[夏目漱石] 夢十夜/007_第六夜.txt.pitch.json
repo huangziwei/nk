@@ -1611,18 +1611,6 @@
       ]
     },
     {
-      "surface": "運慶",
-      "reading": "ウンケイ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 763,
-      "end": 767,
-      "sources": [
-        "propagation"
-      ]
-    },
-    {
       "surface": "頭",
       "reading": "アタマ",
       "accent": null,
@@ -1743,18 +1731,6 @@
       ]
     },
     {
-      "surface": "様子",
-      "reading": "ヨウス",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 824,
-      "end": 827,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "古",
       "reading": "フル",
       "accent": 2,
@@ -1827,18 +1803,6 @@
       ]
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 872,
-      "end": 875,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "今",
       "reading": "イマ",
       "accent": 1,
@@ -1863,18 +1827,6 @@
       ]
     },
     {
-      "surface": "運慶",
-      "reading": "ウンケイ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 887,
-      "end": 891,
-      "sources": [
-        "propagation"
-      ]
-    },
-    {
       "surface": "生き",
       "reading": "イキ",
       "accent": 2,
@@ -1896,18 +1848,6 @@
       "end": 904,
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "不思議",
-      "reading": "フシギ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 909,
-      "end": 912,
-      "sources": [
-        "nhk"
       ]
     },
     {
@@ -1959,18 +1899,6 @@
       ]
     },
     {
-      "surface": "運慶",
-      "reading": "ウンケイ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 947,
-      "end": 951,
-      "sources": [
-        "propagation"
-      ]
-    },
-    {
       "surface": "方",
       "reading": "ホウ",
       "accent": 1,
@@ -1980,18 +1908,6 @@
       "end": 954,
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "不思議",
-      "reading": "フシギ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 956,
-      "end": 959,
-      "sources": [
-        "nhk"
       ]
     },
     {
@@ -2028,30 +1944,6 @@
       "end": 973,
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "様子",
-      "reading": "ヨウス",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 975,
-      "end": 978,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
-      "surface": "一生懸命",
-      "reading": "イッショウケンメイ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 979,
-      "end": 988,
-      "sources": [
-        "nhk"
       ]
     },
     {
@@ -2100,18 +1992,6 @@
       "end": 1009,
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "一人",
-      "reading": "ヒトリ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1012,
-      "end": 1015,
-      "sources": [
-        "nhk"
       ]
     },
     {
@@ -3519,18 +3399,6 @@
       ]
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1615,
-      "end": 1618,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "時",
       "reading": "トキ",
       "accent": 2,
@@ -3696,18 +3564,6 @@
       "end": 1719,
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "道具",
-      "reading": "ドウグ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1724,
-      "end": 1727,
-      "sources": [
-        "nhk"
       ]
     },
     {

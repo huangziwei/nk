@@ -387,18 +387,6 @@
       ]
     },
     {
-      "surface": "つ",
-      "reading": "ツ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 163,
-      "end": 164,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "間",
       "reading": "アイダ",
       "accent": 0,
@@ -747,18 +735,6 @@
       ]
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 320,
-      "end": 323,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "船",
       "reading": "フネ",
       "accent": 1,
@@ -900,18 +876,6 @@
       "end": 377,
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 385,
-      "end": 388,
-      "sources": [
-        "nhk"
       ]
     },
     {
@@ -1191,18 +1155,6 @@
       ]
     },
     {
-      "surface": "本真",
-      "reading": "ホンマ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 519,
-      "end": 522,
-      "sources": [
-        "propagation"
-      ]
-    },
-    {
       "surface": "身",
       "reading": "ミ",
       "accent": 0,
@@ -1335,18 +1287,6 @@
       ]
     },
     {
-      "surface": "大勢",
-      "reading": "オオゼイ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 568,
-      "end": 572,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "寄っ",
       "reading": "ヨッ",
       "accent": 0,
@@ -1371,18 +1311,6 @@
       ]
     },
     {
-      "surface": "帆綱",
-      "reading": "ホズナ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 579,
-      "end": 582,
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
       "surface": "手繰",
       "reading": "タグ",
       "accent": null,
@@ -1395,30 +1323,6 @@
       ]
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 593,
-      "end": 596,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
-      "surface": "大変",
-      "reading": "タイヘン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 597,
-      "end": 601,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "心細く",
       "reading": "ココロボソク",
       "accent": 5,
@@ -1428,18 +1332,6 @@
       "end": 607,
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "つ",
-      "reading": "ツ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 612,
-      "end": 613,
-      "sources": [
-        "nhk"
       ]
     },
     {
@@ -1623,18 +1515,6 @@
       ]
     },
     {
-      "surface": "際限",
-      "reading": "サイゲン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 697,
-      "end": 701,
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
       "surface": "蒼",
       "reading": "アオ",
       "accent": null,
@@ -1719,18 +1599,6 @@
       ]
     },
     {
-      "surface": "つ",
-      "reading": "ツ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 739,
-      "end": 740,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "真白",
       "reading": "マッシロ",
       "accent": 3,
@@ -1764,18 +1632,6 @@
       "end": 752,
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 756,
-      "end": 759,
-      "sources": [
-        "nhk"
       ]
     },
     {
