@@ -34,7 +34,15 @@ from .book_io import (
     update_book_tts_defaults,
     write_book_package,
 )
-from .core import epub_to_chapter_texts, epub_to_txt, get_epub_cover
+from .core import (
+    _apply_mapping_with_pattern,
+    _build_mapping_pattern,
+    _load_corpus_reading_accumulators,
+    _select_reading_mapping,
+    epub_to_chapter_texts,
+    epub_to_txt,
+    get_epub_cover,
+)
 from .nlp import NLPBackend, NLPBackendUnavailableError
 from .tools import DEFAULT_UNIDIC_URL, UniDicInstallError, ensure_unidic_installed, resolve_managed_unidic
 from .tts import (
@@ -133,6 +141,26 @@ def build_convert_parser() -> argparse.ArgumentParser:
         help="Japanese text to convert. Wrap the phrase in quotes if it contains spaces.",
     )
     return ap
+
+
+def _apply_dictionary_mapping(
+    text: str,
+    mapping: dict[str, str],
+    context_rules: dict[str, object],
+) -> str:
+    if not mapping:
+        return text
+    pattern = _build_mapping_pattern(mapping)
+    if pattern is None:
+        return text
+    return _apply_mapping_with_pattern(
+        text,
+        mapping,
+        pattern,
+        tracker=None,
+        source_labels=None,
+        context_rules=context_rules,
+    )
 
 
 def build_tts_parser() -> argparse.ArgumentParser:
@@ -466,7 +494,11 @@ def _run_convert(args: argparse.Namespace) -> int:
     text = " ".join(args.text).strip()
     if not text:
         raise SystemExit("No text provided for conversion.")
-    converted = backend.to_reading_text(text)
+    accumulators = _load_corpus_reading_accumulators()
+    tier3, tier2, context_rules = _select_reading_mapping(accumulators, "advanced", backend)
+    processed = _apply_dictionary_mapping(text, tier3, context_rules)
+    processed = _apply_dictionary_mapping(processed, tier2, context_rules)
+    converted = backend.to_reading_text(processed)
     print(converted)
     return 0
 
