@@ -248,6 +248,24 @@ INDEX_HTML = """<!DOCTYPE html>
       width: 100%;
       margin-top: 0.75rem;
     }
+    .chapter-player {
+      margin-top: 0.4rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .chapter-player.hidden {
+      display: none;
+    }
+    .chapter-player .now-playing {
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+    .chapter-player audio {
+      margin-top: 0.5rem;
+    }
+    .chapter-player .status-line {
+      margin-top: 0.4rem;
+    }
     .status-line {
       margin-top: 0.5rem;
       color: var(--muted);
@@ -311,12 +329,11 @@ INDEX_HTML = """<!DOCTYPE html>
       <div class="chapters" id="chapters-list"></div>
     </section>
 
-    <section class="panel hidden" id="player-panel">
-      <h2>Now Playing</h2>
-      <div id="now-playing" class="metrics">Select a chapter to begin.</div>
+    <div id="player-dock" class="chapter-player hidden">
+      <div id="now-playing" class="now-playing">Select a chapter to begin.</div>
       <audio id="player" controls preload="none"></audio>
       <div class="status-line" id="status">Idle</div>
-    </section>
+    </div>
   </main>
 
   <script>
@@ -328,7 +345,7 @@ INDEX_HTML = """<!DOCTYPE html>
     const backButton = document.getElementById('back-button');
     const playBookBtn = document.getElementById('play-book');
     const restartBookBtn = document.getElementById('restart-book');
-    const playerPanel = document.getElementById('player-panel');
+    const playerDock = document.getElementById('player-dock');
     const player = document.getElementById('player');
     const nowPlaying = document.getElementById('now-playing');
     const statusLine = document.getElementById('status');
@@ -442,13 +459,23 @@ INDEX_HTML = """<!DOCTYPE html>
 
     function updateChapterHighlight() {
       const nodes = chaptersList.querySelectorAll('.chapter');
+      let docked = false;
       nodes.forEach((node, idx) => {
         if (idx === state.currentChapterIndex) {
           node.classList.add('playing');
+          if (playerDock && !docked) {
+            node.appendChild(playerDock);
+            playerDock.classList.remove('hidden');
+            docked = true;
+          }
         } else {
           node.classList.remove('playing');
         }
       });
+      if (playerDock && !docked) {
+        playerDock.classList.add('hidden');
+        chaptersPanel.appendChild(playerDock);
+      }
     }
 
     function renderChapters(summary) {
@@ -546,12 +573,6 @@ INDEX_HTML = """<!DOCTYPE html>
       }
     }
 
-    function ensurePlayerVisible() {
-      if (playerPanel.classList.contains('hidden')) {
-        playerPanel.classList.remove('hidden');
-      }
-    }
-
     function triggerPrefetch(startIndex, { restart = false } = {}) {
       if (!state.currentBook) return;
       if (startIndex == null || startIndex > state.chapters.length) return;
@@ -605,7 +626,6 @@ INDEX_HTML = """<!DOCTYPE html>
       state.autoAdvance = true;
       state.currentChapterIndex = index;
       updateChapterHighlight();
-      ensurePlayerVisible();
 
       const chapter = state.chapters[index];
       nowPlaying.textContent = `${state.currentBook.title} — ${chapter.title}`;
@@ -675,6 +695,10 @@ INDEX_HTML = """<!DOCTYPE html>
       statusLine.textContent = 'Idle';
       player.removeAttribute('src');
       player.load();
+      if (playerDock) {
+        playerDock.classList.add('hidden');
+        chaptersPanel.appendChild(playerDock);
+      }
       renderBooks();
     };
 
