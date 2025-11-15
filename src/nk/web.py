@@ -15,19 +15,19 @@ from .book_io import (
     load_book_metadata,
     write_book_package,
 )
+from .core import epub_to_chapter_texts, get_epub_cover
+from .nlp import NLPBackend, NLPBackendUnavailableError
 from .tts import (
     FFmpegError,
     TTSTarget,
     VoiceVoxClient,
     VoiceVoxError,
     VoiceVoxUnavailableError,
+    _synthesize_target_with_client,
     _target_cache_dir,
     discover_voicevox_runtime,
     managed_voicevox_runtime,
-    _synthesize_target_with_client,
 )
-from .core import epub_to_chapter_texts, get_epub_cover
-from .nlp import NLPBackend, NLPBackendUnavailableError
 
 
 @dataclass(slots=True)
@@ -119,6 +119,7 @@ INDEX_HTML = """<!DOCTYPE html>
       display: grid;
       gap: 1rem;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      justify-content: center;
     }
     .card {
       background: var(--panel-alt);
@@ -128,6 +129,8 @@ INDEX_HTML = """<!DOCTYPE html>
       flex-direction: column;
       gap: 0.75rem;
       min-height: 160px;
+      width: min(100%, 420px);
+      margin: 0 auto;
     }
     .card .title {
       font-size: 1.05rem;
@@ -256,7 +259,7 @@ INDEX_HTML = """<!DOCTYPE html>
       width: 100%;
       border-radius: calc(var(--radius) - 6px);
       object-fit: cover;
-      max-height: 220px;
+      display: block;
     }
     .card .author {
       color: var(--muted);
@@ -930,7 +933,9 @@ def _fallback_cover_path(book_dir: Path) -> Path | None:
     return None
 
 
-def _book_media_info(book_dir: Path) -> tuple[LoadedBookMetadata | None, str, str | None, Path | None]:
+def _book_media_info(
+    book_dir: Path,
+) -> tuple[LoadedBookMetadata | None, str, str | None, Path | None]:
     metadata = load_book_metadata(book_dir)
     title = metadata.title if metadata and metadata.title else book_dir.name
     author = metadata.author if metadata else None
@@ -971,7 +976,9 @@ def _synthesize_sequence(
         return 0
 
     with lock:
-        runtime_hint = config.engine_runtime or discover_voicevox_runtime(config.engine_url)
+        runtime_hint = config.engine_runtime or discover_voicevox_runtime(
+            config.engine_url
+        )
         env_override, thread_override = _engine_thread_overrides(config.engine_threads)
         with managed_voicevox_runtime(
             runtime_hint,
@@ -1115,7 +1122,9 @@ def create_app(config: WebConfig) -> FastAPI:
                     chapter,
                     config,
                     idx + 1,
-                    chapter_meta=metadata.chapters.get(chapter.name) if metadata else None,
+                    chapter_meta=metadata.chapters.get(chapter.name)
+                    if metadata
+                    else None,
                 )
                 for idx, chapter in enumerate(chapters)
             ]
@@ -1163,7 +1172,9 @@ def create_app(config: WebConfig) -> FastAPI:
             "artist": book_author or book_title,
             "cover_url": _cover_url(book_id, cover_path),
         }
-        return JSONResponse({"chapters": states, "summary": summary, "media": media_payload})
+        return JSONResponse(
+            {"chapters": states, "summary": summary, "media": media_payload}
+        )
 
     @app.get("/api/books/{book_id}/cover")
     def api_cover(book_id: str) -> FileResponse:
@@ -1264,7 +1275,9 @@ def create_app(config: WebConfig) -> FastAPI:
         try:
             start_index = int(payload.get("start_index", 1))  # type: ignore[arg-type]
         except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail="start_index must be an integer")
+            raise HTTPException(
+                status_code=400, detail="start_index must be an integer"
+            )
         restart_all = bool(payload.get("restart", False))
 
         chapters = _list_chapters(book_path)
