@@ -9,7 +9,12 @@ from pathlib import Path
 from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
-from .book_io import write_book_package
+from .book_io import (
+    ChapterMetadata,
+    LoadedBookMetadata,
+    load_book_metadata,
+    write_book_package,
+)
 from .tts import (
     FFmpegError,
     TTSTarget,
@@ -41,6 +46,9 @@ class WebConfig:
     cache_dir: Path | None = None
     keep_cache: bool = True
     live_prebuffer: int = 2  # kept for CLI compatibility
+
+
+COVER_EXTENSIONS = (".jpg", ".jpeg", ".png")
 
 
 INDEX_HTML = """<!DOCTYPE html>
@@ -244,6 +252,16 @@ INDEX_HTML = """<!DOCTYPE html>
     .chapter-footer .badges {
       flex: 1;
     }
+    .card .cover {
+      width: 100%;
+      border-radius: calc(var(--radius) - 6px);
+      object-fit: cover;
+      max-height: 220px;
+    }
+    .card .author {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
     audio {
       width: 100%;
       margin-top: 0.75rem;
@@ -270,6 +288,32 @@ INDEX_HTML = """<!DOCTYPE html>
       margin-top: 0.5rem;
       color: var(--muted);
       font-size: 0.9rem;
+    }
+    .player-meta {
+      display: flex;
+      gap: 0.8rem;
+      align-items: center;
+    }
+    .player-cover {
+      width: 64px;
+      height: 64px;
+      border-radius: 12px;
+      object-fit: cover;
+      background: rgba(255,255,255,0.05);
+      flex-shrink: 0;
+    }
+    .player-cover.hidden {
+      display: none;
+    }
+    .player-text {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    .player-subtitle {
+      font-size: 0.85rem;
+      color: var(--muted);
     }
     @media (max-width: 640px) {
       header {
@@ -330,7 +374,13 @@ INDEX_HTML = """<!DOCTYPE html>
     </section>
 
     <div id="player-dock" class="chapter-player hidden">
-      <div id="now-playing" class="now-playing">Select a chapter to begin.</div>
+      <div class="player-meta">
+        <img id="player-cover" class="player-cover hidden" alt="Book cover">
+        <div class="player-text">
+          <div id="now-playing" class="now-playing">Select a chapter to begin.</div>
+          <div id="player-subtitle" class="player-subtitle"></div>
+        </div>
+      </div>
       <audio id="player" controls preload="none"></audio>
       <div class="status-line" id="status">Idle</div>
     </div>
@@ -349,6 +399,8 @@ INDEX_HTML = """<!DOCTYPE html>
     const player = document.getElementById('player');
     const nowPlaying = document.getElementById('now-playing');
     const statusLine = document.getElementById('status');
+    const playerCover = document.getElementById('player-cover');
+    const playerSubtitle = document.getElementById('player-subtitle');
 
     const state = {
       books: [],
@@ -356,15 +408,73 @@ INDEX_HTML = """<!DOCTYPE html>
       currentBook: null,
       currentChapterIndex: -1,
       autoAdvance: false,
+      media: null,
     };
+
+    function formatTrackNumber(num) {
+      if (typeof num !== 'number' || !Number.isFinite(num)) return '';
+      return String(num).padStart(3, '0');
+    }
+
+    function updatePlayerDetails(chapter) {
+      if (!chapter) {
+        nowPlaying.textContent = 'Select a chapter to begin.';
+        playerSubtitle.textContent = '';
+        if (playerCover) {
+          playerCover.classList.add('hidden');
+          playerCover.removeAttribute('src');
+        }
+        return;
+      }
+      const trackLabel = formatTrackNumber(chapter.track_number);
+      const chapterTitle = chapter.title || chapter.id;
+      nowPlaying.textContent = trackLabel ? `${trackLabel} ${chapterTitle}` : chapterTitle;
+      const album =
+        (state.media && state.media.album) ||
+        (state.currentBook && state.currentBook.title) ||
+        '';
+      const artistCandidate =
+        (state.media && state.media.artist) ||
+        (state.currentBook && state.currentBook.author) ||
+        album;
+      const subtitleParts = [];
+      if (album) subtitleParts.push(album);
+      if (artistCandidate && (artistCandidate !== album || !album)) {
+        subtitleParts.push(artistCandidate);
+      }
+      playerSubtitle.textContent = subtitleParts.join(' ・ ');
+      if (playerCover && state.media && state.media.cover_url) {
+        playerCover.src = state.media.cover_url;
+        playerCover.classList.remove('hidden');
+      } else if (playerCover) {
+        playerCover.classList.add('hidden');
+        playerCover.removeAttribute('src');
+      }
+    }
+
+    updatePlayerDetails(null);
 
     function updateMediaSession(chapter) {
       if (!('mediaSession' in navigator) || !chapter || !state.currentBook) return;
-      const chapterLabel = `${String(chapter.index).padStart(3, '0')} ${state.currentBook.title}`;
+      const trackLabel = formatTrackNumber(chapter.track_number || chapter.index);
+      const chapterLabel = trackLabel ? `${trackLabel} ${chapter.title}` : chapter.title;
+      const album =
+        (state.media && state.media.album) ||
+        state.currentBook.title ||
+        (state.currentBook && state.currentBook.id) ||
+        'nk';
+      const artist =
+        (state.media && state.media.artist) ||
+        state.currentBook.author ||
+        album;
       navigator.mediaSession.metadata = new MediaMetadata({
         title: chapterLabel,
-        artist: state.currentBook.title,
-        album: state.currentBook.title,
+        artist,
+        album,
+        artwork:
+          state.media && state.media.cover_url
+            ? [{ src: state.media.cover_url }]
+            : [],
       });
     }
 
@@ -405,10 +515,25 @@ INDEX_HTML = """<!DOCTYPE html>
         const card = document.createElement('article');
         card.className = 'card';
 
+        if (book.cover_url) {
+          const cover = document.createElement('img');
+          cover.className = 'cover';
+          cover.src = book.cover_url;
+          cover.alt = `${book.title} cover`;
+          card.appendChild(cover);
+        }
+
         const title = document.createElement('div');
         title.className = 'title';
         title.textContent = book.title;
         card.appendChild(title);
+
+        if (book.author) {
+          const author = document.createElement('div');
+          author.className = 'author';
+          author.textContent = book.author;
+          card.appendChild(author);
+        }
 
         const badgesWrap = document.createElement('div');
         badgesWrap.className = 'badges';
@@ -476,6 +601,9 @@ INDEX_HTML = """<!DOCTYPE html>
         playerDock.classList.add('hidden');
         chaptersPanel.appendChild(playerDock);
       }
+      if (state.currentChapterIndex < 0) {
+        updatePlayerDetails(null);
+      }
     }
 
     function renderChapters(summary) {
@@ -500,7 +628,8 @@ INDEX_HTML = """<!DOCTYPE html>
         header.className = 'chapter-header';
         const name = document.createElement('div');
         name.className = 'name';
-        name.textContent = ch.title;
+        const trackLabel = formatTrackNumber(ch.track_number);
+        name.textContent = trackLabel ? `${trackLabel} ${ch.title}` : ch.title;
         header.appendChild(name);
         wrapper.appendChild(header);
 
@@ -566,6 +695,18 @@ INDEX_HTML = """<!DOCTYPE html>
       try {
         const data = await fetchJSON(`/api/books/${encodeURIComponent(book.id)}/chapters`);
         state.chapters = data.chapters;
+        state.media = data.media || null;
+        if (state.currentBook && data.media) {
+          if (data.media.album) {
+            state.currentBook.title = data.media.album;
+          }
+          if (data.media.artist) {
+            state.currentBook.author = data.media.artist;
+          }
+          if (data.media.cover_url) {
+            state.currentBook.cover_url = data.media.cover_url;
+          }
+        }
         renderChapters(data.summary);
         chaptersPanel.classList.remove('hidden');
       } catch (err) {
@@ -628,7 +769,7 @@ INDEX_HTML = """<!DOCTYPE html>
       updateChapterHighlight();
 
       const chapter = state.chapters[index];
-      nowPlaying.textContent = `${state.currentBook.title} — ${chapter.title}`;
+      updatePlayerDetails(chapter);
       statusLine.textContent = 'Preparing audio...';
 
       const nextIndex = chapter.index + 1;
@@ -690,8 +831,8 @@ INDEX_HTML = """<!DOCTYPE html>
       state.currentBook = null;
       state.autoAdvance = false;
       state.currentChapterIndex = -1;
+      state.media = null;
       player.pause();
-      nowPlaying.textContent = 'Select a chapter to begin.';
       statusLine.textContent = 'Idle';
       player.removeAttribute('src');
       player.load();
@@ -699,6 +840,7 @@ INDEX_HTML = """<!DOCTYPE html>
         playerDock.classList.add('hidden');
         chaptersPanel.appendChild(playerDock);
       }
+      updatePlayerDetails(null);
       renderBooks();
     };
 
@@ -750,18 +892,64 @@ def _engine_thread_overrides(
     return env, clamped
 
 
-def _chapter_state(chapter_path: Path, config: WebConfig, index: int) -> dict[str, object]:
+def _chapter_state(
+    chapter_path: Path,
+    config: WebConfig,
+    index: int,
+    *,
+    chapter_meta: ChapterMetadata | None = None,
+) -> dict[str, object]:
     target = TTSTarget(source=chapter_path, output=chapter_path.with_suffix(".mp3"))
     cache_dir = _target_cache_dir(config.cache_dir, target)
     total_chunks = _safe_read_int(cache_dir / ".complete")
+    track_number = index
+    if chapter_meta and chapter_meta.index is not None:
+        track_number = chapter_meta.index
+    title = chapter_path.stem
+    if chapter_meta:
+        if chapter_meta.title:
+            title = chapter_meta.title
+        elif chapter_meta.original_title:
+            title = chapter_meta.original_title
     return {
         "id": chapter_path.name,
-        "title": chapter_path.name,
+        "title": title,
         "index": index,
+        "track_number": track_number,
         "mp3_exists": target.output.exists(),
         "has_cache": cache_dir.exists(),
         "total_chunks": total_chunks,
     }
+
+
+def _fallback_cover_path(book_dir: Path) -> Path | None:
+    for ext in COVER_EXTENSIONS:
+        candidate = book_dir / f"cover{ext}"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _book_media_info(book_dir: Path) -> tuple[LoadedBookMetadata | None, str, str | None, Path | None]:
+    metadata = load_book_metadata(book_dir)
+    title = metadata.title if metadata and metadata.title else book_dir.name
+    author = metadata.author if metadata else None
+    cover_path = None
+    if metadata and metadata.cover_path and metadata.cover_path.exists():
+        cover_path = metadata.cover_path
+    if cover_path is None:
+        cover_path = _fallback_cover_path(book_dir)
+    return metadata, title, author, cover_path
+
+
+def _cover_url(book_id: str, cover_path: Path | None) -> str | None:
+    if not cover_path or not cover_path.exists():
+        return None
+    try:
+        mtime = int(cover_path.stat().st_mtime)
+    except OSError:
+        mtime = 0
+    return f"/api/books/{book_id}/cover?ts={mtime}"
 
 
 def _synthesize_sequence(
@@ -920,23 +1108,33 @@ def create_app(config: WebConfig) -> FastAPI:
     def api_books() -> JSONResponse:
         books_payload = []
         for book_dir in _list_books(root):
+            metadata, book_title, book_author, cover_path = _book_media_info(book_dir)
             chapters = _list_chapters(book_dir)
             states = [
-                _chapter_state(chapter, config, idx + 1)
+                _chapter_state(
+                    chapter,
+                    config,
+                    idx + 1,
+                    chapter_meta=metadata.chapters.get(chapter.name) if metadata else None,
+                )
                 for idx, chapter in enumerate(chapters)
             ]
             total = len(states)
             completed = sum(1 for st in states if st["mp3_exists"])
             pending = total - completed
-            books_payload.append(
-                {
-                    "id": book_dir.name,
-                    "title": book_dir.name,
-                    "total_chapters": total,
-                    "completed_chapters": completed,
-                    "pending_chapters": pending,
-                }
-            )
+            payload: dict[str, object] = {
+                "id": book_dir.name,
+                "title": book_title,
+                "total_chapters": total,
+                "completed_chapters": completed,
+                "pending_chapters": pending,
+            }
+            if book_author:
+                payload["author"] = book_author
+            cover_url = _cover_url(book_dir.name, cover_path)
+            if cover_url:
+                payload["cover_url"] = cover_url
+            books_payload.append(payload)
         return JSONResponse({"books": books_payload})
 
     @app.get("/api/books/{book_id}/chapters")
@@ -944,9 +1142,15 @@ def create_app(config: WebConfig) -> FastAPI:
         book_path = root / book_id
         if not book_path.is_dir():
             raise HTTPException(status_code=404, detail="Book not found")
+        metadata, book_title, book_author, cover_path = _book_media_info(book_path)
         chapters = _list_chapters(book_path)
         states = [
-            _chapter_state(chapter, config, idx + 1)
+            _chapter_state(
+                chapter,
+                config,
+                idx + 1,
+                chapter_meta=metadata.chapters.get(chapter.name) if metadata else None,
+            )
             for idx, chapter in enumerate(chapters)
         ]
         summary = {
@@ -954,7 +1158,22 @@ def create_app(config: WebConfig) -> FastAPI:
             "completed": sum(1 for st in states if st["mp3_exists"]),
             "pending": sum(1 for st in states if not st["mp3_exists"]),
         }
-        return JSONResponse({"chapters": states, "summary": summary})
+        media_payload = {
+            "album": book_title,
+            "artist": book_author or book_title,
+            "cover_url": _cover_url(book_id, cover_path),
+        }
+        return JSONResponse({"chapters": states, "summary": summary, "media": media_payload})
+
+    @app.get("/api/books/{book_id}/cover")
+    def api_cover(book_id: str) -> FileResponse:
+        book_path = root / book_id
+        if not book_path.is_dir():
+            raise HTTPException(status_code=404, detail="Book not found")
+        _, _, _, cover_path = _book_media_info(book_path)
+        if cover_path is None or not cover_path.exists():
+            raise HTTPException(status_code=404, detail="Cover not found")
+        return FileResponse(cover_path)
 
     @app.post("/api/books/{book_id}/chapters/{chapter_id}/prepare")
     async def api_prepare_chapter(
