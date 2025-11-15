@@ -16,3 +16,4 @@ books/
 *.wav
 tests/test_regressions.py
 tests/artifacts
+!src/nk/data

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "text_sha1": "29688944acb9a1bbe09ee5214d17b85e5be29857",
+  "text_sha1": "a4802b5e102b2ac93eea09943de34a11cbcbb257",
   "tokens": [
     {
       "surface": "第",
@@ -64,15 +64,6 @@
       "pos": "名詞",
       "start": 30,
       "end": 32
-    },
-    {
-      "surface": "毎日",
-      "reading": "マイニチ",
-      "accent": null,
-      "connection": "C1",
-      "pos": "名詞",
-      "start": 33,
-      "end": 37
     },
     {
       "surface": "毎夜",
@@ -172,15 +163,6 @@
       "pos": "名詞",
       "start": 106,
       "end": 108
-    },
-    {
-      "surface": "太陽",
-      "reading": "タイヨウ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
-      "start": 119,
-      "end": 123
     },
     {
       "surface": "出る",
@@ -435,15 +417,6 @@
       "end": 320
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 320,
-      "end": 323
-    },
-    {
       "surface": "船",
       "reading": "フネ",
       "accent": 1,
@@ -532,15 +505,6 @@
       "pos": "名詞",
       "start": 375,
       "end": 377
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 385,
-      "end": 388
     },
     {
       "surface": "見",
@@ -786,15 +750,6 @@
       "end": 567
     },
     {
-      "surface": "大勢",
-      "reading": "オオゼイ",
-      "accent": null,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 568,
-      "end": 572
-    },
-    {
       "surface": "寄っ",
       "reading": "ヨッ",
       "accent": 0,
@@ -811,24 +766,6 @@
       "pos": "形容詞",
       "start": 576,
       "end": 579
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 593,
-      "end": 596
-    },
-    {
-      "surface": "大変",
-      "reading": "タイヘン",
-      "accent": 0,
-      "connection": null,
-      "pos": "副詞",
-      "start": 597,
-      "end": 601
     },
     {
       "surface": "心細く",
@@ -1011,24 +948,6 @@
       "end": 752
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 756,
-      "end": 759
-    },
-    {
-      "surface": "大変",
-      "reading": "タイヘン",
-      "accent": 0,
-      "connection": null,
-      "pos": "副詞",
-      "start": 760,
-      "end": 764
-    },
-    {
       "surface": "心細かっ",
       "reading": "ココロボソカッ",
       "accent": 5,
@@ -1146,15 +1065,6 @@
       "end": 867
     },
     {
-      "surface": "一人",
-      "reading": "ヒトリ",
-      "accent": 2,
-      "connection": "C1",
-      "pos": "名詞",
-      "start": 868,
-      "end": 871
-    },
-    {
       "surface": "女",
       "reading": "オンナ",
       "accent": 3,
@@ -1218,15 +1128,6 @@
       "end": 914
     },
     {
-      "surface": "洋服",
-      "reading": "ヨウフク",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 931,
-      "end": 935
-    },
-    {
       "surface": "着",
       "reading": "キ",
       "accent": 0,
@@ -1272,15 +1173,6 @@
       "end": 957
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 959,
-      "end": 962
-    },
-    {
       "surface": "気",
       "reading": "キ",
       "accent": 0,
@@ -1317,15 +1209,6 @@
       "end": 994
     },
     {
-      "surface": "一人",
-      "reading": "ヒトリ",
-      "accent": 2,
-      "connection": "C1",
-      "pos": "名詞",
-      "start": 996,
-      "end": 999
-    },
-    {
       "surface": "星",
       "reading": "ホシ",
       "accent": 0,
@@ -1342,15 +1225,6 @@
       "pos": "動詞",
       "start": 1003,
       "end": 1006
-    },
-    {
-      "surface": "一人",
-      "reading": "ヒトリ",
-      "accent": 2,
-      "connection": "C1",
-      "pos": "名詞",
-      "start": 1011,
-      "end": 1014
     },
     {
       "surface": "異人",
@@ -1371,22 +1245,13 @@
       "end": 1020
     },
     {
-      "surface": "天文",
-      "reading": "テンモン",
-      "accent": 0,
-      "connection": "C2",
+      "surface": "天",
+      "reading": "テン",
+      "accent": 1,
+      "connection": "C3",
       "pos": "名詞",
       "start": 1022,
-      "end": 1026
-    },
-    {
-      "surface": "学",
-      "reading": "ガク",
-      "accent": null,
-      "connection": "C3",
-      "pos": "接尾辞",
-      "start": 1026,
-      "end": 1028
+      "end": 1024
     },
     {
       "surface": "知っ",
@@ -1407,15 +1272,6 @@
       "end": 1038
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1040,
-      "end": 1043
-    },
-    {
       "surface": "死のう",
       "reading": "シノウ",
       "accent": 0,
@@ -1434,22 +1290,13 @@
       "end": 1060
     },
     {
-      "surface": "天文",
-      "reading": "テンモン",
-      "accent": 0,
-      "connection": "C2",
+      "surface": "天",
+      "reading": "テン",
+      "accent": 1,
+      "connection": "C3",
       "pos": "名詞",
       "start": 1064,
-      "end": 1068
-    },
-    {
-      "surface": "学",
-      "reading": "ガク",
-      "accent": null,
-      "connection": "C3",
-      "pos": "接尾辞",
-      "start": 1068,
-      "end": 1070
+      "end": 1066
     },
     {
       "surface": "知る",
@@ -1459,15 +1306,6 @@
       "pos": "動詞",
       "start": 1073,
       "end": 1075
-    },
-    {
-      "surface": "必要",
-      "reading": "ヒツヨウ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1075,
-      "end": 1079
     },
     {
       "surface": "黙っ",
@@ -1551,24 +1389,6 @@
       "end": 1157
     },
     {
-      "surface": "最後",
-      "reading": "サイゴ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
-      "start": 1159,
-      "end": 1162
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1163,
-      "end": 1166
-    },
-    {
       "surface": "神",
       "reading": "カミ",
       "accent": 1,
@@ -1594,15 +1414,6 @@
       "pos": "動詞",
       "start": 1178,
       "end": 1181
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1183,
-      "end": 1186
     },
     {
       "surface": "空",
@@ -1704,15 +1515,6 @@
       "end": 1263
     },
     {
-      "surface": "立派",
-      "reading": "リッパ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "形状詞",
-      "start": 1263,
-      "end": 1266
-    },
-    {
       "surface": "男",
       "reading": "オトコ",
       "accent": 3,
@@ -1747,15 +1549,6 @@
       "pos": "名詞",
       "start": 1289,
       "end": 1291
-    },
-    {
-      "surface": "大変",
-      "reading": "タイヘン",
-      "accent": 0,
-      "connection": null,
-      "pos": "副詞",
-      "start": 1292,
-      "end": 1296
     },
     {
       "surface": "大きく",
@@ -1794,15 +1587,6 @@
       "end": 1315
     },
     {
-      "surface": "以外",
-      "reading": "イガイ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
-      "start": 1315,
-      "end": 1318
-    },
-    {
       "surface": "事",
       "reading": "コト",
       "accent": 2,
@@ -1810,15 +1594,6 @@
       "pos": "名詞",
       "start": 1319,
       "end": 1321
-    },
-    {
-      "surface": "様子",
-      "reading": "ヨウス",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1336,
-      "end": 1339
     },
     {
       "surface": "船",
@@ -1855,15 +1630,6 @@
       "pos": "動詞",
       "start": 1356,
       "end": 1359
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1372,
-      "end": 1375
     },
     {
       "surface": "死ぬ",
@@ -1954,15 +1720,6 @@
       "pos": "動詞",
       "start": 1439,
       "end": 1443
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1451,
-      "end": 1454
     },
     {
       "surface": "足",
@@ -2073,15 +1830,6 @@
       "end": 1530
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1531,
-      "end": 1534
-    },
-    {
       "surface": "応",
       "reading": "コタエ",
       "accent": null,
@@ -2107,15 +1855,6 @@
       "pos": "名詞",
       "start": 1547,
       "end": 1549
-    },
-    {
-      "surface": "大変",
-      "reading": "タイヘン",
-      "accent": 0,
-      "connection": null,
-      "pos": "副詞",
-      "start": 1564,
-      "end": 1568
     },
     {
       "surface": "高く",
@@ -2334,15 +2073,6 @@
       "end": 1711
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1717,
-      "end": 1720
-    },
-    {
       "surface": "行く",
       "reading": "イク",
       "accent": 0,
@@ -2415,15 +2145,6 @@
       "end": 1775
     },
     {
-      "surface": "利用",
-      "reading": "リヨウ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1776,
-      "end": 1779
-    },
-    {
       "surface": "事",
       "reading": "コト",
       "accent": 2,
@@ -2440,15 +2161,6 @@
       "pos": "名詞",
       "start": 1789,
       "end": 1792
-    },
-    {
-      "surface": "後悔",
-      "reading": "コウカイ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
-      "start": 1793,
-      "end": 1797
     },
     {
       "surface": "恐怖",

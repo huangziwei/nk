@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "text_sha1": "32b5d72da79b9f67fe1dbbed9c3333fbe5c4cae2",
+  "text_sha1": "f28a95c7715bd1a21de7a4eb39fcad7fee0a043c",
   "tokens": [
     {
       "surface": "底本",
@@ -19,15 +19,6 @@
       "pos": "名詞",
       "start": 6,
       "end": 9
-    },
-    {
-      "surface": "漱石",
-      "reading": "ソウセキ",
-      "accent": 1,
-      "connection": null,
-      "pos": "名詞",
-      "start": 9,
-      "end": 13
     },
     {
       "surface": "全集",
@@ -75,15 +66,6 @@
       "end": 37
     },
     {
-      "surface": "昭和",
-      "reading": "ショウワ",
-      "accent": null,
-      "connection": null,
-      "pos": "名詞",
-      "start": 47,
-      "end": 51
-    },
-    {
       "surface": "年",
       "reading": "ネン",
       "accent": 1,
@@ -125,8 +107,8 @@
       "accent": null,
       "connection": "C4",
       "pos": "接尾辞",
-      "start": 66,
-      "end": 68
+      "start": 67,
+      "end": 69
     },
     {
       "surface": "発行",
@@ -134,17 +116,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 68,
-      "end": 72
-    },
-    {
-      "surface": "平成",
-      "reading": "ヘイセイ",
-      "accent": 0,
-      "connection": null,
-      "pos": "名詞",
-      "start": 82,
-      "end": 86
+      "start": 69,
+      "end": 73
     },
     {
       "surface": "年",
@@ -152,8 +125,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 88,
-      "end": 90
+      "start": 89,
+      "end": 91
     },
     {
       "surface": "月",
@@ -161,8 +134,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 91,
-      "end": 93
+      "start": 92,
+      "end": 94
     },
     {
       "surface": "日",
@@ -170,8 +143,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 95,
-      "end": 97
+      "start": 96,
+      "end": 98
     },
     {
       "surface": "第",
@@ -179,8 +152,8 @@
       "accent": null,
       "connection": "P13",
       "pos": "接頭辞",
-      "start": 97,
-      "end": 99
+      "start": 98,
+      "end": 100
     },
     {
       "surface": "刷",
@@ -188,8 +161,8 @@
       "accent": null,
       "connection": "C4",
       "pos": "接尾辞",
-      "start": 100,
-      "end": 102
+      "start": 101,
+      "end": 103
     },
     {
       "surface": "発行",
@@ -197,8 +170,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 102,
-      "end": 106
+      "start": 103,
+      "end": 107
     },
     {
       "surface": "底本",
@@ -206,8 +179,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 108,
-      "end": 112
+      "start": 109,
+      "end": 113
     },
     {
       "surface": "親本",
@@ -215,8 +188,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 113,
-      "end": 117
+      "start": 114,
+      "end": 118
     },
     {
       "surface": "筑摩",
@@ -224,8 +197,8 @@
       "accent": 1,
       "connection": null,
       "pos": "名詞",
-      "start": 119,
-      "end": 122
+      "start": 120,
+      "end": 123
     },
     {
       "surface": "全集",
@@ -233,8 +206,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 122,
-      "end": 127
+      "start": 123,
+      "end": 128
     },
     {
       "surface": "類聚",
@@ -242,8 +215,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "名詞",
-      "start": 127,
-      "end": 132
+      "start": 128,
+      "end": 133
     },
     {
       "surface": "版",
@@ -251,8 +224,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 132,
-      "end": 134
+      "start": 133,
+      "end": 135
     },
     {
       "surface": "夏目",
@@ -260,17 +233,8 @@
       "accent": 0,
       "connection": null,
       "pos": "名詞",
-      "start": 134,
-      "end": 137
-    },
-    {
-      "surface": "漱石",
-      "reading": "ソウセキ",
-      "accent": 1,
-      "connection": null,
-      "pos": "名詞",
-      "start": 137,
-      "end": 141
+      "start": 135,
+      "end": 138
     },
     {
       "surface": "全集",
@@ -278,8 +242,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 141,
-      "end": 146
+      "start": 142,
+      "end": 147
     },
     {
       "surface": "筑摩",
@@ -287,8 +251,8 @@
       "accent": 1,
       "connection": null,
       "pos": "名詞",
-      "start": 147,
-      "end": 150
+      "start": 148,
+      "end": 151
     },
     {
       "surface": "書房",
@@ -296,17 +260,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 150,
-      "end": 154
-    },
-    {
-      "surface": "昭和",
-      "reading": "ショウワ",
-      "accent": null,
-      "connection": null,
-      "pos": "名詞",
-      "start": 164,
-      "end": 168
+      "start": 151,
+      "end": 155
     },
     {
       "surface": "年",
@@ -314,8 +269,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 171,
-      "end": 173
+      "start": 172,
+      "end": 174
     },
     {
       "surface": "月",
@@ -323,17 +278,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 174,
-      "end": 176
-    },
-    {
-      "surface": "昭和",
-      "reading": "ショウワ",
-      "accent": null,
-      "connection": null,
-      "pos": "名詞",
-      "start": 182,
-      "end": 186
+      "start": 175,
+      "end": 177
     },
     {
       "surface": "年",
@@ -341,17 +287,17 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 189,
-      "end": 191
+      "start": 190,
+      "end": 192
     },
     {
       "surface": "月",
-      "reading": "ガツ",
-      "accent": 1,
+      "reading": "ツキ",
+      "accent": 2,
       "connection": "C3",
       "pos": "名詞",
-      "start": 192,
-      "end": 194
+      "start": 194,
+      "end": 196
     },
     {
       "surface": "底本",
@@ -359,8 +305,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 197,
-      "end": 201
+      "start": 199,
+      "end": 203
     },
     {
       "surface": "物",
@@ -368,8 +314,8 @@
       "accent": null,
       "connection": "C4",
       "pos": "名詞",
-      "start": 203,
-      "end": 205
+      "start": 205,
+      "end": 207
     },
     {
       "surface": "数える",
@@ -377,8 +323,8 @@
       "accent": 3,
       "connection": "C1",
       "pos": "動詞",
-      "start": 206,
-      "end": 210
+      "start": 208,
+      "end": 212
     },
     {
       "surface": "際",
@@ -386,8 +332,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 210,
-      "end": 212
+      "start": 212,
+      "end": 214
     },
     {
       "surface": "地名",
@@ -395,8 +341,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 213,
-      "end": 216
+      "start": 215,
+      "end": 218
     },
     {
       "surface": "用いる",
@@ -404,8 +350,8 @@
       "accent": null,
       "connection": "C1",
       "pos": "動詞",
-      "start": 219,
-      "end": 223
+      "start": 221,
+      "end": 225
     },
     {
       "surface": "ヶ",
@@ -413,8 +359,8 @@
       "accent": null,
       "connection": "動詞%F2@0,名詞%F1",
       "pos": "助詞",
-      "start": 224,
-      "end": 225
+      "start": 226,
+      "end": 227
     },
     {
       "surface": "区点",
@@ -422,17 +368,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 227,
-      "end": 230
-    },
-    {
-      "surface": "番号",
-      "reading": "バンゴウ",
-      "accent": 3,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 230,
-      "end": 234
+      "start": 229,
+      "end": 232
     },
     {
       "surface": "大振り",
@@ -440,26 +377,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "形状詞",
-      "start": 241,
-      "end": 245
-    },
-    {
-      "surface": "入力",
-      "reading": "ニュウリョク",
-      "accent": null,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 256,
-      "end": 262
-    },
-    {
-      "surface": "野口",
-      "reading": "ノグチ",
-      "accent": 1,
-      "connection": null,
-      "pos": "名詞",
-      "start": 263,
-      "end": 266
+      "start": 243,
+      "end": 247
     },
     {
       "surface": "英司",
@@ -467,8 +386,8 @@
       "accent": 1,
       "connection": null,
       "pos": "名詞",
-      "start": 266,
-      "end": 269
+      "start": 268,
+      "end": 271
     },
     {
       "surface": "年",
@@ -476,8 +395,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 275,
-      "end": 277
+      "start": 277,
+      "end": 279
     },
     {
       "surface": "月",
@@ -485,8 +404,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 279,
-      "end": 281
+      "start": 281,
+      "end": 283
     },
     {
       "surface": "日",
@@ -494,17 +413,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 283,
-      "end": 285
-    },
-    {
-      "surface": "公開",
-      "reading": "コウカイ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
       "start": 285,
-      "end": 289
+      "end": 287
     },
     {
       "surface": "年",
@@ -512,8 +422,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 295,
-      "end": 297
+      "start": 298,
+      "end": 300
     },
     {
       "surface": "月",
@@ -521,8 +431,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 298,
-      "end": 300
+      "start": 301,
+      "end": 303
     },
     {
       "surface": "日",
@@ -530,8 +440,8 @@
       "accent": null,
       "connection": "C4",
       "pos": "接尾辞",
-      "start": 302,
-      "end": 303
+      "start": 305,
+      "end": 306
     },
     {
       "surface": "修正",
@@ -539,8 +449,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 303,
-      "end": 308
+      "start": 306,
+      "end": 311
     },
     {
       "surface": "青空",
@@ -548,8 +458,8 @@
       "accent": 3,
       "connection": "C1",
       "pos": "名詞",
-      "start": 310,
-      "end": 314
+      "start": 313,
+      "end": 317
     },
     {
       "surface": "文庫",
@@ -557,8 +467,8 @@
       "accent": null,
       "connection": "C2",
       "pos": "名詞",
-      "start": 314,
-      "end": 317
+      "start": 317,
+      "end": 320
     },
     {
       "surface": "作成",
@@ -566,26 +476,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 317,
-      "end": 321
-    },
-    {
-      "surface": "図書",
-      "reading": "トショ",
-      "accent": 1,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": 344,
-      "end": 347
-    },
-    {
-      "surface": "館",
-      "reading": "カン",
-      "accent": null,
-      "connection": "C3",
-      "pos": "接尾辞",
-      "start": 347,
-      "end": 349
+      "start": 320,
+      "end": 324
     },
     {
       "surface": "青空",
@@ -593,8 +485,8 @@
       "accent": 3,
       "connection": "C1",
       "pos": "名詞",
-      "start": 350,
-      "end": 354
+      "start": 353,
+      "end": 357
     },
     {
       "surface": "文庫",
@@ -602,8 +494,8 @@
       "accent": null,
       "connection": "C2",
       "pos": "名詞",
-      "start": 354,
-      "end": 357
+      "start": 357,
+      "end": 360
     },
     {
       "surface": "作ら",
@@ -611,17 +503,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "start": 384,
-      "end": 387
-    },
-    {
-      "surface": "入力",
-      "reading": "ニュウリョク",
-      "accent": null,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 392,
-      "end": 398
+      "start": 387,
+      "end": 390
     },
     {
       "surface": "校正",
@@ -629,8 +512,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 399,
-      "end": 403
+      "start": 402,
+      "end": 406
     },
     {
       "surface": "制作",
@@ -638,8 +521,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "start": 404,
-      "end": 408
+      "start": 407,
+      "end": 411
     },
     {
       "surface": "皆",
@@ -647,8 +530,8 @@
       "accent": null,
       "connection": "C3",
       "pos": "名詞",
-      "start": 423,
-      "end": 425
+      "start": 426,
+      "end": 428
     }
   ]
 }

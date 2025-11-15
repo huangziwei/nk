@@ -16,6 +16,9 @@ class _MockNLP:
             return {"オンスイ"}
         return set()
 
+    def to_reading_text(self, text: str) -> str:
+        return text
+
 
 def _soup(html: str) -> BeautifulSoup:
     return BeautifulSoup(html, "html.parser")
@@ -49,6 +52,9 @@ def test_name_ruby_with_dict_mismatch_is_preserved() -> None:
                 return {"ウマシメ"}
             return set()
 
+        def to_reading_text(self, text: str) -> str:
+            return text
+
     html = """
     <p>
       <ruby><rb>馬締</rb><rt>まじめ</rt></ruby>が来た。
@@ -67,6 +73,9 @@ def test_small_kana_alignment_prefers_dictionary_variant() -> None:
                 return {"ミャザキ"}
             return set()
 
+        def to_reading_text(self, text: str) -> str:
+            return text
+
     html = """
     <p>
       <ruby><rb>宮崎</rb><rt>みやざき</rt></ruby>に会った。
@@ -76,6 +85,29 @@ def test_small_kana_alignment_prefers_dictionary_variant() -> None:
     accumulators = _collect_reading_counts_from_soup(soup)
     unique, _ = _select_reading_mapping(accumulators, mode="advanced", nlp=_SmallMock())
     assert unique.get("宮崎") == "ミャザキ"
+
+
+def test_suffix_context_allows_nlp_confirmation() -> None:
+    class _SuffixMock:
+        def reading_variants(self, text: str) -> set[str]:
+            if text == "東京":
+                return {"トウキョウ"}
+            return set()
+
+        def to_reading_text(self, text: str) -> str:
+            if text == "東京は":
+                return "アズマキョウハ"
+            return text
+
+    html = """
+    <p>
+      <ruby><rb>東</rb><rt>あずま</rt></ruby><ruby><rb>京</rb><rt>きょう</rt></ruby>は。
+    </p>
+    """
+    soup = _soup(html)
+    accumulators = _collect_reading_counts_from_soup(soup)
+    unique, _ = _select_reading_mapping(accumulators, mode="advanced", nlp=_SuffixMock())
+    assert unique.get("東京") == "アズマキョウ"
 
 
 def test_nlp_backend_preserves_and_reports_kana_forms() -> None:

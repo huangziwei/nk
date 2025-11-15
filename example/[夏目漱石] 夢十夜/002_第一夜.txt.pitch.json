@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "text_sha1": "ae74da39ec08af6bc1ce27ec9b483e3af928ed9d",
+  "text_sha1": "f4aa88c3722fdab4851822530bedfa47ba3da2d0",
   "tokens": [
     {
       "surface": "第",
@@ -327,15 +327,6 @@
       "end": 205
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 207,
-      "end": 210
-    },
-    {
       "surface": "死ぬ",
       "reading": "シヌ",
       "accent": 0,
@@ -516,15 +507,6 @@
       "end": 353
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 355,
-      "end": 358
-    },
-    {
       "surface": "姿",
       "reading": "スガタ",
       "accent": 1,
@@ -541,15 +523,6 @@
       "pos": "動詞",
       "start": 368,
       "end": 371
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 378,
-      "end": 381
     },
     {
       "surface": "深く",
@@ -640,15 +613,6 @@
       "pos": "動詞",
       "start": 446,
       "end": 448
-    },
-    {
-      "surface": "大丈夫",
-      "reading": "ダイジョウブ",
-      "accent": 3,
-      "connection": "C1",
-      "pos": "形状詞",
-      "start": 457,
-      "end": 463
     },
     {
       "surface": "聞き返し",
@@ -804,15 +768,6 @@
       "end": 605
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 607,
-      "end": 610
-    },
-    {
       "surface": "黙っ",
       "reading": "ダマッ",
       "accent": 2,
@@ -919,15 +874,6 @@
       "pos": "連体詞",
       "start": 693,
       "end": 697
-    },
-    {
-      "surface": "真珠",
-      "reading": "シンジュ",
-      "accent": 0,
-      "connection": null,
-      "pos": "名詞",
-      "start": 697,
-      "end": 701
     },
     {
       "surface": "貝",
@@ -1054,15 +1000,6 @@
       "pos": "動詞",
       "start": 771,
       "end": 772
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 780,
-      "end": 783
     },
     {
       "surface": "逢い",
@@ -1227,15 +1164,6 @@
       "end": 894
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 905,
-      "end": 908
-    },
-    {
       "surface": "黙っ",
       "reading": "ダマッ",
       "accent": 2,
@@ -1261,15 +1189,6 @@
       "pos": "形状詞",
       "start": 923,
       "end": 926
-    },
-    {
-      "surface": "調子",
-      "reading": "チョウシ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 927,
-      "end": 931
     },
     {
       "surface": "一",
@@ -1443,15 +1362,6 @@
       "end": 1015
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1023,
-      "end": 1026
-    },
-    {
       "surface": "待っ",
       "reading": "マッ",
       "accent": 1,
@@ -1486,15 +1396,6 @@
       "pos": "動詞",
       "start": 1059,
       "end": 1061
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1062,
-      "end": 1065
     },
     {
       "surface": "姿",
@@ -1668,15 +1569,6 @@
       "end": 1163
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1170,
-      "end": 1173
-    },
-    {
       "surface": "庭",
       "reading": "ニワ",
       "accent": 0,
@@ -1693,15 +1585,6 @@
       "pos": "動詞",
       "start": 1181,
       "end": 1183
-    },
-    {
-      "surface": "真珠",
-      "reading": "シンジュ",
-      "accent": 0,
-      "connection": null,
-      "pos": "名詞",
-      "start": 1185,
-      "end": 1189
     },
     {
       "surface": "貝",
@@ -1729,15 +1612,6 @@
       "pos": "動詞",
       "start": 1195,
       "end": 1197
-    },
-    {
-      "surface": "真珠",
-      "reading": "シンジュ",
-      "accent": 0,
-      "connection": null,
-      "pos": "名詞",
-      "start": 1199,
-      "end": 1203
     },
     {
       "surface": "貝",
@@ -1918,15 +1792,6 @@
       "pos": "動詞",
       "start": 1326,
       "end": 1329
-    },
-    {
-      "surface": "真珠",
-      "reading": "シンジュ",
-      "accent": 0,
-      "connection": null,
-      "pos": "名詞",
-      "start": 1332,
-      "end": 1336
     },
     {
       "surface": "貝",
@@ -2136,15 +2001,6 @@
       "end": 1458
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1462,
-      "end": 1465
-    },
-    {
       "surface": "胸",
       "reading": "ムネ",
       "accent": 2,
@@ -2179,15 +2035,6 @@
       "pos": "形容詞",
       "start": 1474,
       "end": 1479
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1486,
-      "end": 1489
     },
     {
       "surface": "上",
@@ -2442,15 +2289,6 @@
       "end": 1642
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1644,
-      "end": 1647
-    },
-    {
       "surface": "来",
       "reading": "キ",
       "accent": 1,
@@ -2485,15 +2323,6 @@
       "pos": "名詞",
       "start": 1708,
       "end": 1710
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1725,
-      "end": 1728
     },
     {
       "surface": "云う",
@@ -2685,15 +2514,6 @@
       "end": 1858
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1860,
-      "end": 1863
-    },
-    {
       "surface": "女",
       "reading": "オンナ",
       "accent": 3,
@@ -2728,15 +2548,6 @@
       "pos": "名詞",
       "start": 1898,
       "end": 1900
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1905,
-      "end": 1908
     },
     {
       "surface": "方",
@@ -2809,15 +2620,6 @@
       "pos": "形容詞",
       "start": 1931,
       "end": 1934
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 1941,
-      "end": 1944
     },
     {
       "surface": "胸",
@@ -2982,15 +2784,6 @@
       "end": 2082
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 2083,
-      "end": 2086
-    },
-    {
       "surface": "重み",
       "reading": "オモミ",
       "accent": 0,
@@ -3007,15 +2800,6 @@
       "pos": "動詞",
       "start": 2096,
       "end": 2099
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 2101,
-      "end": 2104
     },
     {
       "surface": "首",
@@ -3070,15 +2854,6 @@
       "pos": "形容詞",
       "start": 2125,
       "end": 2128
-    },
-    {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": 2140,
-      "end": 2143
     },
     {
       "surface": "顔",

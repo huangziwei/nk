@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import warnings
 import unicodedata
@@ -7,12 +8,18 @@ import xml.etree.ElementTree as ET
 import zipfile
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field, replace
+import json
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Literal
 from urllib.parse import unquote
+try:
+    from importlib import resources
+except ImportError:  # pragma: no cover
+    import importlib_resources as resources  # type: ignore
 
 from bs4 import (
     BeautifulSoup,
+    Doctype,
     FeatureNotFound,
     NavigableString,
     Tag,
@@ -110,8 +117,16 @@ class _ReadingAccumulator:
     flags: dict[str, _ReadingFlags] = field(default_factory=dict)
     total: int = 0
     single_kanji_only: bool | None = None
+    suffix_counts: Counter[str] = field(default_factory=Counter)
 
-    def register(self, base: str, reading: str, raw_reading: str, has_hiragana: bool) -> None:
+    def register(
+        self,
+        base: str,
+        reading: str,
+        raw_reading: str,
+        has_hiragana: bool,
+        suffix: str,
+    ) -> None:
         self.total += 1
         self.counts[reading] += 1
         flags = self.flags.setdefault(reading, _ReadingFlags())
@@ -121,6 +136,8 @@ class _ReadingAccumulator:
         )
         flags.has_middle_dot = flags.has_middle_dot or ("・" in raw_reading)
         flags.has_long_mark = flags.has_long_mark or ("ー" in raw_reading)
+        if suffix:
+            self.suffix_counts[suffix] += 1
         single_occurrence = _is_single_kanji_base(base)
         if self.single_kanji_only is None:
             self.single_kanji_only = single_occurrence
@@ -141,6 +158,10 @@ class _ReadingAccumulator:
             flags.has_latin = flags.has_latin or other_flags.has_latin
             flags.has_middle_dot = flags.has_middle_dot or other_flags.has_middle_dot
             flags.has_long_mark = flags.has_long_mark or other_flags.has_long_mark
+        self.suffix_counts.update(other.suffix_counts)
+
+
+_CORPUS_READING_CACHE: dict[str, _ReadingAccumulator] | None = None
 
 
 @dataclass
@@ -960,6 +981,87 @@ def _is_kana_string(text: str) -> bool:
     return True
 
 
+def _collect_kana_suffix(ruby: Tag) -> str:
+    """
+    Capture contiguous kana characters immediately following a <ruby>.
+    Used to provide additional context (okurigana) when validating readings.
+    """
+    suffix_chars: list[str] = []
+    node = ruby.next_sibling
+    while node is not None:
+        if isinstance(node, NavigableString):
+            text = str(node)
+        elif isinstance(node, Tag):
+            if node.name in ("rt", "rp"):
+                node = node.next_sibling
+                continue
+            if node.name == "ruby":
+                break
+            text = "".join(node.stripped_strings)
+        else:
+            break
+        idx = 0
+        while idx < len(text):
+            ch = text[idx]
+            if ch.isspace():
+                if suffix_chars:
+                    return "".join(suffix_chars)
+                idx += 1
+                continue
+            if _is_hiragana_or_katakana(ch):
+                suffix_chars.append(ch)
+                idx += 1
+                continue
+            return "".join(suffix_chars)
+        node = node.next_sibling
+    return "".join(suffix_chars)
+
+
+def _load_corpus_reading_accumulators() -> dict[str, _ReadingAccumulator]:
+    global _CORPUS_READING_CACHE
+    if _CORPUS_READING_CACHE is not None:
+        return _CORPUS_READING_CACHE
+    cache: dict[str, _ReadingAccumulator] = {}
+    try:
+        data_path = resources.files("nk.data").joinpath("nhk_easy_readings.json")
+        data = json.loads(data_path.read_text("utf-8"))
+    except (FileNotFoundError, ModuleNotFoundError, OSError, json.JSONDecodeError):
+        data = []
+    for entry in data:
+        base_raw = entry.get("base", "")
+        reading_raw = entry.get("reading", "")
+        suffix_raw = entry.get("suffix", "")
+        count = entry.get("count", 0)
+        try:
+            count = int(count)
+        except (TypeError, ValueError):
+            count = 0
+        if not base_raw or not reading_raw or count <= 0:
+            continue
+        base_norm = unicodedata.normalize("NFKC", base_raw)
+        reading_norm = _normalize_katakana(_hiragana_to_katakana(reading_raw))
+        if not reading_norm:
+            continue
+        suffix_norm = _normalize_katakana(_hiragana_to_katakana(suffix_raw or ""))
+        has_hira = any(0x3040 <= ord(ch) <= 0x309F for ch in reading_raw)
+        flags = _ReadingFlags(
+            has_hiragana=has_hira,
+            has_latin=any("LATIN" in unicodedata.name(ch, "") for ch in reading_raw),
+            has_middle_dot="・" in reading_raw,
+            has_long_mark="ー" in reading_raw,
+        )
+        accumulator = _ReadingAccumulator()
+        accumulator.counts[reading_norm] = count
+        accumulator.total = count
+        accumulator.flags[reading_norm] = flags
+        if suffix_norm:
+            accumulator.suffix_counts[suffix_norm] = count
+        accumulator.single_kanji_only = _is_single_kanji_base(base_norm)
+        cache[base_norm] = accumulator
+    _CORPUS_READING_CACHE = cache
+    return cache
+
+
 def _collect_reading_counts_from_soup(soup: BeautifulSoup) -> dict[str, _ReadingAccumulator]:
     accumulators: dict[str, _ReadingAccumulator] = defaultdict(_ReadingAccumulator)
     def _previous_significant_sibling(tag: Tag):
@@ -989,8 +1091,9 @@ def _collect_reading_counts_from_soup(soup: BeautifulSoup) -> dict[str, _Reading
         if not reading_norm or not _is_kana_string(reading_norm):
             continue
         has_hira = any(0x3040 <= ord(ch) <= 0x309F for ch in reading_raw)
+        suffix = _collect_kana_suffix(ruby)
         accumulator = accumulators[base_norm]
-        accumulator.register(base_norm, reading_norm, reading_raw, has_hira)
+        accumulator.register(base_norm, reading_norm, reading_raw, has_hira, suffix)
 
         if not _is_single_kanji_base(base_norm):
             continue
@@ -1030,12 +1133,14 @@ def _collect_reading_counts_from_soup(soup: BeautifulSoup) -> dict[str, _Reading
             any(0x3040 <= ord(ch) <= 0x309F for ch in _ruby_reading_text(tag))
             for tag in group
         )
+        suffix = _collect_kana_suffix(group[-1])
         compound_acc = accumulators[combined_base_norm]
         compound_acc.register(
             combined_base_norm,
             combined_reading_norm,
             combined_reading_raw,
             combined_has_hira,
+            suffix,
         )
     return accumulators
 
@@ -1098,6 +1203,41 @@ def _aligned_variant_for_small_kana(reading: str, variants: set[str]) -> str | N
     return None
 
 
+def _reading_variants_for_base(
+    base: str,
+    accumulator: _ReadingAccumulator,
+    nlp: "NLPBackend",
+) -> set[str]:
+    variants: set[str] = set()
+    if hasattr(nlp, "reading_variants"):
+        try:
+            raw_variants = nlp.reading_variants(base)
+        except Exception:
+            raw_variants = set()
+        if raw_variants:
+            variants.update(raw_variants)
+    if not hasattr(nlp, "to_reading_text"):
+        return variants
+    suffix_entries = [
+        suffix for suffix, _ in accumulator.suffix_counts.most_common(5) if suffix
+    ]
+    seen_suffixes: set[str] = set()
+    for suffix in suffix_entries:
+        if suffix in seen_suffixes:
+            continue
+        seen_suffixes.add(suffix)
+        combined = f"{base}{suffix}"
+        reading = nlp.to_reading_text(combined)
+        reading_norm = _normalize_katakana(_hiragana_to_katakana(reading))
+        suffix_norm = _normalize_katakana(_hiragana_to_katakana(suffix))
+        if suffix_norm and reading_norm.endswith(suffix_norm):
+            reading_norm = reading_norm[: -len(suffix_norm)]
+        reading_norm = reading_norm.strip()
+        if reading_norm:
+            variants.add(reading_norm)
+    return variants
+
+
 def _select_reading_mapping(
     accumulators: dict[str, _ReadingAccumulator],
     mode: PropagationMode,
@@ -1138,7 +1278,7 @@ def _select_reading_mapping(
         else:  # advanced
             if nlp is None:
                 continue
-            variants = nlp.reading_variants(base)
+            variants = _reading_variants_for_base(base, accumulator, nlp)
             if _reading_matches(top_reading, variants):
                 tier3[base] = top_reading
                 continue
@@ -1170,6 +1310,15 @@ def _build_book_mapping(
         partial = _collect_reading_counts_from_soup(soup)
         for base, partial_acc in partial.items():
             accumulators[base].merge_from(partial_acc)
+    if mode == "advanced":
+        corpus_accumulators = _load_corpus_reading_accumulators()
+        if corpus_accumulators:
+            for base, corpus_acc in corpus_accumulators.items():
+                existing = accumulators.get(base)
+                if existing is None:
+                    existing = accumulators[base]
+                if existing.total == 0:
+                    existing.merge_from(corpus_acc)
     return _select_reading_mapping(accumulators, mode, nlp)
 
 
@@ -1204,6 +1353,13 @@ def _collapse_ruby_to_readings(soup: BeautifulSoup) -> None:
 
 
 def _strip_html_to_text(soup: BeautifulSoup) -> str:
+    for node in list(soup.contents):
+        if isinstance(node, Doctype):
+            node.extract()
+        elif isinstance(node, NavigableString):
+            stripped = str(node).strip()
+            if stripped and stripped.upper().startswith("HTML PUBLIC"):
+                node.extract()
     # Remove rp/script/style
     for t in soup.find_all(["rp", "script", "style"]):
         t.decompose()
@@ -1301,10 +1457,10 @@ def epub_to_chapter_texts(
             _insert_nav_markers(original_soup, nav_entries_for_file)
             original_plain_text = _strip_html_to_text(original_soup)
             soup = _soup_from_html(html)
-            _insert_nav_markers(soup, nav_entries_for_file)
             # 1) propagate: replace base outside ruby using the global mapping
             _replace_outside_ruby_with_readings(soup, unique_mapping)
             _replace_outside_ruby_with_readings(soup, common_mapping)
+            _insert_nav_markers(soup, nav_entries_for_file)
             # 2) drop bases inside ruby, keep only readings
             _collapse_ruby_to_readings(soup)
             # 3) strip remaining html to text
