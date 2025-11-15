@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import shutil
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -76,6 +78,9 @@ INDEX_HTML = """<!DOCTYPE html>
       margin: 0;
       background: var(--bg);
       color: var(--text);
+    }
+    .hidden {
+      display: none !important;
     }
     header {
       padding: 1.3rem 1.6rem 1rem;
@@ -164,6 +169,10 @@ INDEX_HTML = """<!DOCTYPE html>
     .badge.muted {
       background: rgba(148, 163, 184, 0.2);
       color: #cbd5f5;
+    }
+    .badge.danger {
+      background: rgba(248, 113, 113, 0.25);
+      color: #fecaca;
     }
     button {
       border: none;
@@ -352,7 +361,7 @@ INDEX_HTML = """<!DOCTYPE html>
 </head>
 <body>
   <header>
-    <h1>nk VoiceVox Player</h1>
+    <h1>nk Player</h1>
     <p>Play chapterized TXT files with VoiceVox. Chapters without MP3s will be rendered before playback.</p>
   </header>
   <main>
@@ -415,6 +424,7 @@ INDEX_HTML = """<!DOCTYPE html>
       autoAdvance: false,
       media: null,
     };
+    let statusPollHandle = null;
 
     function formatTrackNumber(num) {
       if (typeof num !== 'number' || !Number.isFinite(num)) return '';
@@ -570,17 +580,99 @@ INDEX_HTML = """<!DOCTYPE html>
       });
     }
 
-    function chapterStatusText(ch) {
+    function chapterStatusInfo(ch) {
+      const status = ch.build_status;
+      if (status) {
+        if (status.state === 'building') {
+          const total = typeof status.chunk_count === 'number' && status.chunk_count > 0 ? status.chunk_count : null;
+          const current = typeof status.chunk_index === 'number' && status.chunk_index > 0 ? status.chunk_index : 0;
+          let label = 'Building...';
+          if (total) {
+            label = current > 0 ? `Building ${Math.min(current, total)}/${total}` : `Building 0/${total}`;
+          } else if (current > 0) {
+            label = `Building chunk ${current}`;
+          }
+          return { label, className: 'warning' };
+        }
+        if (status.state === 'error') {
+          return { label: 'Failed', className: 'danger' };
+        }
+      }
       if (ch.mp3_exists) {
-        return 'Ready';
+        return { label: 'Ready', className: 'success' };
       }
       if (ch.has_cache && ch.total_chunks) {
-        return `Cached (${ch.total_chunks} chunks)`;
+        return { label: `Cached (${ch.total_chunks} chunks)`, className: 'muted' };
       }
       if (ch.has_cache) {
-        return 'Cached';
+        return { label: 'Cached', className: 'muted' };
       }
-      return 'Pending';
+      return { label: 'Pending', className: 'warning' };
+    }
+
+    function updateChapterStatusUI() {
+      const nodes = chaptersList.querySelectorAll('.chapter');
+      nodes.forEach(node => {
+        const chapterId = node.dataset.chapterId;
+        if (!chapterId) return;
+        const chapter = state.chapters.find(ch => ch.id === chapterId);
+        if (!chapter) return;
+        const statusInfo = chapterStatusInfo(chapter);
+        const statusEl = node.querySelector('[data-role="status-label"]');
+        if (statusEl) {
+          statusEl.textContent = statusInfo.label;
+          statusEl.className = statusInfo.className ? `badge ${statusInfo.className}` : 'badge';
+        }
+        const chunkEl = node.querySelector('[data-role="chunk-label"]');
+        if (chunkEl) {
+          if (chapter.total_chunks) {
+            chunkEl.textContent = `${chapter.total_chunks} chunks`;
+            chunkEl.classList.remove('hidden');
+          } else {
+            chunkEl.classList.add('hidden');
+          }
+        }
+      });
+    }
+
+    function applyStatusUpdates(statusMap) {
+      state.chapters.forEach(ch => {
+        const nextStatus = statusMap[ch.id] || null;
+        ch.build_status = nextStatus;
+        if (nextStatus && typeof nextStatus.chunk_count === 'number' && !ch.total_chunks) {
+          ch.total_chunks = nextStatus.chunk_count;
+        }
+      });
+      updateChapterStatusUI();
+    }
+
+    let statusRequestPending = false;
+
+    async function refreshStatuses() {
+      if (!state.currentBook || statusRequestPending) return;
+      statusRequestPending = true;
+      try {
+        const data = await fetchJSON(`/api/books/${encodeURIComponent(state.currentBook.id)}/status`);
+        applyStatusUpdates(data.status || {});
+      } catch (err) {
+        // ignore transient polling errors
+      } finally {
+        statusRequestPending = false;
+      }
+    }
+
+    function startStatusPolling() {
+      if (statusPollHandle || !state.currentBook) return;
+      statusPollHandle = setInterval(refreshStatuses, 2500);
+      refreshStatuses();
+    }
+
+    function stopStatusPolling() {
+      if (statusPollHandle) {
+        clearInterval(statusPollHandle);
+        statusPollHandle = null;
+      }
+      statusRequestPending = false;
     }
 
     function chapterPrimaryLabel(ch) {
@@ -628,6 +720,7 @@ INDEX_HTML = """<!DOCTYPE html>
       state.chapters.forEach((ch, index) => {
         const wrapper = document.createElement('article');
         wrapper.className = 'chapter';
+        wrapper.dataset.chapterId = ch.id;
 
         const header = document.createElement('div');
         header.className = 'chapter-header';
@@ -642,16 +735,22 @@ INDEX_HTML = """<!DOCTYPE html>
         footer.className = 'chapter-footer';
         const statusBadges = document.createElement('div');
         statusBadges.className = 'badges';
-        const statusLabel = chapterStatusText(ch);
-        statusBadges.appendChild(
-          badge(
-            statusLabel,
-            ch.mp3_exists ? 'success' : statusLabel === 'Pending' ? 'warning' : 'muted'
-          )
-        );
+        const statusInfo = chapterStatusInfo(ch);
+        const statusSpan = document.createElement('span');
+        statusSpan.dataset.role = 'status-label';
+        statusSpan.className = statusInfo.className ? `badge ${statusInfo.className}` : 'badge';
+        statusSpan.textContent = statusInfo.label;
+        statusBadges.appendChild(statusSpan);
+
+        const chunkSpan = document.createElement('span');
+        chunkSpan.dataset.role = 'chunk-label';
+        chunkSpan.className = 'badge muted';
         if (ch.total_chunks) {
-          statusBadges.appendChild(badge(`${ch.total_chunks} chunks`, 'muted'));
+          chunkSpan.textContent = `${ch.total_chunks} chunks`;
+        } else {
+          chunkSpan.classList.add('hidden');
         }
+        statusBadges.appendChild(chunkSpan);
         footer.appendChild(statusBadges);
 
         const buttons = document.createElement('div');
@@ -672,6 +771,7 @@ INDEX_HTML = """<!DOCTYPE html>
         chaptersList.appendChild(wrapper);
       });
       updateChapterHighlight();
+      updateChapterStatusUI();
     }
 
     function summaryForChapters() {
@@ -696,6 +796,7 @@ INDEX_HTML = """<!DOCTYPE html>
       if (!preserveSelection) {
         state.autoAdvance = false;
         state.currentChapterIndex = -1;
+        stopStatusPolling();
       }
       try {
         const data = await fetchJSON(`/api/books/${encodeURIComponent(book.id)}/chapters`);
@@ -714,6 +815,7 @@ INDEX_HTML = """<!DOCTYPE html>
         }
         renderChapters(data.summary);
         chaptersPanel.classList.remove('hidden');
+        startStatusPolling();
       } catch (err) {
         alert(`Failed to load chapters: ${err.message}`);
       }
@@ -831,6 +933,7 @@ INDEX_HTML = """<!DOCTYPE html>
     });
 
     backButton.onclick = () => {
+      stopStatusPolling();
       chaptersPanel.classList.add('hidden');
       state.chapters = [];
       state.currentBook = null;
@@ -903,6 +1006,7 @@ def _chapter_state(
     index: int,
     *,
     chapter_meta: ChapterMetadata | None = None,
+    build_status: dict[str, object] | None = None,
 ) -> dict[str, object]:
     target = TTSTarget(source=chapter_path, output=chapter_path.with_suffix(".mp3"))
     cache_dir = _target_cache_dir(config.cache_dir, target)
@@ -916,7 +1020,7 @@ def _chapter_state(
             title = chapter_meta.title
         elif chapter_meta.original_title:
             title = chapter_meta.original_title
-    return {
+    state: dict[str, object] = {
         "id": chapter_path.name,
         "title": title,
         "index": index,
@@ -925,6 +1029,9 @@ def _chapter_state(
         "has_cache": cache_dir.exists(),
         "total_chunks": total_chunks,
     }
+    if build_status:
+        state["build_status"] = build_status
+    return state
 
 
 def _fallback_cover_path(book_dir: Path) -> Path | None:
@@ -965,6 +1072,7 @@ def _synthesize_sequence(
     lock: threading.Lock,
     *,
     force_indices: frozenset[int] | None = None,
+    progress_handler: Callable[[TTSTarget, dict[str, object]], None] | None = None,
 ) -> int:
     if not targets:
         return 0
@@ -1005,20 +1113,30 @@ def _synthesize_sequence(
                         target.output.unlink(missing_ok=True)
                         cache_dir = _target_cache_dir(config.cache_dir, target)
                         shutil.rmtree(cache_dir, ignore_errors=True)
-                    _synthesize_target_with_client(
-                        target,
-                        client,
-                        index=order,
-                        total=total,
-                        ffmpeg_path=config.ffmpeg_path,
-                        overwrite=False,
-                        progress=None,
-                        cache_base=config.cache_dir,
-                        keep_cache=config.keep_cache,
-                        live_playback=False,
-                        playback_callback=None,
-                        live_prebuffer=config.live_prebuffer,
-                    )
+                    progress_callback = None
+                    if progress_handler is not None:
+                        def _adapter(event: dict[str, object], current_target=target) -> None:
+                            progress_handler(current_target, event)
+                        progress_callback = _adapter
+                    try:
+                        _synthesize_target_with_client(
+                            target,
+                            client,
+                            index=order,
+                            total=total,
+                            ffmpeg_path=config.ffmpeg_path,
+                            overwrite=False,
+                            progress=progress_callback,
+                            cache_base=config.cache_dir,
+                            keep_cache=config.keep_cache,
+                            live_playback=False,
+                            playback_callback=None,
+                            live_prebuffer=config.live_prebuffer,
+                        )
+                    except Exception as exc:
+                        if progress_handler is not None:
+                            progress_handler(target, {"event": "target_error", "error": str(exc)})
+                        raise
             finally:
                 client.close()
     return len(work_plan)
@@ -1064,6 +1182,104 @@ def create_app(config: WebConfig) -> FastAPI:
     app.state.voicevox_lock = threading.Lock()
     app.state.prefetch_tasks: dict[str, threading.Thread] = {}
 
+    status_lock = threading.Lock()
+    chapter_status: dict[str, dict[str, dict[str, object]]] = {}
+
+    def _book_id_from_target(target: TTSTarget) -> str:
+        try:
+            rel = target.source.parent.resolve().relative_to(root)
+            if rel.parts:
+                return rel.parts[0]
+        except Exception:
+            pass
+        return target.source.parent.name
+
+    def _set_chapter_status(
+        book_id: str,
+        chapter_id: str,
+        *,
+        state: str | None = None,
+        chunk_index: int | None = None,
+        chunk_count: int | None = None,
+        message: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        now = time.time()
+        with status_lock:
+            book_entry = chapter_status.setdefault(book_id, {})
+            entry = book_entry.get(chapter_id)
+            if entry is None:
+                entry = {}
+            if state is not None:
+                entry["state"] = state
+            if chunk_index is not None:
+                entry["chunk_index"] = int(chunk_index)
+            if chunk_count is not None:
+                entry["chunk_count"] = int(chunk_count)
+            if message is not None:
+                entry["message"] = message
+            if error is not None:
+                entry["error"] = error
+            entry.setdefault("started_at", now)
+            entry["updated_at"] = now
+            book_entry[chapter_id] = entry
+
+    def _clear_chapter_status(book_id: str, chapter_id: str) -> None:
+        with status_lock:
+            book_entry = chapter_status.get(book_id)
+            if not book_entry:
+                return
+            book_entry.pop(chapter_id, None)
+            if not book_entry:
+                chapter_status.pop(book_id, None)
+
+    def _status_snapshot(book_id: str) -> dict[str, dict[str, object]]:
+        with status_lock:
+            book_entry = chapter_status.get(book_id)
+            if not book_entry:
+                return {}
+            return {chapter_id: entry.copy() for chapter_id, entry in book_entry.items()}
+
+    def _record_progress_event(target: TTSTarget, event: dict[str, object]) -> None:
+        book_id = _book_id_from_target(target)
+        chapter_id = target.source.name
+        event_type = event.get("event")
+        if event_type == "target_start":
+            chunk_count = event.get("chunk_count")
+            chunk_total = int(chunk_count) if isinstance(chunk_count, int) else None
+            _set_chapter_status(
+                book_id,
+                chapter_id,
+                state="building",
+                chunk_index=0,
+                chunk_count=chunk_total,
+                message=None,
+                error=None,
+            )
+        elif event_type == "chunk_start":
+            chunk_index = event.get("chunk_index")
+            chunk_count = event.get("chunk_count")
+            _set_chapter_status(
+                book_id,
+                chapter_id,
+                state="building",
+                chunk_index=int(chunk_index) if isinstance(chunk_index, int) else None,
+                chunk_count=int(chunk_count) if isinstance(chunk_count, int) else None,
+            )
+        elif event_type == "target_done":
+            _clear_chapter_status(book_id, chapter_id)
+        elif event_type == "target_skipped":
+            _clear_chapter_status(book_id, chapter_id)
+        elif event_type == "target_error":
+            message = str(event.get("error") or "unknown error")
+            _set_chapter_status(
+                book_id,
+                chapter_id,
+                state="error",
+                message=message,
+                error=message,
+            )
+
     def _spawn_prefetch(
         book_id: str,
         targets: list[TTSTarget],
@@ -1092,6 +1308,7 @@ def create_app(config: WebConfig) -> FastAPI:
                             [target],
                             app.state.voicevox_lock,
                             force_indices=force,
+                            progress_handler=_record_progress_event,
                         )
                     except Exception:
                         break
@@ -1119,6 +1336,7 @@ def create_app(config: WebConfig) -> FastAPI:
         for book_dir in _list_books(root):
             metadata, book_title, book_author, cover_path = _book_media_info(book_dir)
             chapters = _list_chapters(book_dir)
+            status_snapshot = _status_snapshot(book_dir.name)
             states = [
                 _chapter_state(
                     chapter,
@@ -1127,6 +1345,7 @@ def create_app(config: WebConfig) -> FastAPI:
                     chapter_meta=metadata.chapters.get(chapter.name)
                     if metadata
                     else None,
+                    build_status=status_snapshot.get(chapter.name),
                 )
                 for idx, chapter in enumerate(chapters)
             ]
@@ -1155,12 +1374,14 @@ def create_app(config: WebConfig) -> FastAPI:
             raise HTTPException(status_code=404, detail="Book not found")
         metadata, book_title, book_author, cover_path = _book_media_info(book_path)
         chapters = _list_chapters(book_path)
+        status_snapshot = _status_snapshot(book_id)
         states = [
             _chapter_state(
                 chapter,
                 config,
                 idx + 1,
                 chapter_meta=metadata.chapters.get(chapter.name) if metadata else None,
+                build_status=status_snapshot.get(chapter.name),
             )
             for idx, chapter in enumerate(chapters)
         ]
@@ -1177,6 +1398,14 @@ def create_app(config: WebConfig) -> FastAPI:
         return JSONResponse(
             {"chapters": states, "summary": summary, "media": media_payload}
         )
+
+    @app.get("/api/books/{book_id}/status")
+    def api_book_status(book_id: str) -> JSONResponse:
+        book_path = root / book_id
+        if not book_path.is_dir():
+            raise HTTPException(status_code=404, detail="Book not found")
+        statuses = _status_snapshot(book_id)
+        return JSONResponse({"status": statuses})
 
     @app.get("/api/books/{book_id}/cover")
     def api_cover(book_id: str) -> FileResponse:
@@ -1210,6 +1439,7 @@ def create_app(config: WebConfig) -> FastAPI:
                 [target],
                 app.state.voicevox_lock,
                 force_indices=force_indices,
+                progress_handler=_record_progress_event,
             )
 
         try:
@@ -1247,6 +1477,7 @@ def create_app(config: WebConfig) -> FastAPI:
                     [target],
                     app.state.voicevox_lock,
                     force_indices=frozenset(),
+                    progress_handler=_record_progress_event,
                 )
 
             try:
