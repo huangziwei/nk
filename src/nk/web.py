@@ -101,6 +101,7 @@ INDEX_HTML = """<!DOCTYPE html>
     section.panel {
       background: var(--panel);
       border-radius: var(--radius);
+      margin-top: 1rem;
       padding: 1.2rem 1.4rem;
       box-shadow: 0 16px 30px rgba(7, 9, 19, 0.28);
     }
@@ -119,7 +120,8 @@ INDEX_HTML = """<!DOCTYPE html>
       display: grid;
       gap: 1rem;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      justify-content: center;
+      justify-items: center;
+      width: 100%;
     }
     .card {
       background: var(--panel-alt);
@@ -129,8 +131,8 @@ INDEX_HTML = """<!DOCTYPE html>
       flex-direction: column;
       gap: 0.75rem;
       min-height: 160px;
-      width: min(100%, 420px);
-      margin: 0 auto;
+      width: 100%;
+      max-width: 420px;
     }
     .card .title {
       font-size: 1.05rem;
