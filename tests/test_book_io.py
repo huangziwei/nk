@@ -118,9 +118,11 @@ def test_write_book_package_persists_pitch_metadata(tmp_path: Path) -> None:
     assert pitch_path.exists()
     payload = json.loads(pitch_path.read_text(encoding="utf-8"))
     expected_sha1 = hashlib.sha1("アメトアメ".encode("utf-8")).hexdigest()
+    assert payload["version"] == 2
     assert payload["text_sha1"] == expected_sha1
     assert payload["tokens"][0]["accent"] == 1
     assert payload["tokens"][1]["accent"] == 0
+    assert payload["tokens"][0]["sources"] == []
     loaded = load_pitch_metadata(record.path)
     assert loaded is not None
     assert len(loaded.tokens) == 2
@@ -213,4 +215,3 @@ def test_update_book_tts_defaults_merges_fields(tmp_path: Path) -> None:
     assert "pitch" not in updated["tts_defaults"]
 
     assert update_book_tts_defaults(book_dir, {"pitch": None}) is False
-

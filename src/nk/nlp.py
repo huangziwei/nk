@@ -287,6 +287,9 @@ class NLPBackend:
                         accent_type=token.accent_type,
                         accent_connection=token.accent_connection,
                         pos=token.pos,
+                        start=token.start,
+                        end=token.end,
+                        sources=("unidic",),
                     )
                 )
             pos = token.end

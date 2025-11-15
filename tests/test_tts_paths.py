@@ -310,8 +310,26 @@ class _MockVoiceVoxClient:
 
 def test_enrich_pitch_tokens_with_voicevox_overrides_accent() -> None:
     tokens = [
-        PitchToken(surface="小学館", reading="ショウガクカン", accent_type=None, accent_connection=None, pos=None, start=0, end=4),
-        PitchToken(surface="ひらがな", reading="ヒラガナ", accent_type=None, accent_connection=None, pos=None, start=5, end=7),
+        PitchToken(
+            surface="小学館",
+            reading="ショウガクカン",
+            accent_type=None,
+            accent_connection=None,
+            pos=None,
+            start=0,
+            end=4,
+            sources=("unidic",),
+        ),
+        PitchToken(
+            surface="ひらがな",
+            reading="ヒラガナ",
+            accent_type=None,
+            accent_connection=None,
+            pos=None,
+            start=5,
+            end=7,
+            sources=(),
+        ),
     ]
     client = _MockVoiceVoxClient(
         {
@@ -354,8 +372,26 @@ def test_enrich_pitch_tokens_with_voicevox_skips_mismatched_kana() -> None:
 
 def test_enrich_pitch_tokens_with_voicevox_deduplicates_queries() -> None:
     tokens = [
-        PitchToken(surface="小学館", reading="ショウガクカン", accent_type=None, accent_connection=None, pos=None, start=0, end=4),
-        PitchToken(surface="小学館", reading="ショウガクカン", accent_type=None, accent_connection=None, pos=None, start=10, end=14),
+        PitchToken(
+            surface="小学館",
+            reading="ショウガクカン",
+            accent_type=None,
+            accent_connection=None,
+            pos=None,
+            start=0,
+            end=4,
+            sources=("unidic",),
+        ),
+        PitchToken(
+            surface="小学館",
+            reading="ショウガクカン",
+            accent_type=None,
+            accent_connection=None,
+            pos=None,
+            start=10,
+            end=14,
+            sources=("unidic",),
+        ),
     ]
     client = _MockVoiceVoxClient(
         {

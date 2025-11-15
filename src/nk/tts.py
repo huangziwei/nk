@@ -1458,6 +1458,8 @@ def _enrich_pitch_tokens_with_voicevox(
     for token in tokens:
         if not token.surface or not token.reading:
             continue
+        if not token.sources or "unidic" not in token.sources:
+            continue
         if not _contains_kanji(token.surface):
             continue
         normalized_reading = _normalize_kana(token.reading)

@@ -25,6 +25,7 @@ M4B_MANIFEST_FILENAME = "m4b.json"
 _SUPPORTED_COVER_EXTS = (".jpg", ".jpeg", ".png")
 _CUSTOM_PITCH_FILENAME = "custom_pitch.json"
 _PITCH_SUFFIX = ".pitch.json"
+_PITCH_METADATA_VERSION = 2
 
 
 @dataclass
@@ -186,7 +187,7 @@ def _maybe_write_pitch_metadata(chapter_path: Path, chapter: ChapterText) -> Non
         pitch_path.unlink(missing_ok=True)
         return
     payload = {
-        "version": 1,
+        "version": _PITCH_METADATA_VERSION,
         "text_sha1": hashlib.sha1(chapter.text.encode("utf-8")).hexdigest(),
         "tokens": serialize_pitch_tokens(chapter.pitch_data),
     }

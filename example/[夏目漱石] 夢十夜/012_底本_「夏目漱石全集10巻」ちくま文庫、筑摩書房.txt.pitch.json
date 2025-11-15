@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "text_sha1": "f28a95c7715bd1a21de7a4eb39fcad7fee0a043c",
   "tokens": [
     {
@@ -9,7 +9,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 0,
-      "end": 4
+      "end": 4,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "夏目",
@@ -18,7 +21,22 @@
       "connection": null,
       "pos": "名詞",
       "start": 6,
-      "end": 9
+      "end": 9,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "漱石",
+      "reading": "ソウセキ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 9,
+      "end": 13,
+      "sources": [
+        "nhk"
+      ]
     },
     {
       "surface": "全集",
@@ -27,7 +45,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 13,
-      "end": 18
+      "end": 18,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "巻",
@@ -36,7 +57,10 @@
       "connection": "C1",
       "pos": "名詞",
       "start": 20,
-      "end": 22
+      "end": 22,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "文庫",
@@ -45,7 +69,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 26,
-      "end": 29
+      "end": 29,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "筑摩",
@@ -54,7 +81,10 @@
       "connection": null,
       "pos": "名詞",
       "start": 30,
-      "end": 33
+      "end": 33,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "書房",
@@ -63,7 +93,22 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 33,
-      "end": 37
+      "end": 37,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "昭和",
+      "reading": "ショウワ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 47,
+      "end": 51,
+      "sources": [
+        "nhk"
+      ]
     },
     {
       "surface": "年",
@@ -72,7 +117,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 54,
-      "end": 56
+      "end": 56,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "月",
@@ -81,7 +129,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 57,
-      "end": 59
+      "end": 59,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "日",
@@ -90,7 +141,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 61,
-      "end": 63
+      "end": 63,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "第",
@@ -99,7 +153,22 @@
       "connection": "P13",
       "pos": "接頭辞",
       "start": 63,
-      "end": 65
+      "end": 65,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "1",
+      "reading": "ヒト",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 65,
+      "end": 67,
+      "sources": [
+        "nhk"
+      ]
     },
     {
       "surface": "刷",
@@ -108,7 +177,10 @@
       "connection": "C4",
       "pos": "接尾辞",
       "start": 67,
-      "end": 69
+      "end": 69,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "発行",
@@ -117,7 +189,22 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 69,
-      "end": 73
+      "end": 73,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "平成",
+      "reading": "ヘイセイ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 83,
+      "end": 87,
+      "sources": [
+        "nhk"
+      ]
     },
     {
       "surface": "年",
@@ -126,7 +213,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 89,
-      "end": 91
+      "end": 91,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "月",
@@ -135,7 +225,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 92,
-      "end": 94
+      "end": 94,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "日",
@@ -144,7 +237,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 96,
-      "end": 98
+      "end": 98,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "第",
@@ -153,7 +249,10 @@
       "connection": "P13",
       "pos": "接頭辞",
       "start": 98,
-      "end": 100
+      "end": 100,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "刷",
@@ -162,7 +261,10 @@
       "connection": "C4",
       "pos": "接尾辞",
       "start": 101,
-      "end": 103
+      "end": 103,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "発行",
@@ -171,7 +273,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 103,
-      "end": 107
+      "end": 107,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "底本",
@@ -180,7 +285,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 109,
-      "end": 113
+      "end": 113,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "親本",
@@ -189,7 +297,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 114,
-      "end": 118
+      "end": 118,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "筑摩",
@@ -198,7 +309,10 @@
       "connection": null,
       "pos": "名詞",
       "start": 120,
-      "end": 123
+      "end": 123,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "全集",
@@ -207,7 +321,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 123,
-      "end": 128
+      "end": 128,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "類聚",
@@ -216,7 +333,10 @@
       "connection": "C1",
       "pos": "名詞",
       "start": 128,
-      "end": 133
+      "end": 133,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "版",
@@ -225,7 +345,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 133,
-      "end": 135
+      "end": 135,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "夏目",
@@ -234,7 +357,22 @@
       "connection": null,
       "pos": "名詞",
       "start": 135,
-      "end": 138
+      "end": 138,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "漱石",
+      "reading": "ソウセキ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 138,
+      "end": 142,
+      "sources": [
+        "nhk"
+      ]
     },
     {
       "surface": "全集",
@@ -243,7 +381,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 142,
-      "end": 147
+      "end": 147,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "筑摩",
@@ -252,7 +393,10 @@
       "connection": null,
       "pos": "名詞",
       "start": 148,
-      "end": 151
+      "end": 151,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "書房",
@@ -261,7 +405,22 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 151,
-      "end": 155
+      "end": 155,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "昭和",
+      "reading": "ショウワ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 165,
+      "end": 169,
+      "sources": [
+        "nhk"
+      ]
     },
     {
       "surface": "年",
@@ -270,7 +429,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 172,
-      "end": 174
+      "end": 174,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "月",
@@ -279,7 +441,22 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 175,
-      "end": 177
+      "end": 177,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "昭和",
+      "reading": "ショウワ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 183,
+      "end": 187,
+      "sources": [
+        "nhk"
+      ]
     },
     {
       "surface": "年",
@@ -288,7 +465,22 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 190,
-      "end": 192
+      "end": 192,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "1",
+      "reading": "ヒト",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 192,
+      "end": 194,
+      "sources": [
+        "nhk"
+      ]
     },
     {
       "surface": "月",
@@ -297,7 +489,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 194,
-      "end": 196
+      "end": 196,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "底本",
@@ -306,7 +501,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 199,
-      "end": 203
+      "end": 203,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "物",
@@ -315,7 +513,10 @@
       "connection": "C4",
       "pos": "名詞",
       "start": 205,
-      "end": 207
+      "end": 207,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "数える",
@@ -324,7 +525,10 @@
       "connection": "C1",
       "pos": "動詞",
       "start": 208,
-      "end": 212
+      "end": 212,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "際",
@@ -333,7 +537,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 212,
-      "end": 214
+      "end": 214,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "地名",
@@ -342,7 +549,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 215,
-      "end": 218
+      "end": 218,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "用いる",
@@ -351,7 +561,10 @@
       "connection": "C1",
       "pos": "動詞",
       "start": 221,
-      "end": 225
+      "end": 225,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "ヶ",
@@ -360,7 +573,10 @@
       "connection": "動詞%F2@0,名詞%F1",
       "pos": "助詞",
       "start": 226,
-      "end": 227
+      "end": 227,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "区点",
@@ -369,7 +585,22 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 229,
-      "end": 232
+      "end": 232,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "番号",
+      "reading": "バンゴウ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 232,
+      "end": 236,
+      "sources": [
+        "nhk"
+      ]
     },
     {
       "surface": "大振り",
@@ -378,7 +609,46 @@
       "connection": "C2",
       "pos": "形状詞",
       "start": 243,
-      "end": 247
+      "end": 247,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "つ",
+      "reading": "ツ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 248,
+      "end": 249,
+      "sources": [
+        "nhk"
+      ]
+    },
+    {
+      "surface": "入力",
+      "reading": "ニュウリョク",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 258,
+      "end": 264,
+      "sources": [
+        "nhk"
+      ]
+    },
+    {
+      "surface": "野口",
+      "reading": "ノグチ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 265,
+      "end": 268,
+      "sources": [
+        "nhk"
+      ]
     },
     {
       "surface": "英司",
@@ -387,7 +657,10 @@
       "connection": null,
       "pos": "名詞",
       "start": 268,
-      "end": 271
+      "end": 271,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "年",
@@ -396,7 +669,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 277,
-      "end": 279
+      "end": 279,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "月",
@@ -405,7 +681,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 281,
-      "end": 283
+      "end": 283,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "日",
@@ -414,7 +693,34 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 285,
-      "end": 287
+      "end": 287,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "公開",
+      "reading": "コウカイ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 287,
+      "end": 291,
+      "sources": [
+        "nhk"
+      ]
+    },
+    {
+      "surface": "20",
+      "reading": "ハタチ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 293,
+      "end": 296,
+      "sources": [
+        "nhk"
+      ]
     },
     {
       "surface": "年",
@@ -423,7 +729,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 298,
-      "end": 300
+      "end": 300,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "月",
@@ -432,7 +741,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 301,
-      "end": 303
+      "end": 303,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "日",
@@ -441,7 +753,10 @@
       "connection": "C4",
       "pos": "接尾辞",
       "start": 305,
-      "end": 306
+      "end": 306,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "修正",
@@ -450,7 +765,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 306,
-      "end": 311
+      "end": 311,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "青空",
@@ -459,7 +777,10 @@
       "connection": "C1",
       "pos": "名詞",
       "start": 313,
-      "end": 317
+      "end": 317,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "文庫",
@@ -468,7 +789,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 317,
-      "end": 320
+      "end": 320,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "作成",
@@ -477,7 +801,22 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 320,
-      "end": 324
+      "end": 324,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "図書館",
+      "reading": "トショカン",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 347,
+      "end": 352,
+      "sources": [
+        "nhk"
+      ]
     },
     {
       "surface": "青空",
@@ -486,7 +825,10 @@
       "connection": "C1",
       "pos": "名詞",
       "start": 353,
-      "end": 357
+      "end": 357,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "文庫",
@@ -495,7 +837,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 357,
-      "end": 360
+      "end": 360,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "作ら",
@@ -504,7 +849,22 @@
       "connection": "C1",
       "pos": "動詞",
       "start": 387,
-      "end": 390
+      "end": 390,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "入力",
+      "reading": "ニュウリョク",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 395,
+      "end": 401,
+      "sources": [
+        "nhk"
+      ]
     },
     {
       "surface": "校正",
@@ -513,7 +873,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 402,
-      "end": 406
+      "end": 406,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "制作",
@@ -522,7 +885,10 @@
       "connection": "C2",
       "pos": "名詞",
       "start": 407,
-      "end": 411
+      "end": 411,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "皆",
@@ -531,7 +897,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 426,
-      "end": 428
+      "end": 428,
+      "sources": [
+        "unidic"
+      ]
     }
   ]
 }

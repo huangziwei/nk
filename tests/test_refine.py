@@ -9,7 +9,7 @@ from nk.refine import load_override_config, refine_book
 
 def _write_pitch_file(path: Path, tokens: list[dict[str, object]], text: str) -> None:
     payload = {
-        "version": 1,
+        "version": 2,
         "text_sha1": hashlib.sha1(text.encode("utf-8")).hexdigest(),
         "tokens": tokens,
     }

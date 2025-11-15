@@ -20,6 +20,7 @@ class PitchToken:
     pos: str | None = None
     start: int = 0
     end: int = 0
+    sources: tuple[str, ...] | None = None
 
     def with_offsets(self, start: int, end: int) -> "PitchToken":
         token = PitchToken(
@@ -30,6 +31,7 @@ class PitchToken:
             pos=self.pos,
             start=start,
             end=end,
+            sources=self.sources,
         )
         return token
 
@@ -43,17 +45,17 @@ class ChapterPitchMetadata:
 def serialize_pitch_tokens(tokens: Iterable[PitchToken]) -> list[dict[str, object]]:
     serialized: list[dict[str, object]] = []
     for token in tokens:
-        serialized.append(
-            {
-                "surface": token.surface,
-                "reading": token.reading,
-                "accent": token.accent_type,
-                "connection": token.accent_connection,
-                "pos": token.pos,
-                "start": token.start,
-                "end": token.end,
-            }
-        )
+        entry: dict[str, object] = {
+            "surface": token.surface,
+            "reading": token.reading,
+            "accent": token.accent_type,
+            "connection": token.accent_connection,
+            "pos": token.pos,
+            "start": token.start,
+            "end": token.end,
+            "sources": list(token.sources) if token.sources else [],
+        }
+        serialized.append(entry)
     return serialized
 
 
@@ -84,6 +86,12 @@ def deserialize_pitch_tokens(data: Iterable[Mapping[str, object]]) -> list[Pitch
         else:
             start = 0
             end = 0
+        sources_val = entry.get("sources")
+        sources: tuple[str, ...] | None = None
+        if isinstance(sources_val, list):
+            normalized_sources = [str(item) for item in sources_val if isinstance(item, str) and item]
+            if normalized_sources:
+                sources = tuple(normalized_sources)
         tokens.append(
             PitchToken(
                 surface=surface,
@@ -93,6 +101,7 @@ def deserialize_pitch_tokens(data: Iterable[Mapping[str, object]]) -> list[Pitch
                 pos=pos,
                 start=start,
                 end=end,
+                sources=sources,
             )
         )
     return tokens

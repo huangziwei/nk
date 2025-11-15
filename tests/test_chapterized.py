@@ -221,6 +221,55 @@ def test_ascii_ruby_is_propagated(tmp_path: Path) -> None:
     assert "Raininグラム" not in text
 
 
+def test_pitch_tokens_capture_transformation_sources(tmp_path: Path) -> None:
+    epub_path = tmp_path / "sources.epub"
+    mimetype = "application/epub+zip"
+    container_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+"""
+    opf_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" unique-identifier="BookId" xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Sources</dc:title>
+  </metadata>
+  <manifest>
+    <item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="ch1"/>
+  </spine>
+</package>
+"""
+    ch1_html = """<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Sources</title></head>
+  <body>
+    <p><ruby>明日<rt>アシタ</rt></ruby>が来る。<ruby>明日<rt>アシタ</rt></ruby>は近い。</p>
+    <p>明日が来る。</p>
+  </body>
+</html>
+"""
+    with zipfile.ZipFile(epub_path, "w") as zf:
+        zf.writestr("mimetype", mimetype)
+        zf.writestr("META-INF/container.xml", container_xml)
+        zf.writestr("content.opf", opf_xml)
+        zf.writestr("ch1.xhtml", ch1_html)
+
+    chapters = epub_to_chapter_texts(str(epub_path), mode="fast")
+    assert len(chapters) == 1
+    tokens = chapters[0].pitch_data
+    assert tokens is not None
+    assert len(tokens) >= 3
+    sources = [tuple(token.sources or ()) for token in tokens]
+    assert ("ruby",) in sources
+    assert ("propagation",) in sources
+    assert all(token.accent_type is None for token in tokens)
+
+
 def test_chapter_title_preserves_original_text(tmp_path: Path) -> None:
     epub_path = tmp_path / "title.epub"
     mimetype = "application/epub+zip"

@@ -96,7 +96,7 @@ def refine_chapter(text_path: Path, overrides: Iterable[OverrideRule]) -> bool:
     text_path.write_text(text, encoding="utf-8")
     pitch_path = text_path.with_name(text_path.name + ".pitch.json")
     existing_tokens: list[PitchToken] = []
-    version = 1
+    version = 2
     if pitch_path.exists():
         try:
             payload = json.loads(pitch_path.read_text(encoding="utf-8"))
@@ -172,6 +172,7 @@ def _merge_override_tokens(
                 pos=rule.pos,
                 start=start,
                 end=end,
+                sources=("override",),
             )
         )
     tokens.sort(key=lambda token: (token.start, token.end))

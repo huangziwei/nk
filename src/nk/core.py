@@ -118,6 +118,7 @@ class _ReadingAccumulator:
     total: int = 0
     single_kanji_only: bool | None = None
     suffix_counts: Counter[str] = field(default_factory=Counter)
+    suffix_samples: list[str] = field(default_factory=list)
 
     def register(
         self,
@@ -138,6 +139,8 @@ class _ReadingAccumulator:
         flags.has_long_mark = flags.has_long_mark or ("ー" in raw_reading)
         if suffix:
             self.suffix_counts[suffix] += 1
+            if len(self.suffix_samples) < _MAX_SUFFIX_SAMPLES:
+                self.suffix_samples.append(suffix)
         single_occurrence = _is_single_kanji_base(base)
         if self.single_kanji_only is None:
             self.single_kanji_only = single_occurrence
@@ -159,9 +162,14 @@ class _ReadingAccumulator:
             flags.has_middle_dot = flags.has_middle_dot or other_flags.has_middle_dot
             flags.has_long_mark = flags.has_long_mark or other_flags.has_long_mark
         self.suffix_counts.update(other.suffix_counts)
+        if other.suffix_samples and len(self.suffix_samples) < _MAX_SUFFIX_SAMPLES:
+            remaining = _MAX_SUFFIX_SAMPLES - len(self.suffix_samples)
+            self.suffix_samples.extend(other.suffix_samples[:remaining])
 
 
 _CORPUS_READING_CACHE: dict[str, _ReadingAccumulator] | None = None
+_MAX_SUFFIX_SAMPLES = 12
+_MAX_SUFFIX_CONTEXTS = 8
 
 
 @dataclass
@@ -198,7 +206,7 @@ class _FallbackSegment:
     order: int
     sequence: int
     source: str
-    raw_text: str
+    fragment: "_TextFragment"
     raw_original: str
 
 
@@ -209,6 +217,94 @@ class _PendingChapter:
     raw_text: str
     raw_original: str
     title_hint: str | None
+    tokens: list[PitchToken] = field(default_factory=list)
+
+
+@dataclass
+class _TextFragment:
+    text: str
+    tokens: list[PitchToken]
+
+
+@dataclass
+class _TrackedTokenRecord:
+    surface: str
+    reading: str
+    sources: tuple[str, ...]
+
+
+class _TransformationTracker:
+    _START_PREFIX = "[[NKT:"
+    _CLOSE_PREFIX = "[[/NKT:"
+    _SUFFIX = "]]"
+
+    def __init__(self) -> None:
+        self._next_id = 1
+        self._records: dict[str, _TrackedTokenRecord] = {}
+
+    def wrap(self, surface: str, reading: str, sources: tuple[str, ...]) -> str:
+        if not reading:
+            return reading
+        token_id = str(self._next_id)
+        self._next_id += 1
+        normalized_sources: tuple[str, ...] = tuple(dict.fromkeys(sources)) if sources else tuple()
+        self._records[token_id] = _TrackedTokenRecord(
+            surface=surface,
+            reading=reading,
+            sources=normalized_sources,
+        )
+        return (
+            f"{self._START_PREFIX}{token_id}{self._SUFFIX}"
+            f"{reading}"
+            f"{self._CLOSE_PREFIX}{token_id}{self._SUFFIX}"
+        )
+
+    def extract(self, text: str) -> _TextFragment:
+        if not text or self._START_PREFIX not in text:
+            return _TextFragment(text=text, tokens=[])
+        result_chars: list[str] = []
+        tokens: list[PitchToken] = []
+        idx = 0
+        length = len(text)
+        while idx < length:
+            if text.startswith(self._START_PREFIX, idx):
+                id_start = idx + len(self._START_PREFIX)
+                id_end = text.find(self._SUFFIX, id_start)
+                if id_end == -1:
+                    result_chars.append(text[idx])
+                    idx += 1
+                    continue
+                token_id = text[id_start:id_end]
+                close_marker = f"{self._CLOSE_PREFIX}{token_id}{self._SUFFIX}"
+                idx = id_end + len(self._SUFFIX)
+                start_pos = len(result_chars)
+                reading_chars: list[str] = []
+                while idx < length:
+                    if text.startswith(close_marker, idx):
+                        idx += len(close_marker)
+                        break
+                    reading_chars.append(text[idx])
+                    result_chars.append(text[idx])
+                    idx += 1
+                end_pos = len(result_chars)
+                record = self._records.get(token_id)
+                if record is None:
+                    continue
+                reading_text = "".join(reading_chars) or record.reading
+                tokens.append(
+                    PitchToken(
+                        surface=record.surface,
+                        reading=reading_text,
+                        accent_type=None,
+                        start=start_pos,
+                        end=end_pos,
+                        sources=record.sources,
+                    )
+                )
+            else:
+                result_chars.append(text[idx])
+                idx += 1
+        return _TextFragment(text="".join(result_chars), tokens=tokens)
 
 
 def _is_cjk_char(ch: str) -> bool:
@@ -240,7 +336,11 @@ def _build_mapping_pattern(mapping: dict[str, str]) -> re.Pattern[str] | None:
 
 
 def _apply_mapping_with_pattern(
-    text: str, mapping: dict[str, str], pattern: re.Pattern[str]
+    text: str,
+    mapping: dict[str, str],
+    pattern: re.Pattern[str],
+    tracker: _TransformationTracker | None = None,
+    source_labels: dict[str, str] | None = None,
 ) -> str:
     if pattern is None:
         return text
@@ -258,7 +358,11 @@ def _apply_mapping_with_pattern(
                     next_ch.isascii() and next_ch.isalnum()
                 ):
                     return base
-        return mapping[base]
+        replacement = mapping[base]
+        if tracker and replacement:
+            source = (source_labels.get(base) if source_labels else None) or "propagation"
+            replacement = tracker.wrap(base, replacement, (source,))
+        return replacement
 
     return pattern.sub(repl, text)
 
@@ -665,6 +769,55 @@ def _split_text_by_markers(text: str) -> tuple[str, list[tuple[int, str]]]:
     return leading, segments
 
 
+def _fragment_from_tracker(text: str, tracker: _TransformationTracker | None) -> _TextFragment:
+    if tracker is None:
+        return _TextFragment(text=text, tokens=[])
+    return tracker.extract(text)
+
+
+def _strip_fragment_newlines(fragment: _TextFragment) -> tuple[str, list[PitchToken]]:
+    raw_text = fragment.text
+    if not raw_text:
+        return "", []
+    leading_trim = len(raw_text) - len(raw_text.lstrip("\n"))
+    trailing_trim = len(raw_text) - len(raw_text.rstrip("\n"))
+    end_idx = len(raw_text) - trailing_trim if trailing_trim else len(raw_text)
+    trimmed = raw_text[leading_trim:end_idx]
+    if not trimmed:
+        return "", []
+    adjusted: list[PitchToken] = []
+    for token in fragment.tokens:
+        start = token.start - leading_trim
+        end = token.end - leading_trim
+        if end <= 0 or start >= len(trimmed):
+            continue
+        adjusted.append(replace(token, start=start, end=end))
+    return trimmed, adjusted
+
+
+def _combine_text_fragments(fragments: list[_TextFragment]) -> tuple[str, list[PitchToken]]:
+    if not fragments:
+        return "", []
+    filtered = [fragment for fragment in fragments if fragment.text.strip()]
+    if not filtered:
+        return "", []
+    text_parts: list[str] = []
+    tokens: list[PitchToken] = []
+    cursor = 0
+    for fragment in filtered:
+        trimmed_text, fragment_tokens = _strip_fragment_newlines(fragment)
+        if not trimmed_text:
+            continue
+        if text_parts:
+            cursor += 2
+        text_parts.append(trimmed_text)
+        for token in fragment_tokens:
+            tokens.append(replace(token, start=token.start + cursor, end=token.end + cursor))
+        cursor += len(trimmed_text)
+    combined_text = "\n\n".join(text_parts)
+    return combined_text, tokens
+
+
 def _first_non_blank_line(text: str) -> str | None:
     for line in text.splitlines():
         stripped = line.strip()
@@ -741,19 +894,30 @@ def _finalize_segment_text(
     raw_text: str,
     mode: PropagationMode,
     backend: "NLPBackend" | None,
+    preset_tokens: list[PitchToken] | None = None,
 ) -> tuple[str, list[PitchToken] | None]:
     piece_text = raw_text.strip()
     if not piece_text:
         return "", None
+    collected_tokens: list[PitchToken] = list(preset_tokens or [])
     if mode == "advanced" and backend is not None:
         converted_text, tokens = backend.to_reading_with_pitch(piece_text)
         piece_text = converted_text.strip()
         piece_text = _normalize_ellipsis(piece_text)
-        aligned_tokens = _align_pitch_tokens(piece_text, tokens)
-        if aligned_tokens:
-            return piece_text, aligned_tokens
+        if tokens:
+            collected_tokens.extend(tokens)
+        if collected_tokens:
+            collected_tokens.sort(key=lambda token: token.start)
+            aligned_tokens = _align_pitch_tokens(piece_text, collected_tokens)
+            if aligned_tokens:
+                return piece_text, aligned_tokens
         return piece_text, None
     piece_text = _normalize_ellipsis(piece_text)
+    if collected_tokens:
+        collected_tokens.sort(key=lambda token: token.start)
+        aligned_tokens = _align_pitch_tokens(piece_text, collected_tokens)
+        if aligned_tokens:
+            return piece_text, aligned_tokens
     return piece_text, None
 
 
@@ -1056,6 +1220,8 @@ def _load_corpus_reading_accumulators() -> dict[str, _ReadingAccumulator]:
         accumulator.flags[reading_norm] = flags
         if suffix_norm:
             accumulator.suffix_counts[suffix_norm] = count
+            if suffix_norm not in accumulator.suffix_samples:
+                accumulator.suffix_samples.append(suffix_norm)
         accumulator.single_kanji_only = _is_single_kanji_base(base_norm)
         cache[base_norm] = accumulator
     _CORPUS_READING_CACHE = cache
@@ -1218,9 +1384,18 @@ def _reading_variants_for_base(
             variants.update(raw_variants)
     if not hasattr(nlp, "to_reading_text"):
         return variants
-    suffix_entries = [
-        suffix for suffix, _ in accumulator.suffix_counts.most_common(5) if suffix
-    ]
+    suffix_entries: list[str] = []
+    if accumulator.suffix_samples:
+        for suffix in accumulator.suffix_samples:
+            if not suffix or suffix in suffix_entries:
+                continue
+            suffix_entries.append(suffix)
+            if len(suffix_entries) >= _MAX_SUFFIX_CONTEXTS:
+                break
+    if not suffix_entries:
+        suffix_entries = [
+            suffix for suffix, _ in accumulator.suffix_counts.most_common(5) if suffix
+        ]
     seen_suffixes: set[str] = set()
     for suffix in suffix_entries:
         if suffix in seen_suffixes:
@@ -1299,8 +1474,9 @@ def _build_book_mapping(
     zf: zipfile.ZipFile,
     mode: PropagationMode,
     nlp: "NLPBackend" | None,
-) -> tuple[dict[str, str], dict[str, str]]:
+) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
     accumulators: dict[str, _ReadingAccumulator] = defaultdict(_ReadingAccumulator)
+    base_sources: dict[str, str] = {}
     for name in zf.namelist():
         if not name.lower().endswith(HTML_EXTS):
             continue
@@ -1310,6 +1486,7 @@ def _build_book_mapping(
         partial = _collect_reading_counts_from_soup(soup)
         for base, partial_acc in partial.items():
             accumulators[base].merge_from(partial_acc)
+            base_sources.setdefault(base, "propagation")
     if mode == "advanced":
         corpus_accumulators = _load_corpus_reading_accumulators()
         if corpus_accumulators:
@@ -1319,10 +1496,19 @@ def _build_book_mapping(
                     existing = accumulators[base]
                 if existing.total == 0:
                     existing.merge_from(corpus_acc)
-    return _select_reading_mapping(accumulators, mode, nlp)
+                    base_sources.setdefault(base, "nhk")
+    tier3, tier2 = _select_reading_mapping(accumulators, mode, nlp)
+    tier3_sources = {base: base_sources.get(base, "propagation") for base in tier3}
+    tier2_sources = {base: base_sources.get(base, "propagation") for base in tier2}
+    return tier3, tier2, tier3_sources, tier2_sources
 
 
-def _replace_outside_ruby_with_readings(soup: BeautifulSoup, mapping: dict[str, str]) -> None:
+def _replace_outside_ruby_with_readings(
+    soup: BeautifulSoup,
+    mapping: dict[str, str],
+    tracker: _TransformationTracker | None = None,
+    source_labels: dict[str, str] | None = None,
+) -> None:
     """
     Replace text nodes NOT inside ruby/rt/rp/script/style using {base->reading}.
     Longest-match-first to avoid swallowing shorter substrings.
@@ -1337,19 +1523,33 @@ def _replace_outside_ruby_with_readings(soup: BeautifulSoup, mapping: dict[str, 
         text = unicodedata.normalize("NFKC", str(node))
         if not text.strip():
             continue
-        new_text = _apply_mapping_with_pattern(text, mapping, pat)
+        new_text = _apply_mapping_with_pattern(
+            text,
+            mapping,
+            pat,
+            tracker=tracker,
+            source_labels=source_labels,
+        )
         if new_text != text:
             node.replace_with(new_text)
 
 
-def _collapse_ruby_to_readings(soup: BeautifulSoup) -> None:
+def _collapse_ruby_to_readings(
+    soup: BeautifulSoup,
+    tracker: _TransformationTracker | None = None,
+) -> None:
     """
     Replace each <ruby> with its reading only (concat of direct <rt> contents).
     """
     for ruby in list(soup.find_all("ruby")):
         reading = _hiragana_to_katakana(_ruby_reading_text(ruby))
         reading = _normalize_katakana(reading)
-        ruby.replace_with(reading)
+        replacement = reading
+        if tracker:
+            base_raw = _normalize_ws(_ruby_base_text(ruby))
+            base_norm = unicodedata.normalize("NFKC", base_raw)
+            replacement = tracker.wrap(base_norm, reading, ("ruby",))
+        ruby.replace_with(replacement)
 
 
 def _strip_html_to_text(soup: BeautifulSoup) -> str:
@@ -1401,11 +1601,11 @@ def epub_to_chapter_texts(
 
         backend = NLPBackend()
     with zipfile.ZipFile(inp_epub, "r") as zf:
-        unique_mapping, common_mapping = _build_book_mapping(zf, mode, backend)
+        unique_mapping, common_mapping, unique_sources, common_sources = _build_book_mapping(zf, mode, backend)
         spine = _spine_items(zf)
         nav_points = _toc_nav_points(zf, spine)
-        nav_buckets: dict[int, dict[str, list[str]]] = {
-            entry.order: {"text_parts": [], "original_parts": []} for entry in nav_points
+        nav_buckets: dict[int, dict[str, list[object]]] = {
+            entry.order: {"text_fragments": [], "original_parts": []} for entry in nav_points
         }
         nav_by_spine: dict[int, list[_NavPoint]] = defaultdict(list)
         for entry in nav_points:
@@ -1457,12 +1657,23 @@ def epub_to_chapter_texts(
             _insert_nav_markers(original_soup, nav_entries_for_file)
             original_plain_text = _strip_html_to_text(original_soup)
             soup = _soup_from_html(html)
+            tracker = _TransformationTracker()
             # 1) propagate: replace base outside ruby using the global mapping
-            _replace_outside_ruby_with_readings(soup, unique_mapping)
-            _replace_outside_ruby_with_readings(soup, common_mapping)
+            _replace_outside_ruby_with_readings(
+                soup,
+                unique_mapping,
+                tracker=tracker,
+                source_labels=unique_sources,
+            )
+            _replace_outside_ruby_with_readings(
+                soup,
+                common_mapping,
+                tracker=tracker,
+                source_labels=common_sources,
+            )
             _insert_nav_markers(soup, nav_entries_for_file)
             # 2) drop bases inside ruby, keep only readings
-            _collapse_ruby_to_readings(soup)
+            _collapse_ruby_to_readings(soup, tracker=tracker)
             # 3) strip remaining html to text
             piece = _strip_html_to_text(soup)
             filtered_lines: list[str] = []
@@ -1499,6 +1710,7 @@ def epub_to_chapter_texts(
             if not raw_piece_text:
                 continue
             leading_piece, piece_segments = _split_text_by_markers(raw_piece_text)
+            leading_fragment = _fragment_from_tracker(leading_piece, tracker)
             leading_original, original_segments = _split_text_by_markers(original_plain_text)
             original_segment_map = {marker: segment for marker, segment in original_segments}
             for marker_id, segment_text in piece_segments:
@@ -1507,9 +1719,10 @@ def epub_to_chapter_texts(
                     continue
                 if not segment_text.strip():
                     continue
-                bucket["text_parts"].append(segment_text)
+                fragment = _fragment_from_tracker(segment_text, tracker)
+                bucket["text_fragments"].append(fragment)
                 bucket["original_parts"].append(original_segment_map.get(marker_id, ""))
-            if leading_piece.strip():
+            if leading_fragment.text.strip():
                 order = -1 if nav_entries_for_file else 0
                 fallback_segments.append(
                     _FallbackSegment(
@@ -1517,33 +1730,35 @@ def epub_to_chapter_texts(
                         order=order,
                         sequence=fallback_sequence,
                         source=name,
-                        raw_text=leading_piece,
-                        raw_original=leading_original or leading_piece,
+                        fragment=leading_fragment,
+                        raw_original=leading_original or leading_fragment.text,
                     )
                 )
                 fallback_sequence += 1
 
         pending_outputs: list[_PendingChapter] = []
         for segment in fallback_segments:
-            if not segment.raw_text.strip():
+            fragment_text = segment.fragment.text
+            if not fragment_text.strip():
                 continue
             pending_outputs.append(
                 _PendingChapter(
                     sort_key=(segment.spine_index, segment.order, segment.sequence),
                     source=segment.source,
-                    raw_text=segment.raw_text,
+                    raw_text=fragment_text,
                     raw_original=segment.raw_original,
                     title_hint=None,
+                    tokens=list(segment.fragment.tokens),
                 )
             )
         for entry in nav_points:
             bucket = nav_buckets.get(entry.order)
             if not bucket:
                 continue
-            text_parts = [part for part in bucket["text_parts"] if part.strip()]
-            if not text_parts:
+            fragments = bucket.get("text_fragments", [])
+            raw_text, fragment_tokens = _combine_text_fragments(fragments)
+            if not raw_text.strip():
                 continue
-            raw_text = "\n\n".join(part.strip("\n") for part in text_parts)
             original_parts = [part for part in bucket["original_parts"] if part.strip()]
             raw_original = "\n\n".join(part.strip("\n") for part in original_parts) if original_parts else raw_text
             pending_outputs.append(
@@ -1553,12 +1768,18 @@ def epub_to_chapter_texts(
                     raw_text=raw_text,
                     raw_original=raw_original,
                     title_hint=entry.title.strip() if entry.title else None,
+                    tokens=fragment_tokens,
                 )
             )
 
         chapters: list[ChapterText] = []
         for pending in sorted(pending_outputs, key=lambda item: item.sort_key):
-            finalized_text, pitch_tokens = _finalize_segment_text(pending.raw_text, mode, backend)
+            finalized_text, pitch_tokens = _finalize_segment_text(
+                pending.raw_text,
+                mode,
+                backend,
+                preset_tokens=pending.tokens,
+            )
             if not finalized_text:
                 continue
             if not chapters:

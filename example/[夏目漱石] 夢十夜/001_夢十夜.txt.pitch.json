@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "text_sha1": "820f3a2bb48ac4db02c4c5c4afec508c8ffc866c",
   "tokens": [
     {
@@ -9,7 +9,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 0,
-      "end": 2
+      "end": 2,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "十",
@@ -18,7 +21,10 @@
       "connection": "C3",
       "pos": "名詞",
       "start": 2,
-      "end": 5
+      "end": 5,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "夜",
@@ -27,7 +33,10 @@
       "connection": "C3",
       "pos": "接尾辞",
       "start": 5,
-      "end": 6
+      "end": 6,
+      "sources": [
+        "unidic"
+      ]
     },
     {
       "surface": "夏目",
@@ -36,7 +45,22 @@
       "connection": null,
       "pos": "名詞",
       "start": 7,
-      "end": 10
+      "end": 10,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "漱石",
+      "reading": "ソウセキ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": 10,
+      "end": 14,
+      "sources": [
+        "nhk"
+      ]
     }
   ]
 }
