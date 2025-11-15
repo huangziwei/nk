@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 import unicodedata
 import warnings
 from dataclasses import dataclass
@@ -148,7 +149,8 @@ class NLPBackend:
 
     def __init__(self) -> None:
         try:
-            from fugashi import Tagger  # type: ignore
+            from fugashi import GenericTagger, Tagger  # type: ignore
+            from fugashi import fugashi as fugashi_core  # type: ignore
         except ImportError as exc:
             raise NLPBackendUnavailableError(
                 "Advanced mode requires 'fugashi' (MeCab) to be installed."
@@ -156,7 +158,17 @@ class NLPBackend:
 
         dicdir = get_unidic_dicdir()
         if dicdir:
-            self._tagger = Tagger(f"-d {dicdir}")
+            args = f"-d {shlex.quote(str(dicdir))}"
+            feature_wrapper = getattr(fugashi_core, "UnidicFeatures29", None)
+            try:
+                if feature_wrapper is not None:
+                    self._tagger = GenericTagger(args, feature_wrapper)
+                else:
+                    self._tagger = GenericTagger(args)
+            except RuntimeError as exc:
+                raise NLPBackendUnavailableError(
+                    f"Failed to initialize UniDic dictionary at '{dicdir}': {exc}"
+                ) from exc
         else:
             warnings.warn(
                 "UniDic 3.1.1 not detected; falling back to the default MeCab dictionary.",
