@@ -5,15 +5,15 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("fugashi")
+
 from nk.core import epub_to_chapter_texts, epub_to_txt
+from nk.nlp import NLPBackend
 
 
-class _PassthroughBackend:
-    def to_reading_text(self, text: str) -> str:
-        return text
-
-    def to_reading_with_pitch(self, text: str):
-        return text, []
+@pytest.fixture(scope="module")
+def backend() -> NLPBackend:
+    return NLPBackend()
 
 
 def _build_simple_epub(target: Path) -> Path:
@@ -82,9 +82,9 @@ def _build_simple_epub(target: Path) -> Path:
     return epub_path
 
 
-def test_chapterized_output_matches_join(tmp_path: Path) -> None:
+def test_chapterized_output_matches_join(tmp_path: Path, backend: NLPBackend) -> None:
     epub_path = _build_simple_epub(tmp_path)
-    chapters = epub_to_chapter_texts(str(epub_path), mode="fast")
+    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 3
     assert chapters[1].source.endswith("ch1.xhtml")
     assert chapters[2].source.endswith("ch2.xhtml")
@@ -95,11 +95,11 @@ def test_chapterized_output_matches_join(tmp_path: Path) -> None:
         first_line = chapters[idx].text.splitlines()[0]
         assert first_line == chapters[idx].title
     joined = "\n\n".join(chapter.text for chapter in chapters).strip()
-    combined = epub_to_txt(str(epub_path), mode="fast")
+    combined = epub_to_txt(str(epub_path), nlp=backend)
     assert combined == joined
 
 
-def test_repeated_dialogue_lines_are_preserved(tmp_path: Path) -> None:
+def test_repeated_dialogue_lines_are_preserved(tmp_path: Path, backend: NLPBackend) -> None:
     epub_path = tmp_path / "repeat.epub"
     repeat_line = "「……。そうか」"
     mimetype = "application/epub+zip"
@@ -154,7 +154,7 @@ def test_repeated_dialogue_lines_are_preserved(tmp_path: Path) -> None:
         zf.writestr("ch1.xhtml", ch1_html)
         zf.writestr("ch2.xhtml", ch2_html)
 
-    chapters = epub_to_chapter_texts(str(epub_path), mode="fast")
+    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 2
     target_line = next(
         (line.strip() for line in chapters[0].text.splitlines() if "そうか" in line),
@@ -169,7 +169,7 @@ def test_repeated_dialogue_lines_are_preserved(tmp_path: Path) -> None:
     assert target_line in {line.strip() for line in scene_b.text.splitlines()}
 
 
-def test_ascii_ruby_is_propagated(tmp_path: Path) -> None:
+def test_ascii_ruby_is_propagated(tmp_path: Path, backend: NLPBackend) -> None:
     epub_path = tmp_path / "ascii_ruby.epub"
     mimetype = "application/epub+zip"
     container_xml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -211,7 +211,7 @@ def test_ascii_ruby_is_propagated(tmp_path: Path) -> None:
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ch1_html)
 
-    chapters = epub_to_chapter_texts(str(epub_path), mode="fast")
+    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 1
     text = chapters[0].text
     assert "JUN" not in text
@@ -221,7 +221,7 @@ def test_ascii_ruby_is_propagated(tmp_path: Path) -> None:
     assert "Raininグラム" not in text
 
 
-def test_pitch_tokens_capture_transformation_sources(tmp_path: Path) -> None:
+def test_pitch_tokens_capture_transformation_sources(tmp_path: Path, backend: NLPBackend) -> None:
     epub_path = tmp_path / "sources.epub"
     mimetype = "application/epub+zip"
     container_xml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -259,18 +259,17 @@ def test_pitch_tokens_capture_transformation_sources(tmp_path: Path) -> None:
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ch1_html)
 
-    chapters = epub_to_chapter_texts(str(epub_path), mode="fast")
+    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 1
     tokens = chapters[0].pitch_data
     assert tokens is not None
     assert len(tokens) >= 3
     sources = [tuple(token.sources or ()) for token in tokens]
     assert ("ruby",) in sources
-    assert ("propagation",) in sources
-    assert all(token.accent_type is None for token in tokens)
+    assert any("unidic" in source for source in sources)
 
 
-def test_chapter_title_preserves_original_text(tmp_path: Path) -> None:
+def test_chapter_title_preserves_original_text(tmp_path: Path, backend: NLPBackend) -> None:
     epub_path = tmp_path / "title.epub"
     mimetype = "application/epub+zip"
     container_xml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -308,12 +307,12 @@ def test_chapter_title_preserves_original_text(tmp_path: Path) -> None:
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ch1_html)
 
-    chapters = epub_to_chapter_texts(str(epub_path), mode="fast")
+    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 1
-    assert chapters[0].title == "Interlude Melancholic Hydrangea"
+    assert chapters[0].title == "Interlude Melancholic ハイドランジア"
 
 
-def test_ellipsis_normalization_survives_backend(tmp_path: Path) -> None:
+def test_ellipsis_normalization_survives_backend(tmp_path: Path, backend: NLPBackend) -> None:
     epub_path = tmp_path / "ellipsis.epub"
     mimetype = "application/epub+zip"
     container_xml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -351,8 +350,7 @@ def test_ellipsis_normalization_survives_backend(tmp_path: Path) -> None:
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ellipsis_html)
 
-    backend = _PassthroughBackend()
-    chapters = epub_to_chapter_texts(str(epub_path), mode="advanced", nlp=backend)
+    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 1
     text = chapters[0].text
     assert "…" in text
@@ -373,7 +371,7 @@ def test_nlp_backend_provides_pitch_tokens() -> None:
     assert "\n\n" in structured
 
 
-def test_toc_splits_shared_spine_item(tmp_path: Path) -> None:
+def test_toc_splits_shared_spine_item(tmp_path: Path, backend: NLPBackend) -> None:
     epub_path = tmp_path / "toc_split.epub"
     mimetype = "application/epub+zip"
     container_xml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -429,16 +427,16 @@ def test_toc_splits_shared_spine_item(tmp_path: Path) -> None:
         zf.writestr("OEBPS/nav.xhtml", nav_html)
         zf.writestr("OEBPS/text.xhtml", text_html)
 
-    chapters = epub_to_chapter_texts(str(epub_path), mode="fast")
+    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 3
-    assert chapters[0].title == "序"
-    assert chapters[1].title == "第一夜"
-    assert chapters[2].title == "第二夜"
-    assert "第一夜の物語" in chapters[1].text
-    assert "第二夜の物語" in chapters[2].text
+    assert chapters[0].title == "ジョ"
+    assert chapters[1].title == "ダイイチヤ"
+    assert chapters[2].title == "ダイニヤ"
+    assert "ダイイチヤのモノガタリ" in chapters[1].text
+    assert "ダイニヤのモノガタリ" in chapters[2].text
 
 
-def test_first_chapter_inserts_break_between_title_and_author(tmp_path: Path) -> None:
+def test_first_chapter_inserts_break_between_title_and_author(tmp_path: Path, backend: NLPBackend) -> None:
     epub_path = tmp_path / "title_author.epub"
     mimetype = "application/epub+zip"
     container_xml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -477,9 +475,9 @@ def test_first_chapter_inserts_break_between_title_and_author(tmp_path: Path) ->
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ch1_html)
 
-    chapters = epub_to_chapter_texts(str(epub_path), mode="fast")
+    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 1
     lines = chapters[0].text.splitlines()
-    assert lines[0] == "夢十夜"
+    assert lines[0] == "ユメジュウヤ"
     assert lines[1] == ""
-    assert lines[2] == "夏目漱石"
+    assert lines[2] == "ナツメソウセキ"

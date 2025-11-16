@@ -41,7 +41,7 @@ def test_adjacent_single_kanji_ruby_merges_into_compound() -> None:
     assert combined.counts["ヌクミズ"] == 3
     # Ensure downstream selection keeps the propagated reading even when the
     # dictionary says otherwise.
-    unique, _, _ = _select_reading_mapping(accumulators, mode="advanced", nlp=_MockNLP())
+    unique, _, _ = _select_reading_mapping(accumulators, _MockNLP())
     assert unique.get("温水") == "ヌクミズ"
 
 
@@ -62,7 +62,7 @@ def test_name_ruby_with_dict_mismatch_is_preserved() -> None:
     """
     soup = _soup(html)
     accumulators = _collect_reading_counts_from_soup(soup)
-    unique, _, _ = _select_reading_mapping(accumulators, mode="advanced", nlp=_NameMock())
+    unique, _, _ = _select_reading_mapping(accumulators, _NameMock())
     assert unique.get("馬締") == "マジメ"
 
 
@@ -83,7 +83,7 @@ def test_small_kana_alignment_prefers_dictionary_variant() -> None:
     """
     soup = _soup(html)
     accumulators = _collect_reading_counts_from_soup(soup)
-    unique, _, _ = _select_reading_mapping(accumulators, mode="advanced", nlp=_SmallMock())
+    unique, _, _ = _select_reading_mapping(accumulators, _SmallMock())
     assert unique.get("宮崎") == "ミャザキ"
 
 
@@ -106,7 +106,7 @@ def test_suffix_context_allows_nlp_confirmation() -> None:
     """
     soup = _soup(html)
     accumulators = _collect_reading_counts_from_soup(soup)
-    unique, _, _ = _select_reading_mapping(accumulators, mode="advanced", nlp=_SuffixMock())
+    unique, _, _ = _select_reading_mapping(accumulators, _SuffixMock())
     assert unique.get("東京") == "アズマキョウ"
 
 

@@ -1371,19 +1371,18 @@ def _ensure_chapterized(root: Path) -> None:
     epubs = sorted(p for p in root.iterdir() if p.suffix.lower() == ".epub")
     if not epubs:
         return
-    mode = "advanced"
     nlp = None
     try:
         nlp = NLPBackend()
-    except NLPBackendUnavailableError:
-        mode = "fast"
+    except NLPBackendUnavailableError as exc:
+        raise RuntimeError(f"NLP backend unavailable: {exc}") from exc
     for epub_path in epubs:
         output_dir = epub_path.with_suffix("")
         if output_dir.exists() and any(output_dir.glob("*.txt")):
             continue
         try:
-            print(f"[nk web] Generating chapters for {epub_path.name} (mode={mode})")
-            chapters = epub_to_chapter_texts(str(epub_path), mode=mode, nlp=nlp)
+            print(f"[nk web] Generating chapters for {epub_path.name}")
+            chapters = epub_to_chapter_texts(str(epub_path), nlp=nlp)
             cover = get_epub_cover(str(epub_path))
             write_book_package(
                 output_dir,

@@ -68,9 +68,6 @@ nk auto-detects installs under `~/opt/voicevox/**`. If you keep the engine elsew
 # Default (per-chapter .txt files)
 nk my_book.epub
 
-# Fast mode: ruby evidence only
-nk my_book.epub --mode fast
-
 # Batch chapterize an entire shelf of EPUBs
 nk shelf/
 
@@ -78,7 +75,7 @@ nk shelf/
 nk my_book.epub --single-file -o custom_name.txt
 ```
 
-Expect katakana-only output next to the source EPUB with duplicate titles stripped and line breaks preserved. Advanced mode consumes `fugashi + UniDic 3.1.1 + pykakasi`; fast mode requires no additional NLP setup.
+Expect katakana-only output next to the source EPUB with duplicate titles stripped and line breaks preserved. nk always runs the advanced propagation engine, which consumes `fugashi + UniDic 3.1.1 + pykakasi` to confirm rubies and fill in missing readings.
 
 Each chapterized book now carries a `.nk-book.json` manifest plus an extracted (and automatically square-padded) `cover.jpg|png`. The manifest tracks the original/reading titles for every chapter and records the book author so `nk tts` can build accurate ID3 tags; the cover is embedded into every MP3 automatically. Advanced runs also emit `<chapter>.txt.pitch.json` files that capture UniDic pitch-accent metadata so `nk tts` can force the correct VoiceVox tone (雨 vs 飴) without extra setup. Re-run `nk <book>.epub` if you have older chapter folders and want to backfill the metadata/cover bundle.
 
@@ -91,7 +88,7 @@ Each chapterized book now carries a `.nk-book.json` manifest plus an extracted (
 nk tts output/
 
 # One-shot: chapterize + synthesize directly from an EPUB
-nk tts books/novel.epub --mode fast --speaker 20
+nk tts books/novel.epub --speaker 20
 
 # Custom speaker, engine location, and parallelism
 # (point --engine-runtime at ~/opt/voicevox/macos-x64 on macOS or ~/opt/voicevox/linux-cpu-x64 on Ubuntu)
@@ -116,7 +113,6 @@ nk tts output/chapters --speaker 20 \
 | `--cache-dir DIR` | Store chunk caches elsewhere. |
 | `--keep-cache` | Leave chunk WAVs on disk after MP3 synthesis. |
 | `--overwrite` | Regenerate MP3s even if they already exist. |
-| `--mode fast/advanced` | When an EPUB is passed to `nk tts`, choose the propagation engine used to chapterize before synthesis (default: advanced). |
 
 **Resume after interruption** – nk caches every chunk under `.nk-tts-cache/<chapter-hash>/`. If you stop midway, rerun the same command (omit `--overwrite`) and synthesis resumes from the last unfinished chunk or merge. Delete MP3s (or use `--overwrite`) to regenerate everything.
 - **Skip ahead** – add `--start-index N` to begin at chapter `N` without touching earlier files (helpful when you only need to regenerate later chapters).
@@ -251,7 +247,7 @@ Serve your chapterized books over HTTP and stream them from a phone or tablet on
 
 ```
 # EPUB → TXT (per-chapter by default)
-nk book.epub [--mode advanced|fast] [--single-file] [-o output.txt]
+nk book.epub [--single-file] [-o output.txt]
 
 # TXT → MP3 (batch)
 nk tts book.txt|directory [--speaker N]

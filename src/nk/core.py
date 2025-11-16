@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field, replace
 import json
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 from urllib.parse import unquote
 try:
     from importlib import resources
@@ -116,9 +116,6 @@ SMALL_KANA_BASE_MAP = {
     "ゎ": "ワ",
 }
 SMALL_KANA_SET = set(SMALL_KANA_BASE_MAP.keys())
-
-PropagationMode = Literal["fast", "advanced"]
-
 
 @dataclass
 class _ReadingFlags:
@@ -1114,7 +1111,6 @@ def _ensure_title_author_break(text: str) -> str:
 
 def _finalize_segment_text(
     raw_text: str,
-    mode: PropagationMode,
     backend: "NLPBackend" | None,
     preset_tokens: list[PitchToken] | None = None,
 ) -> tuple[str, list[PitchToken] | None]:
@@ -1122,7 +1118,7 @@ def _finalize_segment_text(
     if not piece_text:
         return "", None
     collected_tokens: list[PitchToken] = list(preset_tokens or [])
-    if mode == "advanced" and backend is not None:
+    if backend is not None:
         converted_text, tokens = backend.to_reading_with_pitch(piece_text)
         piece_text = converted_text.strip()
         piece_text = _normalize_ellipsis(piece_text)
@@ -1686,8 +1682,7 @@ def _reading_variants_for_base(
 
 def _select_reading_mapping(
     accumulators: dict[str, _ReadingAccumulator],
-    mode: PropagationMode,
-    nlp: "NLPBackend" | None,
+    nlp: "NLPBackend",
 ) -> tuple[dict[str, str], dict[str, str], dict[str, _ContextRule]]:
     tier3: dict[str, str] = {}
     tier2: dict[str, str] = {}
@@ -1701,13 +1696,12 @@ def _select_reading_mapping(
             context_rules[base] = rule
 
     for base, accumulator in accumulators.items():
-        if not accumulator.counts or accumulator.total < 2:
-            if mode != "advanced":
-                continue
+        if not accumulator.counts:
+            continue
         if accumulator.single_kanji_only:
             continue
         top_reading, top_count = accumulator.counts.most_common(1)[0]
-        total = accumulator.total
+        total = accumulator.total or top_count
         share = top_count / total
         alt_share = max(
             (count / total for reading, count in accumulator.counts.items() if reading != top_reading),
@@ -1723,43 +1717,30 @@ def _select_reading_mapping(
         if alt_share >= 0.3:
             continue
 
-        if mode == "fast":
-            if total < 2:
-                continue
-            if share >= 0.95:
-                tier3[base] = top_reading
-                _maybe_register_rule(base, accumulator)
-            elif share >= 0.9 and total >= 3:
-                tier2[base] = top_reading
-                _maybe_register_rule(base, accumulator)
-        else:  # advanced
-            if nlp is None:
-                continue
-            variants = _reading_variants_for_base(base, accumulator, nlp)
-            if _reading_matches(top_reading, variants):
-                tier3[base] = top_reading
-                _maybe_register_rule(base, accumulator)
-                continue
-            aligned_variant = _aligned_variant_for_small_kana(top_reading, variants)
-            if aligned_variant:
-                tier3[base] = aligned_variant
-                _maybe_register_rule(base, accumulator)
-                continue
-            if share >= 0.9 and _is_likely_name_candidate(base, flags):
-                tier3[base] = top_reading
-                _maybe_register_rule(base, accumulator)
-                continue
-            if total >= 3 and share >= 0.95:
-                tier3[base] = top_reading
-                _maybe_register_rule(base, accumulator)
+        variants = _reading_variants_for_base(base, accumulator, nlp)
+        if _reading_matches(top_reading, variants):
+            tier3[base] = top_reading
+            _maybe_register_rule(base, accumulator)
+            continue
+        aligned_variant = _aligned_variant_for_small_kana(top_reading, variants)
+        if aligned_variant:
+            tier3[base] = aligned_variant
+            _maybe_register_rule(base, accumulator)
+            continue
+        if share >= 0.9 and _is_likely_name_candidate(base, flags):
+            tier3[base] = top_reading
+            _maybe_register_rule(base, accumulator)
+            continue
+        if total >= 3 and share >= 0.95:
+            tier3[base] = top_reading
+            _maybe_register_rule(base, accumulator)
 
     return tier3, tier2, context_rules
 
 
 def _build_book_mapping(
     zf: zipfile.ZipFile,
-    mode: PropagationMode,
-    nlp: "NLPBackend" | None,
+    nlp: "NLPBackend",
 ) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, _ContextRule]]:
     accumulators: dict[str, _ReadingAccumulator] = defaultdict(_ReadingAccumulator)
     base_sources: dict[str, str] = {}
@@ -1773,17 +1754,16 @@ def _build_book_mapping(
         for base, partial_acc in partial.items():
             accumulators[base].merge_from(partial_acc)
             base_sources.setdefault(base, "propagation")
-    if mode == "advanced":
-        corpus_accumulators = _load_corpus_reading_accumulators()
-        if corpus_accumulators:
-            for base, corpus_acc in corpus_accumulators.items():
-                existing = accumulators.get(base)
-                if existing is None:
-                    existing = accumulators[base]
-                if existing.total == 0:
-                    existing.merge_from(corpus_acc)
-                    base_sources.setdefault(base, "nhk")
-    tier3, tier2, context_rules = _select_reading_mapping(accumulators, mode, nlp)
+    corpus_accumulators = _load_corpus_reading_accumulators()
+    if corpus_accumulators:
+        for base, corpus_acc in corpus_accumulators.items():
+            existing = accumulators.get(base)
+            if existing is None:
+                existing = accumulators[base]
+            if existing.total == 0:
+                existing.merge_from(corpus_acc)
+                base_sources.setdefault(base, "nhk")
+    tier3, tier2, context_rules = _select_reading_mapping(accumulators, nlp)
     tier3_sources = {base: base_sources.get(base, "propagation") for base in tier3}
     tier2_sources = {base: base_sources.get(base, "propagation") for base in tier2}
     return tier3, tier2, tier3_sources, tier2_sources, context_rules
@@ -1877,7 +1857,6 @@ def _strip_html_to_text(soup: BeautifulSoup) -> str:
 
 def epub_to_chapter_texts(
     inp_epub: str,
-    mode: PropagationMode = "advanced",
     nlp: "NLPBackend" | None = None,
 ) -> list[ChapterText]:
     """
@@ -1885,15 +1864,13 @@ def epub_to_chapter_texts(
 
     Returns the processed spine items in order as ChapterText objects.
     """
-    if mode not in ("fast", "advanced"):
-        raise ValueError(f"Unsupported mode '{mode}'. Expected 'fast' or 'advanced'.")
     backend = nlp
-    if mode == "advanced" and backend is None:
-        from .nlp import NLPBackend  # Local import to avoid mandatory dependency for fast mode.
+    if backend is None:
+        from .nlp import NLPBackend  # Local import to avoid costly dependency during module import.
 
         backend = NLPBackend()
     with zipfile.ZipFile(inp_epub, "r") as zf:
-        unique_mapping, common_mapping, unique_sources, common_sources, context_rules = _build_book_mapping(zf, mode, backend)
+        unique_mapping, common_mapping, unique_sources, common_sources, context_rules = _build_book_mapping(zf, backend)
         spine = _spine_items(zf)
         nav_points = _toc_nav_points(zf, spine)
         nav_buckets: dict[int, dict[str, list[object]]] = {
@@ -1920,7 +1897,7 @@ def epub_to_chapter_texts(
                 variant_stripped = title_variant.strip()
                 if variant_stripped and variant_stripped not in title_candidates:
                     title_candidates.append(variant_stripped)
-                if mode == "advanced" and backend is not None:
+                if backend is not None:
                     candidates = {
                         backend.to_reading_text(normalized_title).strip(),
                         backend.to_reading_text(variant_stripped or normalized_title).strip(),
@@ -2085,7 +2062,6 @@ def epub_to_chapter_texts(
         for pending in sorted(pending_outputs, key=lambda item: item.sort_key):
             finalized_text, pitch_tokens = _finalize_segment_text(
                 pending.raw_text,
-                mode,
                 backend,
                 preset_tokens=pending.tokens,
             )
@@ -2115,18 +2091,16 @@ def epub_to_chapter_texts(
 
 def epub_to_txt(
     inp_epub: str,
-    mode: PropagationMode = "advanced",
     nlp: "NLPBackend" | None = None,
 ) -> str:
     """
     Convert an EPUB into plain text with ruby expansion.
 
-    `fast` mode uses only in-book ruby evidence.
-    `advanced` mode verifies ruby readings with an NLP backend, keeps the ones
+    Advanced mode verifies ruby readings with an NLP backend, keeps the ones
     that match or dominate in-book evidence, and fills remaining kanji with
     dictionary readings.
     """
-    chapters = epub_to_chapter_texts(inp_epub, mode=mode, nlp=nlp)
+    chapters = epub_to_chapter_texts(inp_epub, nlp=nlp)
     combined = "\n\n".join(chapter.text for chapter in chapters).strip()
     return combined
 

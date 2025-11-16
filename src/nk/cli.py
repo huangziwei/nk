@@ -113,16 +113,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional name for the output .txt (same folder as input)",
     )
     ap.add_argument(
-        "-m",
-        "--mode",
-        choices=["advanced", "fast"],
-        default="advanced",
-        help=(
-            "Propagation strategy: 'advanced' (default) verifies ruby readings with Sudachi and "
-            "fills every kanji; 'fast' relies on ruby evidence only."
-        ),
-    )
-    ap.add_argument(
         "--single-file",
         action="store_true",
         help="Emit a single combined .txt (legacy mode). Default outputs per-chapter files.",
@@ -172,15 +162,6 @@ def build_tts_parser() -> argparse.ArgumentParser:
         "input_path",
         nargs="?",
         help="Path to a .txt file or directory containing .txt files.",
-    )
-    ap.add_argument(
-        "--mode",
-        choices=["advanced", "fast"],
-        default="advanced",
-        help=(
-            "Propagation mode used if an EPUB input is provided. "
-            "'advanced' (default) verifies rubies via UniDic; 'fast' trusts in-book evidence."
-        ),
     )
     ap.add_argument(
         "--output-dir",
@@ -495,7 +476,7 @@ def _run_convert(args: argparse.Namespace) -> int:
     if not text:
         raise SystemExit("No text provided for conversion.")
     accumulators = _load_corpus_reading_accumulators()
-    tier3, tier2, context_rules = _select_reading_mapping(accumulators, "advanced", backend)
+    tier3, tier2, context_rules = _select_reading_mapping(accumulators, backend)
     processed = _apply_dictionary_mapping(text, tier3, context_rules)
     processed = _apply_dictionary_mapping(processed, tier2, context_rules)
     converted = backend.to_reading_text(processed)
@@ -506,7 +487,7 @@ def _run_convert(args: argparse.Namespace) -> int:
 def _ensure_tts_source_ready(
     input_path: Path,
     *,
-    mode: str,
+    nlp: NLPBackend | None = None,
     quiet: bool = False,
 ) -> Path:
     if not input_path.exists():
@@ -522,15 +503,15 @@ def _ensure_tts_source_ready(
             or not any(target_dir.glob("*.txt"))
         )
         if needs_chapter and not quiet:
-            print(f"[nk tts] Chapterizing {input_path.name} (mode={mode})")
+            print(f"[nk tts] Chapterizing {input_path.name}")
         if needs_chapter:
-            backend = None
-            if mode == "advanced":
+            backend = nlp
+            if backend is None:
                 try:
                     backend = NLPBackend()
                 except NLPBackendUnavailableError as exc:
                     raise SystemExit(str(exc)) from exc
-            chapters = epub_to_chapter_texts(str(input_path), mode=mode, nlp=backend)
+            chapters = epub_to_chapter_texts(str(input_path), nlp=backend)
             cover = get_epub_cover(str(input_path))
             write_book_package(
                 target_dir,
@@ -568,7 +549,7 @@ def _run_tts(args: argparse.Namespace) -> int:
     intonation_override_set = args.intonation is not None
 
     input_path = Path(args.input_path)
-    input_path = _ensure_tts_source_ready(input_path, mode=args.mode)
+    input_path = _ensure_tts_source_ready(input_path)
     defaults_book_dir = input_path if input_path.is_dir() else input_path.parent
     metadata_path = (
         defaults_book_dir / BOOK_METADATA_FILENAME
@@ -1290,12 +1271,10 @@ def main(argv: list[str] | None = None) -> int:
     if emit_chapterized and args.output_name:
         raise ValueError("Output name can only be used with --single-file.")
 
-    backend = None
-    if args.mode == "advanced":
-        try:
-            backend = NLPBackend()
-        except NLPBackendUnavailableError as exc:
-            raise SystemExit(str(exc)) from exc
+    try:
+        backend = NLPBackend()
+    except NLPBackendUnavailableError as exc:
+        raise SystemExit(str(exc)) from exc
 
     if inp_path.is_dir():
         if args.output_name:
@@ -1305,7 +1284,7 @@ def main(argv: list[str] | None = None) -> int:
             raise FileNotFoundError(f"No .epub files found in directory: {inp_path}")
         for epub_path in epubs:
             if emit_chapterized:
-                chapters = epub_to_chapter_texts(str(epub_path), mode=args.mode, nlp=backend)
+                chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
                 output_dir = epub_path.with_suffix("")
                 cover = get_epub_cover(str(epub_path))
                 write_book_package(
@@ -1315,7 +1294,7 @@ def main(argv: list[str] | None = None) -> int:
                     cover_image=cover,
                 )
             else:
-                txt = epub_to_txt(str(epub_path), mode=args.mode, nlp=backend)
+                txt = epub_to_txt(str(epub_path), nlp=backend)
                 output_path = epub_path.with_suffix(".txt")
                 output_path.write_text(txt, encoding="utf-8")
     else:
@@ -1323,7 +1302,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError(f"Input must be an .epub file or directory: {inp_path}")
 
         if emit_chapterized:
-            chapters = epub_to_chapter_texts(str(inp_path), mode=args.mode, nlp=backend)
+            chapters = epub_to_chapter_texts(str(inp_path), nlp=backend)
             output_dir = inp_path.with_suffix("")
             cover = get_epub_cover(str(inp_path))
             write_book_package(
@@ -1344,7 +1323,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 output_path = inp_path.with_suffix(".txt")
 
-            txt = epub_to_txt(str(inp_path), mode=args.mode, nlp=backend)
+            txt = epub_to_txt(str(inp_path), nlp=backend)
             output_path.write_text(txt, encoding="utf-8")
     return 0
 

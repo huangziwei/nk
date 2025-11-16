@@ -27,6 +27,17 @@ from nk.tts import (
 )
 
 
+class _DummyBackend:
+    def to_reading_text(self, text: str) -> str:
+        return text
+
+    def to_reading_with_pitch(self, text: str):
+        return text, []
+
+    def reading_variants(self, text: str) -> set[str]:
+        return set()
+
+
 @pytest.fixture(autouse=True)
 def _reset_cache() -> None:
     _reset_voicevox_accent_cache_for_tests()
@@ -149,7 +160,7 @@ def _build_epub_for_tts(tmp_path: Path) -> Path:
 
 def test_ensure_tts_source_ready_chapterizes_epub(tmp_path: Path) -> None:
     epub = _build_epub_for_tts(tmp_path)
-    prepared = _ensure_tts_source_ready(epub, mode="fast", quiet=True)
+    prepared = _ensure_tts_source_ready(epub, nlp=_DummyBackend(), quiet=True)
     assert prepared.is_dir()
     txt_files = sorted(prepared.glob("*.txt"))
     assert txt_files
@@ -186,7 +197,7 @@ def test_ensure_tts_source_ready_refreshes_m4b(tmp_path: Path) -> None:
     epub_path = tmp_path / "book.epub"
     epub_path.write_text("dummy", encoding="utf-8")
 
-    prepared = _ensure_tts_source_ready(epub_path, mode="fast", quiet=True)
+    prepared = _ensure_tts_source_ready(epub_path, nlp=_DummyBackend(), quiet=True)
     assert prepared == book_dir
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert payload["tracks"][0]["chapter"] == "Original Title"
