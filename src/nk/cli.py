@@ -59,6 +59,7 @@ from .tts import (
     set_debug_logging,
 )
 from .refine import load_override_config, refine_book
+from .check_app import create_check_app
 from .web import WebConfig, create_app
 from .voice_defaults import (
     DEFAULT_INTONATION_SCALE,
@@ -387,6 +388,29 @@ def build_web_parser() -> argparse.ArgumentParser:
         "--keep-cache",
         action="store_true",
         help="Retain cached WAV chunks after playback completes.",
+    )
+    return ap
+
+
+def build_check_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        description="Visualize pitch alignment between transformed/original texts using a browser.",
+    )
+    _add_version_flag(ap)
+    ap.add_argument(
+        "root",
+        help="Directory containing nk chapterized outputs (.txt, .pitch.json, optional .original.txt).",
+    )
+    ap.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host interface for the checker server (default: 127.0.0.1).",
+    )
+    ap.add_argument(
+        "--port",
+        type=int,
+        default=2047,
+        help="Port for the checker server (default: 2047).",
     )
     return ap
 
@@ -1133,6 +1157,18 @@ def _run_web(args: argparse.Namespace) -> None:
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 
+def _run_check(args: argparse.Namespace) -> int:
+    root = Path(args.root).expanduser().resolve()
+    app = create_check_app(root)
+    public_ip = _resolve_local_ip(args.host)
+    url = f"http://{public_ip}:{args.port}/"
+    print(f"Serving nk check from {root}")
+    print(f"Check URL: {url}")
+    print("Press Ctrl+C to stop.\n")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
@@ -1146,6 +1182,10 @@ def main(argv: list[str] | None = None) -> int:
         web_args = web_parser.parse_args(argv[1:])
         _run_web(web_args)
         return 0
+    if argv and argv[0] == "check":
+        check_parser = build_check_parser()
+        check_args = check_parser.parse_args(argv[1:])
+        return _run_check(check_args)
     if argv and argv[0] == "dav":
         dav_parser = build_dav_parser()
         dav_args = dav_parser.parse_args(argv[1:])
