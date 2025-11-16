@@ -182,8 +182,16 @@ INDEX_HTML = """<!DOCTYPE html>
     }
     .text-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 1rem;
+    }
+    .text-grid.single-column {
+      grid-template-columns: 1fr;
+    }
+    @media (max-width: 900px) {
+      .text-grid {
+        grid-template-columns: 1fr;
+      }
     }
     .text-panel {
       background: var(--panel-alt);
@@ -207,17 +215,38 @@ INDEX_HTML = """<!DOCTYPE html>
       color: var(--text);
       font-size: 0.95rem;
     }
+    .text-grid .text-controls {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      justify-content: flex-start;
+      align-items: center;
+    }
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      background: rgba(0,0,0,0.2);
+      border-radius: 999px;
+      padding: 0.25rem 0.75rem;
+      border: 1px solid var(--outline);
+      cursor: pointer;
+    }
+    .toggle span {
+      color: var(--muted);
+    }
+    .toggle input {
+      accent-color: var(--accent);
+    }
     .text-content {
       flex: 1;
       border-radius: 10px;
       border: 1px solid rgba(255,255,255,0.06);
       padding: 0.75rem;
-      white-space: pre-wrap;
-      font-family: "SFMono-Regular", Consolas, "Hiragino Sans", monospace;
-      font-size: 0.9rem;
       background: rgba(0,0,0,0.15);
       overflow: auto;
-      line-height: 1.6;
     }
     .text-content.empty {
       display: flex;
@@ -225,6 +254,39 @@ INDEX_HTML = """<!DOCTYPE html>
       justify-content: center;
       color: var(--muted);
       font-style: italic;
+    }
+    .text-lines {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      min-width: 100%;
+    }
+    .text-line {
+      display: grid;
+      grid-template-columns: 3rem 1fr;
+      gap: 0.75rem;
+      align-items: flex-start;
+      font-size: 0.9rem;
+    }
+    .line-number {
+      min-width: 3rem;
+      font-family: "SFMono-Regular", Consolas, "Hiragino Sans", monospace;
+      color: var(--muted);
+      text-align: right;
+      padding-right: 0.4rem;
+      border-right: 1px solid rgba(255,255,255,0.08);
+      font-variant-numeric: tabular-nums;
+    }
+    .line-body {
+      display: block;
+      font-family: "SFMono-Regular", Consolas, "Hiragino Sans", monospace;
+      white-space: pre;
+      line-height: 1.6;
+      min-height: 1.6rem;
+      overflow: visible;
+    }
+    .text-panel.hidden {
+      display: none;
     }
     .token-chunk {
       background: var(--token-bg);
@@ -302,29 +364,9 @@ INDEX_HTML = """<!DOCTYPE html>
     </aside>
     <main id="details">
       <div class="status" id="status">Loading chapters…</div>
-      <section class="panel" id="meta-panel" hidden>
-        <h2>chapter info</h2>
-        <div class="meta-grid" id="meta-grid"></div>
-      </section>
-      <section class="panel text-grid">
-        <div class="text-panel">
-          <header>
-            <strong>Transformed text</strong>
-            <span id="transformed-meta" class="pill">—</span>
-          </header>
-          <div class="text-content empty" id="transformed-text">Select a chapter to preview.</div>
-        </div>
-        <div class="text-panel">
-          <header>
-            <strong>Original text</strong>
-            <span id="original-meta" class="pill">—</span>
-          </header>
-          <div class="text-content empty" id="original-text">Original text unavailable.</div>
-        </div>
-      </section>
-      <section class="panel">
+      <section class="panel" id="token-panel">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <h3>token annotations</h3>
+          <h3>pitch tokens</h3>
           <span id="token-count" class="pill">—</span>
         </div>
         <div class="table-wrapper">
@@ -343,6 +385,36 @@ INDEX_HTML = """<!DOCTYPE html>
             <tbody></tbody>
           </table>
         </div>
+      </section>
+      <section class="panel text-grid" id="text-grid">
+        <div class="text-controls">
+          <label class="toggle">
+            <input type="checkbox" id="toggle-transformed" checked>
+            <span>Transformed text</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-original" checked>
+            <span>Original text</span>
+          </label>
+        </div>
+        <div class="text-panel" id="transformed-panel">
+          <header>
+            <strong>Transformed text</strong>
+            <span id="transformed-meta" class="pill">—</span>
+          </header>
+          <div class="text-content empty" id="transformed-text">Select a chapter to preview.</div>
+        </div>
+        <div class="text-panel" id="original-panel">
+          <header>
+            <strong>Original text</strong>
+            <span id="original-meta" class="pill">—</span>
+          </header>
+          <div class="text-content empty" id="original-text">Original text unavailable.</div>
+        </div>
+      </section>
+      <section class="panel" id="meta-panel" hidden>
+        <h2>chapter info</h2>
+        <div class="meta-grid" id="meta-grid"></div>
       </section>
     </main>
   </div>
@@ -363,11 +435,16 @@ INDEX_HTML = """<!DOCTYPE html>
       const refreshBtn = document.getElementById('refresh');
       const statusEl = document.getElementById('status');
       const metaPanel = document.getElementById('meta-panel');
+      const textGrid = document.getElementById('text-grid');
       const metaGrid = document.getElementById('meta-grid');
       const transformedMeta = document.getElementById('transformed-meta');
       const originalMeta = document.getElementById('original-meta');
       const transformedText = document.getElementById('transformed-text');
       const originalText = document.getElementById('original-text');
+      const transformedPanel = document.getElementById('transformed-panel');
+      const originalPanel = document.getElementById('original-panel');
+      const toggleTransformed = document.getElementById('toggle-transformed');
+      const toggleOriginal = document.getElementById('toggle-original');
       const tokenCountEl = document.getElementById('token-count');
       const tokenTableBody = document.querySelector('#token-table tbody');
 
@@ -415,6 +492,48 @@ INDEX_HTML = """<!DOCTYPE html>
         }
         tokenCountEl.textContent = `${count} token${count === 1 ? '' : 's'}`;
         tokenCountEl.className = 'pill' + (count ? ' ok' : ' missing');
+      }
+
+      function updatePanelVisibility(panel, toggle) {
+        if (!panel || !toggle) return;
+        panel.classList.toggle('hidden', !toggle.checked);
+        updateTextGridLayout();
+      }
+
+      function updateTextGridLayout() {
+        if (!textGrid) return;
+        const visiblePanels = [transformedPanel, originalPanel].filter(
+          (panel) => panel && !panel.classList.contains('hidden')
+        ).length;
+        textGrid.classList.toggle('single-column', visiblePanels <= 1);
+      }
+
+      function bindPanelToggle(panel, toggle) {
+        if (!panel || !toggle) return;
+        updatePanelVisibility(panel, toggle);
+        toggle.addEventListener('change', () => updatePanelVisibility(panel, toggle));
+      }
+
+      function resetScrollPositions() {
+        if (transformedText) transformedText.scrollTop = 0;
+        if (originalText) originalText.scrollTop = 0;
+      }
+
+      let scrollSyncLock = false;
+      function syncScroll(source, target) {
+        if (!source || !target) return;
+        if (scrollSyncLock) return;
+        scrollSyncLock = true;
+        target.scrollTop = source.scrollTop;
+        scrollSyncLock = false;
+      }
+
+      bindPanelToggle(transformedPanel, toggleTransformed);
+      bindPanelToggle(originalPanel, toggleOriginal);
+
+      if (transformedText && originalText) {
+        transformedText.addEventListener('scroll', () => syncScroll(transformedText, originalText));
+        originalText.addEventListener('scroll', () => syncScroll(originalText, transformedText));
       }
 
       function setHighlighted(index) {
@@ -472,9 +591,9 @@ INDEX_HTML = """<!DOCTYPE html>
           return;
         }
         container.classList.remove('empty');
-        const frag = document.createDocumentFragment();
         const length = text.length;
         let cursor = 0;
+        const segments = [];
         const ordered = tokens
           .map((token, index) => ({
             token,
@@ -491,28 +610,100 @@ INDEX_HTML = """<!DOCTYPE html>
           .filter((entry) => entry.end > entry.start)
           .sort((a, b) => (a.start - b.start) || (a.index - b.index));
 
+        const pushTextSegment = (value) => {
+          if (value) {
+            segments.push({ type: 'text', text: value });
+          }
+        };
+        const pushTokenSegment = (value, entry) => {
+          if (value) {
+            segments.push({
+              type: 'token',
+              text: value,
+              token: entry.token,
+              index: entry.index,
+            });
+          }
+        };
+
         ordered.forEach((entry) => {
           const start = Math.max(entry.start, cursor);
           if (start > cursor) {
-            frag.appendChild(document.createTextNode(text.slice(cursor, start)));
+            pushTextSegment(text.slice(cursor, start));
           }
           const end = Math.max(start, entry.end);
           if (end > start) {
-            const span = document.createElement('span');
-            span.className = 'token-chunk';
-            span.dataset.tokenIndex = String(entry.index);
-            span.title = `${entry.token.surface || ''} → ${entry.token.reading || ''}`;
-            span.textContent = text.slice(start, end);
-            attachHighlightHandlers(span, entry.index);
-            frag.appendChild(span);
+            pushTokenSegment(text.slice(start, end), entry);
           }
           cursor = Math.max(cursor, entry.end);
         });
 
         if (cursor < length) {
-          frag.appendChild(document.createTextNode(text.slice(cursor)));
+          pushTextSegment(text.slice(cursor));
         }
-        container.appendChild(frag);
+
+        const linesContainer = document.createElement('div');
+        linesContainer.className = 'text-lines';
+        let currentLineNodes = [];
+        let lineCounter = 1;
+
+        const flushLine = () => {
+          const lineEl = document.createElement('div');
+          lineEl.className = 'text-line';
+          const numberEl = document.createElement('div');
+          numberEl.className = 'line-number';
+          numberEl.textContent = String(lineCounter++);
+          const bodyEl = document.createElement('div');
+          bodyEl.className = 'line-body';
+          if (!currentLineNodes.length) {
+            bodyEl.appendChild(document.createTextNode('\u00a0'));
+          } else {
+            currentLineNodes.forEach((node) => bodyEl.appendChild(node));
+          }
+          lineEl.appendChild(numberEl);
+          lineEl.appendChild(bodyEl);
+          linesContainer.appendChild(lineEl);
+          currentLineNodes = [];
+        };
+
+        const appendSegmentContent = (segment, chunk) => {
+          if (!chunk) {
+            return;
+          }
+          if (segment.type === 'token') {
+            const span = document.createElement('span');
+            span.className = 'token-chunk';
+            span.dataset.tokenIndex = String(segment.index);
+            span.title = `${segment.token.surface || ''} → ${segment.token.reading || ''}`;
+            span.textContent = chunk;
+            attachHighlightHandlers(span, segment.index);
+            currentLineNodes.push(span);
+          } else {
+            currentLineNodes.push(document.createTextNode(chunk));
+          }
+        };
+
+        segments.forEach((segment) => {
+          let start = 0;
+          while (start <= segment.text.length) {
+            const newlineIndex = segment.text.indexOf('\\n', start);
+            if (newlineIndex === -1) {
+              const finalChunk = segment.text.slice(start);
+              if (finalChunk) {
+                appendSegmentContent(segment, finalChunk);
+              }
+              break;
+            }
+            const chunk = segment.text.slice(start, newlineIndex);
+            if (chunk) {
+              appendSegmentContent(segment, chunk);
+            }
+            flushLine();
+            start = newlineIndex + 1;
+          }
+        });
+        flushLine();
+        container.appendChild(linesContainer);
       }
 
       function renderTokensTable(tokens) {
@@ -655,6 +846,7 @@ INDEX_HTML = """<!DOCTYPE html>
         transformedText.textContent = 'Select a chapter to preview.';
         originalText.classList.add('empty');
         originalText.textContent = 'Original text unavailable.';
+        resetScrollPositions();
         tokenTableBody.innerHTML = '';
         setTokenCount(null);
         setDocumentTitle(null);
@@ -682,6 +874,7 @@ INDEX_HTML = """<!DOCTYPE html>
             const hasOriginalFile = Boolean(payload.original_path);
             updateTextMeta(originalMeta, payload.original_text, hasOriginalFile);
             renderTextView(originalText, payload.original_text, tokens, 'original');
+            resetScrollPositions();
             setTokenCount(tokens.length);
             renderTokensTable(tokens);
           })
