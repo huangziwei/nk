@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -583,6 +583,7 @@ INDEX_HTML = """<!DOCTYPE html>
       function updateMetaPanel(payload) {
         const chapter = payload.chapter || {};
         const pitch = payload.pitch && typeof payload.pitch === 'object' ? payload.pitch : null;
+        const tokenVersion = payload.token_version ?? '—';
         const textLength = typeof payload.text_length === 'number' ? payload.text_length : (payload.text ? payload.text.length : 0);
         const originalLength = typeof payload.original_length === 'number' ? payload.original_length : (payload.original_text ? payload.original_text.length : 0);
         const fields = [
@@ -591,6 +592,8 @@ INDEX_HTML = """<!DOCTYPE html>
           ['File size', formatBytes(Number(chapter.size))],
           ['Text length', formatNumber(textLength)],
           ['Original length', formatNumber(originalLength)],
+          ['Token version', tokenVersion],
+          ['Token file', payload.token_path || 'missing'],
           ['Pitch version', pitch && pitch.version !== undefined ? pitch.version : '—'],
           ['Pitch SHA1', pitch && pitch.text_sha1 ? pitch.text_sha1 : '—'],
           ['Pitch file', payload.pitch_path || 'missing'],
@@ -645,9 +648,10 @@ INDEX_HTML = """<!DOCTYPE html>
           name.textContent = chapter.book ? `${chapter.book} / ${chapter.name}` : chapter.name;
           const meta = document.createElement('div');
           meta.className = 'meta';
+          const tokenFlag = chapter.has_token ? 'token✓' : 'token×';
           const pitchFlag = chapter.has_pitch ? 'pitch✓' : 'pitch×';
           const origFlag = chapter.has_original ? 'orig✓' : 'orig×';
-          meta.textContent = `${pitchFlag} · ${origFlag} · ${formatBytes(chapter.size)} · ${formatDate(chapter.modified)}`;
+          meta.textContent = `${tokenFlag} · ${pitchFlag} · ${origFlag} · ${formatBytes(chapter.size)} · ${formatDate(chapter.modified)}`;
           button.appendChild(name);
           button.appendChild(meta);
           button.addEventListener('click', () => {
@@ -683,7 +687,10 @@ INDEX_HTML = """<!DOCTYPE html>
         renderStatus(`Loading ${path}…`);
         fetchJSON(`/api/chapter?path=${encodeURIComponent(path)}`)
           .then((payload) => {
-            const tokens = payload.pitch && Array.isArray(payload.pitch.tokens) ? payload.pitch.tokens : [];
+            const canonicalTokens = Array.isArray(payload.tokens) ? payload.tokens : [];
+            const fallbackTokens = payload.pitch && Array.isArray(payload.pitch.tokens) ? payload.pitch.tokens : [];
+            const usingFallback = canonicalTokens.length === 0;
+            const tokens = usingFallback ? fallbackTokens : canonicalTokens;
             state.tokens = tokens;
             setHighlighted(null);
             const chapter = payload.chapter || {};
@@ -699,12 +706,14 @@ INDEX_HTML = """<!DOCTYPE html>
             renderTextView(originalText, payload.original_text, tokens, 'original');
             setTokenCount(tokens.length);
             renderTokensTable(tokens);
-            if (payload.pitch_error) {
+            if (payload.token_error) {
+              setPitchWarning(payload.token_error, true);
+            } else if (payload.pitch_error) {
               setPitchWarning(payload.pitch_error, true);
-            } else if (!payload.pitch_path) {
-              setPitchWarning('Pitch metadata missing for this chapter.', false);
+            } else if (usingFallback && fallbackTokens.length) {
+              setPitchWarning('Token file missing; displaying legacy pitch tokens.', false);
             } else if (!tokens.length) {
-              setPitchWarning('Pitch file loaded but contains no tokens.', false);
+              setPitchWarning('No tokens available for this chapter.', false);
             } else {
               setPitchWarning(null);
             }
@@ -774,6 +783,7 @@ def _chapter_entry(root: Path, path: Path) -> dict[str, object]:
     rel = _relative_to_root(root, path)
     stat = path.stat()
     pitch_path = path.with_name(path.name + ".pitch.json")
+    token_path = path.with_name(path.name + ".token.json")
     original_path = path.with_name(f"{path.stem}.original.txt")
     modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
     entry = {
@@ -783,6 +793,7 @@ def _chapter_entry(root: Path, path: Path) -> dict[str, object]:
         "size": stat.st_size,
         "modified": modified,
         "has_pitch": pitch_path.exists(),
+        "has_token": token_path.exists(),
         "has_original": original_path.exists(),
     }
     return entry
@@ -799,6 +810,85 @@ def _safe_read_text(path: Path) -> str | None:
         return path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         return path.read_text(encoding="utf-8", errors="ignore")
+
+
+def _convert_token_entry(entry: Mapping[str, object]) -> dict[str, object]:
+    surface = entry.get("surface")
+    if not isinstance(surface, str):
+        surface = ""
+    reading = entry.get("reading")
+    if not isinstance(reading, str):
+        reading = ""
+    pos = entry.get("pos")
+    if not isinstance(pos, str):
+        pos = None
+    accent = entry.get("accent")
+    if not isinstance(accent, int):
+        accent = entry.get("accent_type")
+        if not isinstance(accent, int):
+            accent = None
+    connection = entry.get("connection")
+    if not isinstance(connection, str):
+        connection = entry.get("accent_connection")
+        if not isinstance(connection, str):
+            connection = None
+    start_original = entry.get("start")
+    if isinstance(start_original, Mapping):
+        start_original_value = start_original.get("original")
+    else:
+        start_original_value = start_original if isinstance(start_original, int) else None
+    end_original = entry.get("end")
+    if isinstance(end_original, Mapping):
+        end_original_value = end_original.get("original")
+    else:
+        end_original_value = end_original if isinstance(end_original, int) else None
+    transformed_start = entry.get("transformed_start")
+    transformed_end = entry.get("transformed_end")
+    if isinstance(entry.get("start"), Mapping):
+        transformed_start = entry["start"].get("transformed")
+    if isinstance(entry.get("end"), Mapping):
+        transformed_end = entry["end"].get("transformed")
+    sources = entry.get("sources")
+    normalized_sources: list[str] = []
+    if isinstance(sources, list):
+        normalized_sources = [str(source) for source in sources if isinstance(source, str) and source]
+    else:
+        reading_source = entry.get("reading_source")
+        if isinstance(reading_source, str) and reading_source:
+            normalized_sources = [reading_source]
+    return {
+        "surface": surface,
+        "reading": reading,
+        "pos": pos,
+        "accent": accent,
+        "connection": connection,
+        "sources": normalized_sources,
+        "start": {
+            "original": start_original_value,
+            "transformed": transformed_start if isinstance(transformed_start, int) else None,
+        },
+        "end": {
+            "original": end_original_value,
+            "transformed": transformed_end if isinstance(transformed_end, int) else None,
+        },
+    }
+
+
+def _load_token_payload(path: Path) -> tuple[list[dict[str, object]], dict[str, object] | None, str | None]:
+    if not path.exists():
+        return [], None, None
+    try:
+        raw_payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return [], None, f"Failed to parse {path.name}: {exc}"
+    tokens_data = raw_payload.get("tokens")
+    if not isinstance(tokens_data, list):
+        return [], raw_payload, "Token file missing 'tokens' array."
+    converted: list[dict[str, object]] = []
+    for entry in tokens_data:
+        if isinstance(entry, Mapping):
+            converted.append(_convert_token_entry(entry))
+    return converted, raw_payload, None
 
 
 def create_check_app(root: Path) -> FastAPI:
@@ -848,6 +938,9 @@ def create_check_app(root: Path) -> FastAPI:
             except json.JSONDecodeError as exc:
                 pitch_error = f"Failed to parse {pitch_path.name}: {exc}"
 
+        token_path = chapter_path.with_name(chapter_path.name + ".token.json")
+        tokens_list, token_payload, token_error = _load_token_payload(token_path)
+
         chapter_entry = _chapter_entry(resolved_root, chapter_path)
         response = {
             "chapter": chapter_entry,
@@ -859,6 +952,10 @@ def create_check_app(root: Path) -> FastAPI:
             "pitch": pitch_payload,
             "pitch_path": _relative_to_root(resolved_root, pitch_path).as_posix() if pitch_path.exists() else None,
             "pitch_error": pitch_error,
+            "tokens": tokens_list,
+            "token_version": token_payload.get("version") if isinstance(token_payload, Mapping) else None,
+            "token_path": _relative_to_root(resolved_root, token_path).as_posix() if token_path.exists() else None,
+            "token_error": token_error,
             "original_path": _relative_to_root(resolved_root, original_path).as_posix() if original_path.exists() else None,
         }
         return JSONResponse(response)
