@@ -481,3 +481,27 @@ def test_first_chapter_inserts_break_between_title_and_author(tmp_path: Path, ba
     assert lines[0] == "ユメジュウヤ"
     assert lines[1] == ""
     assert lines[2] == "ナツメソウセキ"
+
+
+def _assert_token_offsets_match(text: str | None, tokens: list, *, use_original: bool) -> None:
+    if not text:
+        return
+    for token in tokens:
+        expected = token.surface if use_original else token.reading
+        if not expected:
+            continue
+        start = token.original_start if use_original else token.start
+        end = token.original_end if use_original else token.end
+        assert start is not None and end is not None
+        assert 0 <= start <= end <= len(text)
+        assert text[start:end] == expected
+
+
+def test_pitch_tokens_align_with_example_text(backend: NLPBackend) -> None:
+    epub_path = Path("example/[夏目漱石] 夢十夜.epub")
+    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    assert chapters
+    for chapter in chapters[:3]:
+        tokens = chapter.pitch_data or []
+        _assert_token_offsets_match(chapter.text, tokens, use_original=False)
+        _assert_token_offsets_match(chapter.original_text, tokens, use_original=True)

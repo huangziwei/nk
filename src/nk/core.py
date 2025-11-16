@@ -649,11 +649,26 @@ def _align_pitch_tokens(text: str, tokens: list[PitchToken]) -> list[PitchToken]
         reading = token.reading
         if not reading:
             continue
-        idx = text.find(reading, cursor)
-        if idx == -1:
-            fallback = max(0, min(token.start, text_len))
-            idx = fallback
+        hint = max(0, min(token.start, text_len))
+        idx = hint
+        if not text.startswith(reading, idx):
+            window = max(len(reading), 16)
+            window_start = max(0, hint - window)
+            window_end = min(text_len, hint + window + len(reading))
+            window_idx = text.find(reading, window_start, window_end)
+            if window_idx != -1:
+                idx = window_idx
+            else:
+                sequential_idx = text.find(reading, cursor)
+                if sequential_idx != -1:
+                    idx = sequential_idx
+                else:
+                    fallback_idx = text.find(reading)
+                    if fallback_idx != -1:
+                        idx = fallback_idx
         idx = max(0, min(idx, text_len))
+        if not text.startswith(reading, idx):
+            raise ValueError(f"Unable to align token '{token.surface}' with reading '{reading}'")
         end = min(text_len, idx + len(reading))
         aligned.append(replace(token, start=idx, end=end))
         cursor = end
@@ -671,11 +686,26 @@ def _remap_tokens_to_text(text: str, tokens: list[PitchToken]) -> None:
             token.start = cursor
             token.end = cursor
             continue
-        idx = text.find(reading, cursor)
-        if idx == -1:
-            fallback = max(0, min(token.start, text_len))
-            idx = fallback
+        hint = max(0, min(token.start, text_len))
+        idx = hint
+        if not text.startswith(reading, idx):
+            window = max(len(reading), 16)
+            window_start = max(0, hint - window)
+            window_end = min(text_len, hint + window + len(reading))
+            window_idx = text.find(reading, window_start, window_end)
+            if window_idx != -1:
+                idx = window_idx
+            else:
+                sequential_idx = text.find(reading, cursor)
+                if sequential_idx != -1:
+                    idx = sequential_idx
+                else:
+                    fallback_idx = text.find(reading)
+                    if fallback_idx != -1:
+                        idx = fallback_idx
         idx = max(0, min(idx, text_len))
+        if not text.startswith(reading, idx):
+            raise ValueError(f"Unable to remap token '{token.surface}' with reading '{reading}'")
         end = min(text_len, idx + len(reading))
         token.start = idx
         token.end = end
@@ -750,7 +780,24 @@ def _normalize_token_order(piece_text: str, tokens: list[PitchToken]) -> None:
             token.start,
         )
     )
-    _remap_tokens_to_text(piece_text, tokens)
+
+
+def _realign_tokens_to_text(
+    piece_text: str,
+    tokens: list[PitchToken] | None,
+    original_text: str | None,
+) -> list[PitchToken] | None:
+    if not piece_text or not tokens:
+        return tokens
+    try:
+        realigned = _align_pitch_tokens(piece_text, tokens)
+    except ValueError:
+        return tokens
+    if not realigned:
+        return None
+    _align_tokens_to_original_text(original_text, realigned)
+    _normalize_token_order(piece_text, realigned)
+    return realigned
 
 
 def _hiragana_to_katakana(text: str) -> str:
@@ -2202,7 +2249,11 @@ def epub_to_chapter_texts(
             if not finalized_text:
                 continue
             if not chapters:
-                finalized_text = _ensure_title_author_break(finalized_text)
+                adjusted_text = _ensure_title_author_break(finalized_text)
+                if adjusted_text != finalized_text:
+                    if pitch_tokens:
+                        pitch_tokens = _realign_tokens_to_text(adjusted_text, pitch_tokens, original_basis)
+                    finalized_text = adjusted_text
             original_title = _first_non_blank_line(original_basis)
             processed_title = _first_non_blank_line(finalized_text)
             title = processed_title or pending.title_hint

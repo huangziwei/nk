@@ -1,5 +1,7 @@
 from collections.abc import Iterable
 
+import pytest
+
 from nk.core import _fill_missing_pitch_from_surface, _finalize_segment_text
 from nk.pitch import PitchToken
 
@@ -89,7 +91,7 @@ def test_fill_missing_pitch_skips_unidic_sources() -> None:
     assert backend.calls == []
 
 
-def test_finalize_segment_text_retains_tokens_when_alignment_fails() -> None:
+def test_finalize_segment_text_raises_on_alignment_failure() -> None:
     class MisalignedBackend:
         def to_reading_with_pitch(self, text: str) -> tuple[str, list[PitchToken]]:
             return "サシ", [
@@ -103,8 +105,5 @@ def test_finalize_segment_text_retains_tokens_when_alignment_fails() -> None:
                 )
             ]
 
-    text, tokens = _finalize_segment_text("仮", MisalignedBackend())
-    assert text == "サシ"
-    assert tokens is not None
-    assert len(tokens) == 1
-    assert tokens[0].reading == "テン"
+    with pytest.raises(ValueError):
+        _finalize_segment_text("仮", MisalignedBackend())
