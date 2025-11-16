@@ -40,3 +40,61 @@ def test_example_pitch_original_indexes_are_ordered(pitch_path: Path) -> None:
 def test_example_pitch_transformed_indexes_are_ordered(pitch_path: Path) -> None:
     data = json.loads(pitch_path.read_text())
     _assert_index_order(data["tokens"], "transformed", pitch_path=pitch_path)
+
+
+@pytest.mark.parametrize("token_path", sorted(Path("example").rglob("*.txt.token.json")))
+def test_example_tokens_match_text(token_path: Path) -> None:
+    text_path = token_path.with_suffix("").with_suffix("")
+    original_path = text_path.with_name(text_path.stem + ".original.txt")
+    transformed_text = text_path.read_text(encoding="utf-8")
+    original_text = original_path.read_text(encoding="utf-8")
+    data = json.loads(token_path.read_text(encoding="utf-8"))
+    tokens = data.get("tokens", [])
+    for idx, token in enumerate(tokens):
+        surface = token.get("surface")
+        reading = token.get("reading")
+        start = token.get("start")
+        end = token.get("end")
+        t_start = token.get("transformed_start")
+        t_end = token.get("transformed_end")
+        assert isinstance(surface, str), f"{token_path} token #{idx} missing surface"
+        assert isinstance(reading, str), f"{token_path} token #{idx} missing reading"
+        assert isinstance(start, int) and isinstance(end, int), f"{token_path} token #{idx} missing original offsets"
+        assert isinstance(t_start, int) and isinstance(t_end, int), f"{token_path} token #{idx} missing transformed offsets"
+        assert original_text[start:end] == surface, (
+            f"{token_path} token #{idx} original slice mismatch "
+            f"(expected '{surface}', got '{original_text[start:end]}')"
+        )
+        assert transformed_text[t_start:t_end] == reading, (
+            f"{token_path} token #{idx} transformed slice mismatch "
+            f"(expected '{reading}', got '{transformed_text[t_start:t_end]}')"
+        )
+
+
+@pytest.mark.parametrize("token_path", sorted(Path("books/フィクション/舟を編む").rglob("*.txt.token.json")))
+def test_book_tokens_match_text(token_path: Path) -> None:
+    text_path = token_path.with_suffix("").with_suffix("")
+    original_path = text_path.with_name(text_path.stem + ".original.txt")
+    transformed_text = text_path.read_text(encoding="utf-8")
+    original_text = original_path.read_text(encoding="utf-8")
+    data = json.loads(token_path.read_text(encoding="utf-8"))
+    tokens = data.get("tokens", [])
+    for idx, token in enumerate(tokens):
+        surface = token.get("surface")
+        reading = token.get("reading")
+        start = token.get("start")
+        end = token.get("end")
+        t_start = token.get("transformed_start")
+        t_end = token.get("transformed_end")
+        assert isinstance(surface, str), f"{token_path} token #{idx} missing surface"
+        assert isinstance(reading, str), f"{token_path} token #{idx} missing reading"
+        assert isinstance(start, int) and isinstance(end, int), f"{token_path} token #{idx} missing original offsets"
+        assert isinstance(t_start, int) and isinstance(t_end, int), f"{token_path} token #{idx} missing transformed offsets"
+        assert original_text[start:end] == surface, (
+            f"{token_path} token #{idx} original slice mismatch "
+            f"(expected '{surface}', got '{original_text[start:end]}')"
+        )
+        assert transformed_text[t_start:t_end] == reading, (
+            f"{token_path} token #{idx} transformed slice mismatch "
+            f"(expected '{reading}', got '{transformed_text[t_start:t_end]}')"
+        )

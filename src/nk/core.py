@@ -1094,7 +1094,7 @@ def _render_text_from_tokens(text: str, tokens: list[ChapterToken]) -> tuple[str
         return "", []
     if not tokens:
         normalized = _normalize_katakana(_hiragana_to_katakana(text))
-        normalized = _normalize_ellipsis(normalized)
+        normalized = _normalize_ellipsis_with_offsets(normalized, None)
         return normalized, []
     output: list[str] = []
     cursor = 0
@@ -1119,7 +1119,7 @@ def _render_text_from_tokens(text: str, tokens: list[ChapterToken]) -> tuple[str
         normalized_chunk = _normalize_katakana(_hiragana_to_katakana(chunk))
         if normalized_chunk:
             output.append(normalized_chunk)
-    rendered = _normalize_ellipsis("".join(output))
+    rendered = _normalize_ellipsis_with_offsets("".join(output), tokens)
     return rendered, tokens
 
 
@@ -1801,6 +1801,54 @@ def _normalize_ellipsis(text: str) -> str:
     text = re.sub(r"\.{3,}", "…", text)
     text = re.sub(r"…{2,}", "…", text)
     return text
+
+
+def _normalize_ellipsis_with_offsets(text: str, tokens: list[ChapterToken] | None) -> str:
+    if not text:
+        return text
+    mapping = [0] * (len(text) + 1)
+    result_chars: list[str] = []
+    idx = 0
+    new_idx = 0
+
+    def _collapse_run(start: int, end: int) -> None:
+        nonlocal idx, new_idx
+        for pos in range(start + 1, end):
+            mapping[pos] = new_idx
+        result_chars.append("…")
+        new_idx += 1
+        mapping[end] = new_idx
+        idx = end
+
+    while idx < len(text):
+        mapping[idx] = new_idx
+        ch = text[idx]
+        if ch == ".":
+            run_end = idx
+            while run_end < len(text) and text[run_end] == ".":
+                run_end += 1
+            if run_end - idx >= 3:
+                _collapse_run(idx, run_end)
+                continue
+        if ch == "…":
+            run_end = idx
+            while run_end < len(text) and text[run_end] == "…":
+                run_end += 1
+            if run_end - idx >= 2:
+                _collapse_run(idx, run_end)
+                continue
+        result_chars.append(ch)
+        new_idx += 1
+        idx += 1
+    mapping[len(text)] = new_idx
+    normalized = "".join(result_chars)
+    if tokens:
+        for token in tokens:
+            if token.transformed_start is not None and 0 <= token.transformed_start <= len(text):
+                token.transformed_start = mapping[token.transformed_start]
+            if token.transformed_end is not None and 0 <= token.transformed_end <= len(text):
+                token.transformed_end = mapping[token.transformed_end]
+    return normalized
 
 
 def _contains_cjk(s: str) -> bool:
