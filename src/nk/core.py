@@ -1052,7 +1052,11 @@ def _build_chapter_tokens_from_original(
     ):
         if not mapping:
             continue
-        for start, end, base, reading in _iter_mapping_matches(text, mapping, context_rules):
+        matches = _iter_mapping_matches(text, mapping, context_rules)
+        if not matches:
+            continue
+        matches.sort(key=lambda item: (item[0], -(item[1] - item[0])))
+        for start, end, base, reading in matches:
             if not _range_is_free(coverage, start, end):
                 continue
             source_label = sources.get(base, "propagation")
@@ -1521,6 +1525,33 @@ def _trim_text_and_tokens(
     return trimmed, adjusted
 
 
+def _trim_transformed_text_and_tokens(
+    text: str,
+    tokens: list[ChapterToken] | None,
+) -> tuple[str, list[ChapterToken] | None]:
+    if not text:
+        return "", tokens
+    left = 0
+    right = len(text)
+    while left < right and text[left].isspace():
+        left += 1
+    while right > left and text[right - 1].isspace():
+        right -= 1
+    if left == 0 and right == len(text):
+        return text, tokens
+    trimmed = text[left:right]
+    if not tokens:
+        return trimmed, tokens
+    for token in tokens:
+        start = token.transformed_start if token.transformed_start is not None else 0
+        end = token.transformed_end if token.transformed_end is not None else start
+        start = max(left, min(start, right))
+        end = max(start, min(end, right))
+        token.transformed_start = max(0, start - left)
+        token.transformed_end = max(token.transformed_start, end - left)
+    return trimmed, tokens
+
+
 def _combine_text_fragments(fragments: list[_TextFragment]) -> tuple[str, list[PitchToken], list[_RubySpan]]:
     if not fragments:
         return "", [], []
@@ -1638,15 +1669,15 @@ def _finalize_segment_text(
     common_sources: Mapping[str, str] | None = None,
     context_rules: Mapping[str, _ContextRule] | None = None,
 ) -> tuple[str, list[PitchToken] | None, list[ChapterToken] | None]:
-    del preset_tokens  # unused; legacy parameter retained for compatibility
-    base_text = (original_text or raw_text or "").strip()
-    if not base_text:
+    del preset_tokens  # legacy parameter
+    token_basis = original_text if original_text is not None else raw_text
+    if not token_basis:
         return "", None, None
     if backend is None:
-        normalized = _normalize_ellipsis(_normalize_katakana(_hiragana_to_katakana(base_text)))
+        normalized = _normalize_ellipsis(_normalize_katakana(_hiragana_to_katakana(token_basis)))
         return normalized, None, None
     tokens = _build_chapter_tokens_from_original(
-        base_text,
+        token_basis,
         backend,
         ruby_spans or [],
         unique_mapping or {},
@@ -1655,7 +1686,9 @@ def _finalize_segment_text(
         common_sources or {},
         context_rules or {},
     )
-    rendered_text, finalized_tokens = _render_text_from_tokens(base_text, tokens)
+    rendered_text, finalized_tokens = _render_text_from_tokens(token_basis, tokens)
+    rendered_text, finalized_tokens = _trim_transformed_text_and_tokens(rendered_text, finalized_tokens)
+    rendered_text = _normalize_ellipsis(rendered_text)
     pitch_tokens = tokens_to_pitch_tokens(finalized_tokens)
     return rendered_text, pitch_tokens, finalized_tokens
 
@@ -2630,7 +2663,7 @@ def epub_to_chapter_texts(
 
         chapters: list[ChapterText] = []
         for pending in sorted(pending_outputs, key=lambda item: item.sort_key):
-            original_basis = pending.raw_original.strip() or pending.raw_text
+            original_basis = pending.raw_original if pending.raw_original is not None else pending.raw_text
             processing_basis = original_basis
             if not chapters:
                 processing_basis = _ensure_title_author_break(processing_basis)
