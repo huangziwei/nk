@@ -317,6 +317,21 @@
       "transformed_end": 93
     },
     {
+      "surface": "引き",
+      "start": 72,
+      "end": 74,
+      "reading": "ヒキ",
+      "reading_source": "unidic-gap",
+      "fallback_reading": "ヒキ",
+      "context_prefix": "の前に",
+      "context_suffix": "据えら",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "transformed_start": 94,
+      "transformed_end": 96
+    },
+    {
       "surface": "据",
       "start": 74,
       "end": 75,
@@ -3917,6 +3932,21 @@
       "transformed_end": 1316
     },
     {
+      "surface": "け出し",
+      "start": 1058,
+      "end": 1061,
+      "reading": "ケダシ",
+      "reading_source": "unidic-gap",
+      "fallback_reading": "ケダシ",
+      "context_prefix": "んに駆",
+      "context_suffix": "た。誰",
+      "accent": null,
+      "connection": "C2",
+      "pos": "動詞",
+      "transformed_start": 1316,
+      "transformed_end": 1319
+    },
+    {
       "surface": "誰",
       "start": 1063,
       "end": 1064,
@@ -4935,6 +4965,21 @@
       "pos": null,
       "transformed_start": 1621,
       "transformed_end": 1623
+    },
+    {
+      "surface": "込ん",
+      "start": 1299,
+      "end": 1301,
+      "reading": "コン",
+      "reading_source": "unidic-gap",
+      "fallback_reading": "コン",
+      "context_prefix": "と刻み",
+      "context_suffix": "だ。\n",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "transformed_start": 1624,
+      "transformed_end": 1626
     },
     {
       "surface": "鶏",

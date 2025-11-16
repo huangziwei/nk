@@ -752,6 +752,21 @@
       "transformed_end": 251
     },
     {
+      "surface": "込む",
+      "start": 198,
+      "end": 200,
+      "reading": "ゴム",
+      "reading_source": "unidic-gap",
+      "fallback_reading": "ゴム",
+      "context_prefix": "ら覗き",
+      "context_suffix": "ように",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "transformed_start": 252,
+      "transformed_end": 254
+    },
+    {
       "surface": "聞い",
       "start": 205,
       "end": 207,

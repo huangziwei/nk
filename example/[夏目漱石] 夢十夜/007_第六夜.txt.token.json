@@ -587,6 +587,21 @@
       "transformed_end": 187
     },
     {
+      "surface": "合っ",
+      "start": 141,
+      "end": 143,
+      "reading": "アッ",
+      "reading_source": "unidic-gap",
+      "fallback_reading": "アッ",
+      "context_prefix": "に照り",
+      "context_suffix": "てみご",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "transformed_start": 188,
+      "transformed_end": 190
+    },
+    {
       "surface": "見える",
       "start": 148,
       "end": 151,

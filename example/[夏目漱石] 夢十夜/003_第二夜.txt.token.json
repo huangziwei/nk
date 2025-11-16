@@ -302,6 +302,21 @@
       "transformed_end": 89
     },
     {
+      "surface": "立て",
+      "start": 72,
+      "end": 74,
+      "reading": "タテ",
+      "reading_source": "unidic-gap",
+      "fallback_reading": "タテ",
+      "context_prefix": "を掻き",
+      "context_suffix": "たとき",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "transformed_start": 90,
+      "transformed_end": 92
+    },
+    {
       "surface": "花",
       "start": 78,
       "end": 79,

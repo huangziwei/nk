@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "text_sha1": "ebe55cde1bf9a2a4f9918f48ddd993a90b6334af",
+  "text_sha1": "cf06452d3be9ee9cfdb53ff5002ecb60c16831ae",
   "tokens": [
     {
       "surface": "第",
@@ -360,6 +360,24 @@
       },
       "sources": [
         "ruby"
+      ]
+    },
+    {
+      "surface": "立て",
+      "reading": "タテ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": {
+        "transformed": 90,
+        "original": 72
+      },
+      "end": {
+        "transformed": 92,
+        "original": 74
+      },
+      "sources": [
+        "unidic-gap"
       ]
     },
     {

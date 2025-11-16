@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "text_sha1": "bb89dfc463525c142c5602d81c30f102455f43ef",
+  "text_sha1": "3e4bba1b7034841d2f526019eee1c19663d7b07e",
   "tokens": [
     {
       "surface": "第",
@@ -378,6 +378,24 @@
       },
       "sources": [
         "unidic"
+      ]
+    },
+    {
+      "surface": "引き",
+      "reading": "ヒキ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": {
+        "transformed": 94,
+        "original": 72
+      },
+      "end": {
+        "transformed": 96,
+        "original": 74
+      },
+      "sources": [
+        "unidic-gap"
       ]
     },
     {
@@ -4701,6 +4719,24 @@
       ]
     },
     {
+      "surface": "け出し",
+      "reading": "ケダシ",
+      "accent": null,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": {
+        "transformed": 1316,
+        "original": 1058
+      },
+      "end": {
+        "transformed": 1319,
+        "original": 1061
+      },
+      "sources": [
+        "unidic-gap"
+      ]
+    },
+    {
       "surface": "誰",
       "reading": "ダレ",
       "accent": 1,
@@ -5922,6 +5958,24 @@
       },
       "sources": [
         "ruby"
+      ]
+    },
+    {
+      "surface": "込ん",
+      "reading": "コン",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": {
+        "transformed": 1624,
+        "original": 1299
+      },
+      "end": {
+        "transformed": 1626,
+        "original": 1301
+      },
+      "sources": [
+        "unidic-gap"
       ]
     },
     {

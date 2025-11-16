@@ -1086,6 +1086,43 @@ def _build_chapter_tokens_from_original(
         )
 
     tokens.sort(key=lambda token: (token.start, token.end))
+
+    def _fill_gaps_with_backend(start_idx: int, end_idx: int) -> None:
+        if start_idx >= end_idx:
+            return
+        segment = text[start_idx:end_idx]
+        raw_gap_tokens = backend.tokenize(segment)
+        for raw in raw_gap_tokens:
+            seg_start = start_idx + raw.start
+            seg_end = start_idx + raw.end
+            if not _range_is_free(coverage, seg_start, seg_end):
+                continue
+            surface = segment[raw.start:raw.end]
+            if not surface or not _contains_cjk(surface):
+                continue
+            reading = _normalize_katakana(raw.reading)
+            if not reading:
+                continue
+            _append_token(
+                seg_start,
+                seg_end,
+                reading,
+                "unidic-gap",
+                fallback=reading,
+                accent_type=raw.accent_type,
+                accent_connection=raw.accent_connection,
+                pos=raw.pos,
+            )
+
+    last_end = 0
+    for token in sorted(tokens, key=lambda token: token.start):
+        if token.start > last_end:
+            _fill_gaps_with_backend(last_end, token.start)
+        last_end = max(last_end, token.end)
+    if last_end < len(text):
+        _fill_gaps_with_backend(last_end, len(text))
+
+    tokens.sort(key=lambda token: (token.start, token.end))
     return tokens
 
 

@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "text_sha1": "d2bd8857e2d1531d210ebd8ca6b7936608b1955b",
+  "text_sha1": "7ce81f922a76270147d6bbc498e9e6f81518baa9",
   "tokens": [
     {
       "surface": "第",
@@ -900,6 +900,24 @@
       },
       "sources": [
         "ruby"
+      ]
+    },
+    {
+      "surface": "込む",
+      "reading": "ゴム",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": {
+        "transformed": 252,
+        "original": 198
+      },
+      "end": {
+        "transformed": 254,
+        "original": 200
+      },
+      "sources": [
+        "unidic-gap"
       ]
     },
     {

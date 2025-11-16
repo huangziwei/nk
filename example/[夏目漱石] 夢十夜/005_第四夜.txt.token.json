@@ -977,6 +977,21 @@
       "transformed_end": 335
     },
     {
+      "surface": "込ん",
+      "start": 278,
+      "end": 280,
+      "reading": "コン",
+      "reading_source": "unidic-gap",
+      "fallback_reading": "コン",
+      "context_prefix": "を呑み",
+      "context_suffix": "で、\n",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "transformed_start": 336,
+      "transformed_end": 338
+    },
+    {
       "surface": "忘れ",
       "start": 289,
       "end": 291,
@@ -2282,6 +2297,21 @@
       "transformed_end": 783
     },
     {
+      "surface": "下",
+      "start": 651,
+      "end": 652,
+      "reading": "シタ",
+      "reading_source": "unidic-gap",
+      "fallback_reading": "シタ",
+      "context_prefix": "を腋の",
+      "context_suffix": "へ釣る",
+      "accent": 0,
+      "connection": "C4",
+      "pos": "名詞",
+      "transformed_start": 784,
+      "transformed_end": 786
+    },
+    {
       "surface": "釣る",
       "start": 653,
       "end": 655,
@@ -2293,8 +2323,8 @@
       "accent": 0,
       "connection": "C4",
       "pos": "動詞",
-      "transformed_start": 786,
-      "transformed_end": 788
+      "transformed_start": 787,
+      "transformed_end": 789
     },
     {
       "surface": "浅黄",
@@ -2308,8 +2338,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 793,
-      "transformed_end": 796
+      "transformed_start": 794,
+      "transformed_end": 797
     },
     {
       "surface": "股引",
@@ -2323,8 +2353,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 797,
-      "transformed_end": 801
+      "transformed_start": 798,
+      "transformed_end": 802
     },
     {
       "surface": "穿",
@@ -2338,8 +2368,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 802,
-      "transformed_end": 803
+      "transformed_start": 803,
+      "transformed_end": 804
     },
     {
       "surface": "浅黄",
@@ -2353,8 +2383,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 806,
-      "transformed_end": 809
+      "transformed_start": 807,
+      "transformed_end": 810
     },
     {
       "surface": "袖無",
@@ -2368,8 +2398,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 810,
-      "transformed_end": 813
+      "transformed_start": 811,
+      "transformed_end": 814
     },
     {
       "surface": "着",
@@ -2383,8 +2413,8 @@
       "accent": 0,
       "connection": "C4",
       "pos": "動詞",
-      "transformed_start": 815,
-      "transformed_end": 816
+      "transformed_start": 816,
+      "transformed_end": 817
     },
     {
       "surface": "足袋",
@@ -2398,8 +2428,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 820,
-      "transformed_end": 822
+      "transformed_start": 821,
+      "transformed_end": 823
     },
     {
       "surface": "黄色",
@@ -2413,8 +2443,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 825,
-      "transformed_end": 828
+      "transformed_start": 826,
+      "transformed_end": 829
     },
     {
       "surface": "何",
@@ -2428,8 +2458,8 @@
       "accent": 1,
       "connection": null,
       "pos": "代名詞",
-      "transformed_start": 830,
-      "transformed_end": 832
+      "transformed_start": 831,
+      "transformed_end": 833
     },
     {
       "surface": "皮",
@@ -2443,8 +2473,8 @@
       "accent": 2,
       "connection": "C4",
       "pos": "名詞",
-      "transformed_start": 834,
-      "transformed_end": 836
+      "transformed_start": 835,
+      "transformed_end": 837
     },
     {
       "surface": "作っ",
@@ -2458,8 +2488,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 837,
-      "transformed_end": 840
+      "transformed_start": 838,
+      "transformed_end": 841
     },
     {
       "surface": "足袋",
@@ -2473,8 +2503,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 841,
-      "transformed_end": 843
+      "transformed_start": 842,
+      "transformed_end": 844
     },
     {
       "surface": "見え",
@@ -2488,8 +2518,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 847,
-      "transformed_end": 849
+      "transformed_start": 848,
+      "transformed_end": 850
     },
     {
       "surface": "爺",
@@ -2503,8 +2533,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 854,
-      "transformed_end": 856
+      "transformed_start": 855,
+      "transformed_end": 857
     },
     {
       "surface": "真直",
@@ -2518,8 +2548,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 859,
-      "transformed_end": 863
+      "transformed_start": 860,
+      "transformed_end": 864
     },
     {
       "surface": "柳",
@@ -2533,8 +2563,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 864,
-      "transformed_end": 867
+      "transformed_start": 865,
+      "transformed_end": 868
     },
     {
       "surface": "下",
@@ -2548,8 +2578,8 @@
       "accent": 0,
       "connection": "C4",
       "pos": "名詞",
-      "transformed_start": 868,
-      "transformed_end": 870
+      "transformed_start": 869,
+      "transformed_end": 871
     },
     {
       "surface": "来",
@@ -2563,8 +2593,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 872,
-      "transformed_end": 873
+      "transformed_start": 873,
+      "transformed_end": 874
     },
     {
       "surface": "柳",
@@ -2578,8 +2608,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 875,
-      "transformed_end": 878
+      "transformed_start": 876,
+      "transformed_end": 879
     },
     {
       "surface": "下",
@@ -2593,8 +2623,8 @@
       "accent": 0,
       "connection": "C4",
       "pos": "名詞",
-      "transformed_start": 879,
-      "transformed_end": 881
+      "transformed_start": 880,
+      "transformed_end": 882
     },
     {
       "surface": "子供",
@@ -2608,8 +2638,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 882,
-      "transformed_end": 885
+      "transformed_start": 883,
+      "transformed_end": 886
     },
     {
       "surface": "三四",
@@ -2623,8 +2653,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 886,
-      "transformed_end": 889
+      "transformed_start": 887,
+      "transformed_end": 890
     },
     {
       "surface": "人",
@@ -2638,8 +2668,8 @@
       "accent": null,
       "connection": "C4",
       "pos": "接尾辞",
-      "transformed_start": 889,
-      "transformed_end": 891
+      "transformed_start": 890,
+      "transformed_end": 892
     },
     {
       "surface": "爺",
@@ -2653,8 +2683,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 894,
-      "transformed_end": 896
+      "transformed_start": 895,
+      "transformed_end": 897
     },
     {
       "surface": "笑い",
@@ -2668,8 +2698,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 899,
-      "transformed_end": 902
+      "transformed_start": 900,
+      "transformed_end": 903
     },
     {
       "surface": "腰",
@@ -2683,8 +2713,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 905,
-      "transformed_end": 907
+      "transformed_start": 906,
+      "transformed_end": 908
     },
     {
       "surface": "浅黄",
@@ -2698,8 +2728,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 909,
-      "transformed_end": 912
+      "transformed_start": 910,
+      "transformed_end": 913
     },
     {
       "surface": "手拭",
@@ -2713,8 +2743,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 913,
-      "transformed_end": 917
+      "transformed_start": 914,
+      "transformed_end": 918
     },
     {
       "surface": "出し",
@@ -2728,8 +2758,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 918,
-      "transformed_end": 920
+      "transformed_start": 919,
+      "transformed_end": 921
     },
     {
       "surface": "肝心綯",
@@ -2743,8 +2773,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 925,
-      "transformed_end": 931
+      "transformed_start": 926,
+      "transformed_end": 932
     },
     {
       "surface": "細長く",
@@ -2758,8 +2788,8 @@
       "accent": null,
       "connection": "C1",
       "pos": "形容詞",
-      "transformed_start": 935,
-      "transformed_end": 940
+      "transformed_start": 936,
+      "transformed_end": 941
     },
     {
       "surface": "綯",
@@ -2773,8 +2803,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 940,
-      "transformed_end": 941
+      "transformed_start": 941,
+      "transformed_end": 942
     },
     {
       "surface": "地面",
@@ -2788,8 +2818,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 948,
-      "transformed_end": 951
+      "transformed_start": 949,
+      "transformed_end": 952
     },
     {
       "surface": "真中",
@@ -2803,8 +2833,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 952,
-      "transformed_end": 956
+      "transformed_start": 953,
+      "transformed_end": 957
     },
     {
       "surface": "置い",
@@ -2818,8 +2848,8 @@
       "accent": 0,
       "connection": "C4",
       "pos": "動詞",
-      "transformed_start": 957,
-      "transformed_end": 959
+      "transformed_start": 958,
+      "transformed_end": 960
     },
     {
       "surface": "手拭",
@@ -2833,8 +2863,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 965,
-      "transformed_end": 969
+      "transformed_start": 966,
+      "transformed_end": 970
     },
     {
       "surface": "周囲",
@@ -2848,8 +2878,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 970,
-      "transformed_end": 973
+      "transformed_start": 971,
+      "transformed_end": 974
     },
     {
       "surface": "大きな",
@@ -2863,8 +2893,8 @@
       "accent": 1,
       "connection": null,
       "pos": "連体詞",
-      "transformed_start": 975,
-      "transformed_end": 979
+      "transformed_start": 976,
+      "transformed_end": 980
     },
     {
       "surface": "丸い",
@@ -2878,8 +2908,8 @@
       "accent": null,
       "connection": "C2",
       "pos": "形容詞",
-      "transformed_start": 979,
-      "transformed_end": 982
+      "transformed_start": 980,
+      "transformed_end": 983
     },
     {
       "surface": "輪",
@@ -2893,8 +2923,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 982,
-      "transformed_end": 983
+      "transformed_start": 983,
+      "transformed_end": 984
     },
     {
       "surface": "描",
@@ -2908,8 +2938,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 984,
-      "transformed_end": 985
+      "transformed_start": 985,
+      "transformed_end": 986
     },
     {
       "surface": "肩",
@@ -2923,8 +2953,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "名詞",
-      "transformed_start": 992,
-      "transformed_end": 994
+      "transformed_start": 993,
+      "transformed_end": 995
     },
     {
       "surface": "箱",
@@ -2938,8 +2968,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 998,
-      "transformed_end": 1000
+      "transformed_start": 999,
+      "transformed_end": 1001
     },
     {
       "surface": "中",
@@ -2953,8 +2983,8 @@
       "accent": 1,
       "connection": "C4",
       "pos": "名詞",
-      "transformed_start": 1001,
-      "transformed_end": 1003
+      "transformed_start": 1002,
+      "transformed_end": 1004
     },
     {
       "surface": "真鍮",
@@ -2968,8 +2998,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1005,
-      "transformed_end": 1010
+      "transformed_start": 1006,
+      "transformed_end": 1011
     },
     {
       "surface": "製",
@@ -2983,8 +3013,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1011,
-      "transformed_end": 1013
+      "transformed_start": 1012,
+      "transformed_end": 1014
     },
     {
       "surface": "飴屋",
@@ -2998,8 +3028,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1016,
-      "transformed_end": 1019
+      "transformed_start": 1017,
+      "transformed_end": 1020
     },
     {
       "surface": "笛",
@@ -3013,8 +3043,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1020,
-      "transformed_end": 1022
+      "transformed_start": 1021,
+      "transformed_end": 1023
     },
     {
       "surface": "出し",
@@ -3028,8 +3058,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1023,
-      "transformed_end": 1025
+      "transformed_start": 1024,
+      "transformed_end": 1026
     },
     {
       "surface": "今",
@@ -3043,8 +3073,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1030,
-      "transformed_end": 1032
+      "transformed_start": 1031,
+      "transformed_end": 1033
     },
     {
       "surface": "手拭",
@@ -3058,8 +3088,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1035,
-      "transformed_end": 1039
+      "transformed_start": 1036,
+      "transformed_end": 1040
     },
     {
       "surface": "蛇",
@@ -3073,8 +3103,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1040,
-      "transformed_end": 1042
+      "transformed_start": 1041,
+      "transformed_end": 1043
     },
     {
       "surface": "見",
@@ -3088,8 +3118,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1048,
-      "transformed_end": 1049
+      "transformed_start": 1049,
+      "transformed_end": 1050
     },
     {
       "surface": "見",
@@ -3103,8 +3133,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1054,
-      "transformed_end": 1055
+      "transformed_start": 1055,
+      "transformed_end": 1056
     },
     {
       "surface": "繰返",
@@ -3118,8 +3148,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1061,
-      "transformed_end": 1065
+      "transformed_start": 1062,
+      "transformed_end": 1066
     },
     {
       "surface": "云っ",
@@ -3133,8 +3163,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1067,
-      "transformed_end": 1069
+      "transformed_start": 1068,
+      "transformed_end": 1070
     },
     {
       "surface": "子供",
@@ -3148,8 +3178,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1074,
-      "transformed_end": 1077
+      "transformed_start": 1075,
+      "transformed_end": 1078
     },
     {
       "surface": "一生懸命",
@@ -3163,8 +3193,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1078,
-      "transformed_end": 1087
+      "transformed_start": 1079,
+      "transformed_end": 1088
     },
     {
       "surface": "手拭",
@@ -3178,8 +3208,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1088,
-      "transformed_end": 1092
+      "transformed_start": 1089,
+      "transformed_end": 1093
     },
     {
       "surface": "見",
@@ -3193,8 +3223,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1093,
-      "transformed_end": 1094
+      "transformed_start": 1094,
+      "transformed_end": 1095
     },
     {
       "surface": "自分",
@@ -3208,8 +3238,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1098,
-      "transformed_end": 1101
+      "transformed_start": 1099,
+      "transformed_end": 1102
     },
     {
       "surface": "見",
@@ -3223,8 +3253,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1102,
-      "transformed_end": 1103
+      "transformed_start": 1103,
+      "transformed_end": 1104
     },
     {
       "surface": "見",
@@ -3238,8 +3268,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1110,
-      "transformed_end": 1111
+      "transformed_start": 1111,
+      "transformed_end": 1112
     },
     {
       "surface": "見",
@@ -3253,8 +3283,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1116,
-      "transformed_end": 1117
+      "transformed_start": 1117,
+      "transformed_end": 1118
     },
     {
       "surface": "好い",
@@ -3268,8 +3298,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "形容詞",
-      "transformed_start": 1122,
-      "transformed_end": 1124
+      "transformed_start": 1123,
+      "transformed_end": 1125
     },
     {
       "surface": "云い",
@@ -3283,8 +3313,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1127,
-      "transformed_end": 1129
+      "transformed_start": 1128,
+      "transformed_end": 1130
     },
     {
       "surface": "爺",
@@ -3298,8 +3328,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1132,
-      "transformed_end": 1134
+      "transformed_start": 1133,
+      "transformed_end": 1135
     },
     {
       "surface": "笛",
@@ -3313,8 +3343,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1137,
-      "transformed_end": 1139
+      "transformed_start": 1138,
+      "transformed_end": 1140
     },
     {
       "surface": "吹い",
@@ -3328,8 +3358,8 @@
       "accent": null,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1140,
-      "transformed_end": 1142
+      "transformed_start": 1141,
+      "transformed_end": 1143
     },
     {
       "surface": "輪",
@@ -3343,8 +3373,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1144,
-      "transformed_end": 1145
+      "transformed_start": 1145,
+      "transformed_end": 1146
     },
     {
       "surface": "上",
@@ -3358,8 +3388,8 @@
       "accent": null,
       "connection": "C4",
       "pos": "名詞",
-      "transformed_start": 1146,
-      "transformed_end": 1148
+      "transformed_start": 1147,
+      "transformed_end": 1149
     },
     {
       "surface": "廻り",
@@ -3373,8 +3403,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1153,
-      "transformed_end": 1156
+      "transformed_start": 1154,
+      "transformed_end": 1157
     },
     {
       "surface": "出し",
@@ -3388,8 +3418,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1156,
-      "transformed_end": 1158
+      "transformed_start": 1157,
+      "transformed_end": 1159
     },
     {
       "surface": "自分",
@@ -3403,8 +3433,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1160,
-      "transformed_end": 1163
+      "transformed_start": 1161,
+      "transformed_end": 1164
     },
     {
       "surface": "手拭",
@@ -3418,8 +3448,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1164,
-      "transformed_end": 1168
+      "transformed_start": 1165,
+      "transformed_end": 1169
     },
     {
       "surface": "見",
@@ -3433,8 +3463,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1171,
-      "transformed_end": 1172
+      "transformed_start": 1172,
+      "transformed_end": 1173
     },
     {
       "surface": "手拭",
@@ -3448,8 +3478,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1180,
-      "transformed_end": 1184
+      "transformed_start": 1181,
+      "transformed_end": 1185
     },
     {
       "surface": "動か",
@@ -3463,8 +3493,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1189,
-      "transformed_end": 1192
+      "transformed_start": 1190,
+      "transformed_end": 1193
     },
     {
       "surface": "爺",
@@ -3478,8 +3508,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1200,
-      "transformed_end": 1202
+      "transformed_start": 1201,
+      "transformed_end": 1203
     },
     {
       "surface": "笛",
@@ -3493,8 +3523,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1205,
-      "transformed_end": 1207
+      "transformed_start": 1206,
+      "transformed_end": 1208
     },
     {
       "surface": "吹い",
@@ -3508,8 +3538,8 @@
       "accent": null,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1212,
-      "transformed_end": 1214
+      "transformed_start": 1213,
+      "transformed_end": 1215
     },
     {
       "surface": "輪",
@@ -3523,8 +3553,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1220,
-      "transformed_end": 1221
+      "transformed_start": 1221,
+      "transformed_end": 1222
     },
     {
       "surface": "上",
@@ -3538,8 +3568,8 @@
       "accent": null,
       "connection": "C4",
       "pos": "名詞",
-      "transformed_start": 1222,
-      "transformed_end": 1224
+      "transformed_start": 1223,
+      "transformed_end": 1225
     },
     {
       "surface": "何",
@@ -3553,8 +3583,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1225,
-      "transformed_end": 1227
+      "transformed_start": 1226,
+      "transformed_end": 1228
     },
     {
       "surface": "遍",
@@ -3568,8 +3598,8 @@
       "accent": null,
       "connection": "C3",
       "pos": "接尾辞",
-      "transformed_start": 1227,
-      "transformed_end": 1229
+      "transformed_start": 1228,
+      "transformed_end": 1230
     },
     {
       "surface": "廻っ",
@@ -3583,8 +3613,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1230,
-      "transformed_end": 1233
+      "transformed_start": 1231,
+      "transformed_end": 1234
     },
     {
       "surface": "草鞋",
@@ -3598,8 +3628,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1235,
-      "transformed_end": 1238
+      "transformed_start": 1236,
+      "transformed_end": 1239
     },
     {
       "surface": "爪立",
@@ -3613,8 +3643,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1239,
-      "transformed_end": 1242
+      "transformed_start": 1240,
+      "transformed_end": 1243
     },
     {
       "surface": "抜",
@@ -3628,8 +3658,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1248,
-      "transformed_end": 1250
+      "transformed_start": 1249,
+      "transformed_end": 1251
     },
     {
       "surface": "足",
@@ -3643,8 +3673,8 @@
       "accent": 2,
       "connection": "C4",
       "pos": "名詞",
-      "transformed_start": 1250,
-      "transformed_end": 1252
+      "transformed_start": 1251,
+      "transformed_end": 1253
     },
     {
       "surface": "手拭",
@@ -3658,8 +3688,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1259,
-      "transformed_end": 1263
+      "transformed_start": 1260,
+      "transformed_end": 1264
     },
     {
       "surface": "遠慮",
@@ -3673,8 +3703,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 1264,
-      "transformed_end": 1268
+      "transformed_start": 1265,
+      "transformed_end": 1269
     },
     {
       "surface": "廻っ",
@@ -3688,8 +3718,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1275,
-      "transformed_end": 1278
+      "transformed_start": 1276,
+      "transformed_end": 1279
     },
     {
       "surface": "怖",
@@ -3703,8 +3733,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1280,
-      "transformed_end": 1282
+      "transformed_start": 1281,
+      "transformed_end": 1283
     },
     {
       "surface": "見え",
@@ -3718,8 +3748,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1286,
-      "transformed_end": 1288
+      "transformed_start": 1287,
+      "transformed_end": 1289
     },
     {
       "surface": "面白",
@@ -3733,8 +3763,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1290,
-      "transformed_end": 1294
+      "transformed_start": 1291,
+      "transformed_end": 1295
     },
     {
       "surface": "爺",
@@ -3748,8 +3778,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1308,
-      "transformed_end": 1310
+      "transformed_start": 1309,
+      "transformed_end": 1311
     },
     {
       "surface": "笛",
@@ -3763,8 +3793,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1313,
-      "transformed_end": 1315
+      "transformed_start": 1314,
+      "transformed_end": 1316
     },
     {
       "surface": "肩",
@@ -3778,8 +3808,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "名詞",
-      "transformed_start": 1329,
-      "transformed_end": 1331
+      "transformed_start": 1330,
+      "transformed_end": 1332
     },
     {
       "surface": "掛け",
@@ -3793,8 +3823,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1332,
-      "transformed_end": 1334
+      "transformed_start": 1333,
+      "transformed_end": 1335
     },
     {
       "surface": "箱",
@@ -3808,8 +3838,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1335,
-      "transformed_end": 1337
+      "transformed_start": 1336,
+      "transformed_end": 1338
     },
     {
       "surface": "口",
@@ -3823,8 +3853,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1338,
-      "transformed_end": 1340
+      "transformed_start": 1339,
+      "transformed_end": 1341
     },
     {
       "surface": "開け",
@@ -3838,8 +3868,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1341,
-      "transformed_end": 1343
+      "transformed_start": 1342,
+      "transformed_end": 1344
     },
     {
       "surface": "手拭",
@@ -3853,8 +3883,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1345,
-      "transformed_end": 1349
+      "transformed_start": 1346,
+      "transformed_end": 1350
     },
     {
       "surface": "首",
@@ -3868,8 +3898,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1350,
-      "transformed_end": 1352
+      "transformed_start": 1351,
+      "transformed_end": 1353
     },
     {
       "surface": "撮",
@@ -3883,8 +3913,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1358,
-      "transformed_end": 1360
+      "transformed_start": 1359,
+      "transformed_end": 1361
     },
     {
       "surface": "放",
@@ -3898,8 +3928,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1366,
-      "transformed_end": 1368
+      "transformed_start": 1367,
+      "transformed_end": 1369
     },
     {
       "surface": "込",
@@ -3913,8 +3943,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1369,
-      "transformed_end": 1370
+      "transformed_start": 1370,
+      "transformed_end": 1371
     },
     {
       "surface": "箱",
@@ -3928,8 +3958,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1384,
-      "transformed_end": 1386
+      "transformed_start": 1385,
+      "transformed_end": 1387
     },
     {
       "surface": "中",
@@ -3943,8 +3973,8 @@
       "accent": 1,
       "connection": "C4",
       "pos": "名詞",
-      "transformed_start": 1387,
-      "transformed_end": 1389
+      "transformed_start": 1388,
+      "transformed_end": 1390
     },
     {
       "surface": "蛇",
@@ -3958,8 +3988,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1390,
-      "transformed_end": 1392
+      "transformed_start": 1391,
+      "transformed_end": 1393
     },
     {
       "surface": "今",
@@ -3973,8 +4003,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1396,
-      "transformed_end": 1398
+      "transformed_start": 1397,
+      "transformed_end": 1399
     },
     {
       "surface": "見せ",
@@ -3988,8 +4018,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1399,
-      "transformed_end": 1401
+      "transformed_start": 1400,
+      "transformed_end": 1402
     },
     {
       "surface": "今",
@@ -4003,8 +4033,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1405,
-      "transformed_end": 1407
+      "transformed_start": 1406,
+      "transformed_end": 1408
     },
     {
       "surface": "見せ",
@@ -4018,8 +4048,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1408,
-      "transformed_end": 1410
+      "transformed_start": 1409,
+      "transformed_end": 1411
     },
     {
       "surface": "云い",
@@ -4033,8 +4063,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1415,
-      "transformed_end": 1417
+      "transformed_start": 1416,
+      "transformed_end": 1418
     },
     {
       "surface": "爺",
@@ -4048,8 +4078,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1421,
-      "transformed_end": 1423
+      "transformed_start": 1422,
+      "transformed_end": 1424
     },
     {
       "surface": "真直",
@@ -4063,8 +4093,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1426,
-      "transformed_end": 1430
+      "transformed_start": 1427,
+      "transformed_end": 1431
     },
     {
       "surface": "歩き",
@@ -4078,8 +4108,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1431,
-      "transformed_end": 1434
+      "transformed_start": 1432,
+      "transformed_end": 1435
     },
     {
       "surface": "出し",
@@ -4093,8 +4123,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1434,
-      "transformed_end": 1436
+      "transformed_start": 1435,
+      "transformed_end": 1437
     },
     {
       "surface": "柳",
@@ -4108,8 +4138,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 1438,
-      "transformed_end": 1441
+      "transformed_start": 1439,
+      "transformed_end": 1442
     },
     {
       "surface": "下",
@@ -4123,8 +4153,8 @@
       "accent": 0,
       "connection": "C4",
       "pos": "名詞",
-      "transformed_start": 1442,
-      "transformed_end": 1444
+      "transformed_start": 1443,
+      "transformed_end": 1445
     },
     {
       "surface": "抜け",
@@ -4138,8 +4168,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1445,
-      "transformed_end": 1447
+      "transformed_start": 1446,
+      "transformed_end": 1448
     },
     {
       "surface": "細い",
@@ -4153,8 +4183,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "形容詞",
-      "transformed_start": 1449,
-      "transformed_end": 1452
+      "transformed_start": 1450,
+      "transformed_end": 1453
     },
     {
       "surface": "路",
@@ -4168,8 +4198,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1452,
-      "transformed_end": 1454
+      "transformed_start": 1453,
+      "transformed_end": 1455
     },
     {
       "surface": "真直",
@@ -4183,8 +4213,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1455,
-      "transformed_end": 1459
+      "transformed_start": 1456,
+      "transformed_end": 1460
     },
     {
       "surface": "下り",
@@ -4198,8 +4228,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1460,
-      "transformed_end": 1462
+      "transformed_start": 1461,
+      "transformed_end": 1463
     },
     {
       "surface": "行っ",
@@ -4213,8 +4243,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1463,
-      "transformed_end": 1465
+      "transformed_start": 1464,
+      "transformed_end": 1466
     },
     {
       "surface": "自分",
@@ -4228,8 +4258,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1467,
-      "transformed_end": 1470
+      "transformed_start": 1468,
+      "transformed_end": 1471
     },
     {
       "surface": "蛇",
@@ -4243,8 +4273,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1471,
-      "transformed_end": 1473
+      "transformed_start": 1472,
+      "transformed_end": 1474
     },
     {
       "surface": "見",
@@ -4258,8 +4288,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1474,
-      "transformed_end": 1475
+      "transformed_start": 1475,
+      "transformed_end": 1476
     },
     {
       "surface": "細い",
@@ -4273,8 +4303,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "形容詞",
-      "transformed_start": 1480,
-      "transformed_end": 1483
+      "transformed_start": 1481,
+      "transformed_end": 1484
     },
     {
       "surface": "道",
@@ -4288,8 +4318,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1483,
-      "transformed_end": 1485
+      "transformed_start": 1484,
+      "transformed_end": 1486
     },
     {
       "surface": "追",
@@ -4303,8 +4333,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1491,
-      "transformed_end": 1492
+      "transformed_start": 1492,
+      "transformed_end": 1493
     },
     {
       "surface": "行っ",
@@ -4318,8 +4348,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1494,
-      "transformed_end": 1496
+      "transformed_start": 1495,
+      "transformed_end": 1497
     },
     {
       "surface": "爺",
@@ -4333,8 +4363,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1498,
-      "transformed_end": 1500
+      "transformed_start": 1499,
+      "transformed_end": 1501
     },
     {
       "surface": "時々",
@@ -4348,8 +4378,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1503,
-      "transformed_end": 1507
+      "transformed_start": 1504,
+      "transformed_end": 1508
     },
     {
       "surface": "今",
@@ -4363,8 +4393,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1508,
-      "transformed_end": 1510
+      "transformed_start": 1509,
+      "transformed_end": 1511
     },
     {
       "surface": "云っ",
@@ -4378,8 +4408,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1515,
-      "transformed_end": 1517
+      "transformed_start": 1516,
+      "transformed_end": 1518
     },
     {
       "surface": "蛇",
@@ -4393,8 +4423,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1521,
-      "transformed_end": 1523
+      "transformed_start": 1522,
+      "transformed_end": 1524
     },
     {
       "surface": "云っ",
@@ -4408,8 +4438,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1528,
-      "transformed_end": 1530
+      "transformed_start": 1529,
+      "transformed_end": 1531
     },
     {
       "surface": "歩い",
@@ -4423,8 +4453,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1534,
-      "transformed_end": 1537
+      "transformed_start": 1535,
+      "transformed_end": 1538
     },
     {
       "surface": "行く",
@@ -4438,8 +4468,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1538,
-      "transformed_end": 1540
+      "transformed_start": 1539,
+      "transformed_end": 1541
     },
     {
       "surface": "今",
@@ -4453,8 +4483,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1551,
-      "transformed_end": 1553
+      "transformed_start": 1552,
+      "transformed_end": 1554
     },
     {
       "surface": "蛇",
@@ -4468,8 +4498,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1557,
-      "transformed_end": 1559
+      "transformed_start": 1558,
+      "transformed_end": 1560
     },
     {
       "surface": "笛",
@@ -4483,8 +4513,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1573,
-      "transformed_end": 1575
+      "transformed_start": 1574,
+      "transformed_end": 1576
     },
     {
       "surface": "鳴る",
@@ -4498,8 +4528,8 @@
       "accent": 0,
       "connection": "C4",
       "pos": "動詞",
-      "transformed_start": 1576,
-      "transformed_end": 1578
+      "transformed_start": 1577,
+      "transformed_end": 1579
     },
     {
       "surface": "唄",
@@ -4513,8 +4543,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1583,
-      "transformed_end": 1585
+      "transformed_start": 1584,
+      "transformed_end": 1586
     },
     {
       "surface": "河",
@@ -4528,8 +4558,8 @@
       "accent": 2,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1594,
-      "transformed_end": 1596
+      "transformed_start": 1595,
+      "transformed_end": 1597
     },
     {
       "surface": "岸",
@@ -4543,8 +4573,8 @@
       "accent": 2,
       "connection": "C4",
       "pos": "名詞",
-      "transformed_start": 1597,
-      "transformed_end": 1599
+      "transformed_start": 1598,
+      "transformed_end": 1600
     },
     {
       "surface": "出",
@@ -4558,8 +4588,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1600,
-      "transformed_end": 1601
+      "transformed_start": 1601,
+      "transformed_end": 1602
     },
     {
       "surface": "橋",
@@ -4573,8 +4603,8 @@
       "accent": 2,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1603,
-      "transformed_end": 1605
+      "transformed_start": 1604,
+      "transformed_end": 1606
     },
     {
       "surface": "舟",
@@ -4588,8 +4618,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1606,
-      "transformed_end": 1608
+      "transformed_start": 1607,
+      "transformed_end": 1609
     },
     {
       "surface": "休ん",
@@ -4603,8 +4633,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1617,
-      "transformed_end": 1620
+      "transformed_start": 1618,
+      "transformed_end": 1621
     },
     {
       "surface": "箱",
@@ -4618,8 +4648,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1621,
-      "transformed_end": 1623
+      "transformed_start": 1622,
+      "transformed_end": 1624
     },
     {
       "surface": "中",
@@ -4633,8 +4663,8 @@
       "accent": 1,
       "connection": "C4",
       "pos": "名詞",
-      "transformed_start": 1624,
-      "transformed_end": 1626
+      "transformed_start": 1625,
+      "transformed_end": 1627
     },
     {
       "surface": "蛇",
@@ -4648,8 +4678,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1627,
-      "transformed_end": 1629
+      "transformed_start": 1628,
+      "transformed_end": 1630
     },
     {
       "surface": "見せる",
@@ -4663,8 +4693,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1630,
-      "transformed_end": 1633
+      "transformed_start": 1631,
+      "transformed_end": 1634
     },
     {
       "surface": "思っ",
@@ -4678,8 +4708,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1637,
-      "transformed_end": 1640
+      "transformed_start": 1638,
+      "transformed_end": 1641
     },
     {
       "surface": "爺",
@@ -4693,8 +4723,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1645,
-      "transformed_end": 1647
+      "transformed_start": 1646,
+      "transformed_end": 1648
     },
     {
       "surface": "河",
@@ -4708,8 +4738,8 @@
       "accent": 2,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1654,
-      "transformed_end": 1656
+      "transformed_start": 1655,
+      "transformed_end": 1657
     },
     {
       "surface": "中",
@@ -4723,8 +4753,8 @@
       "accent": 1,
       "connection": "C4",
       "pos": "名詞",
-      "transformed_start": 1657,
-      "transformed_end": 1659
+      "transformed_start": 1658,
+      "transformed_end": 1660
     },
     {
       "surface": "這入",
@@ -4738,8 +4768,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1660,
-      "transformed_end": 1662
+      "transformed_start": 1661,
+      "transformed_end": 1663
     },
     {
       "surface": "出し",
@@ -4753,8 +4783,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1663,
-      "transformed_end": 1665
+      "transformed_start": 1664,
+      "transformed_end": 1666
     },
     {
       "surface": "始め",
@@ -4768,8 +4798,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 1667,
-      "transformed_end": 1670
+      "transformed_start": 1668,
+      "transformed_end": 1671
     },
     {
       "surface": "膝",
@@ -4783,8 +4813,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1671,
-      "transformed_end": 1673
+      "transformed_start": 1672,
+      "transformed_end": 1674
     },
     {
       "surface": "深",
@@ -4798,8 +4828,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "形容詞",
-      "transformed_start": 1677,
-      "transformed_end": 1679
+      "transformed_start": 1678,
+      "transformed_end": 1680
     },
     {
       "surface": "腰",
@@ -4813,8 +4843,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1690,
-      "transformed_end": 1692
+      "transformed_start": 1691,
+      "transformed_end": 1693
     },
     {
       "surface": "胸",
@@ -4828,8 +4858,8 @@
       "accent": 2,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1695,
-      "transformed_end": 1697
+      "transformed_start": 1696,
+      "transformed_end": 1698
     },
     {
       "surface": "方",
@@ -4843,8 +4873,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1698,
-      "transformed_end": 1700
+      "transformed_start": 1699,
+      "transformed_end": 1701
     },
     {
       "surface": "水",
@@ -4858,8 +4888,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1702,
-      "transformed_end": 1704
+      "transformed_start": 1703,
+      "transformed_end": 1705
     },
     {
       "surface": "浸",
@@ -4873,8 +4903,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1705,
-      "transformed_end": 1707
+      "transformed_start": 1706,
+      "transformed_end": 1708
     },
     {
       "surface": "見え",
@@ -4888,8 +4918,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1709,
-      "transformed_end": 1711
+      "transformed_start": 1710,
+      "transformed_end": 1712
     },
     {
       "surface": "爺",
@@ -4903,8 +4933,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1720,
-      "transformed_end": 1722
+      "transformed_start": 1721,
+      "transformed_end": 1723
     },
     {
       "surface": "深く",
@@ -4918,8 +4948,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "形容詞",
-      "transformed_start": 1729,
-      "transformed_end": 1732
+      "transformed_start": 1730,
+      "transformed_end": 1733
     },
     {
       "surface": "夜",
@@ -4933,8 +4963,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1735,
-      "transformed_end": 1737
+      "transformed_start": 1736,
+      "transformed_end": 1738
     },
     {
       "surface": "真直",
@@ -4948,8 +4978,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1745,
-      "transformed_end": 1749
+      "transformed_start": 1746,
+      "transformed_end": 1750
     },
     {
       "surface": "唄い",
@@ -4963,8 +4993,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1756,
-      "transformed_end": 1759
+      "transformed_start": 1757,
+      "transformed_end": 1760
     },
     {
       "surface": "真直",
@@ -4978,8 +5008,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1768,
-      "transformed_end": 1772
+      "transformed_start": 1769,
+      "transformed_end": 1773
     },
     {
       "surface": "歩い",
@@ -4993,8 +5023,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1773,
-      "transformed_end": 1776
+      "transformed_start": 1774,
+      "transformed_end": 1777
     },
     {
       "surface": "行っ",
@@ -5008,8 +5038,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1777,
-      "transformed_end": 1779
+      "transformed_start": 1778,
+      "transformed_end": 1780
     },
     {
       "surface": "髯",
@@ -5023,8 +5053,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1785,
-      "transformed_end": 1787
+      "transformed_start": 1786,
+      "transformed_end": 1788
     },
     {
       "surface": "顔",
@@ -5038,8 +5068,8 @@
       "accent": 0,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1788,
-      "transformed_end": 1790
+      "transformed_start": 1789,
+      "transformed_end": 1791
     },
     {
       "surface": "頭",
@@ -5053,8 +5083,8 @@
       "accent": null,
       "connection": "C1",
       "pos": "名詞",
-      "transformed_start": 1791,
-      "transformed_end": 1794
+      "transformed_start": 1792,
+      "transformed_end": 1795
     },
     {
       "surface": "頭巾",
@@ -5068,8 +5098,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1795,
-      "transformed_end": 1798
+      "transformed_start": 1796,
+      "transformed_end": 1799
     },
     {
       "surface": "見え",
@@ -5083,8 +5113,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1802,
-      "transformed_end": 1804
+      "transformed_start": 1803,
+      "transformed_end": 1805
     },
     {
       "surface": "自分",
@@ -5098,8 +5128,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1817,
-      "transformed_end": 1820
+      "transformed_start": 1818,
+      "transformed_end": 1821
     },
     {
       "surface": "爺",
@@ -5113,8 +5143,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1821,
-      "transformed_end": 1823
+      "transformed_start": 1822,
+      "transformed_end": 1824
     },
     {
       "surface": "向岸",
@@ -5128,8 +5158,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1826,
-      "transformed_end": 1831
+      "transformed_start": 1827,
+      "transformed_end": 1832
     },
     {
       "surface": "上がっ",
@@ -5143,8 +5173,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1832,
-      "transformed_end": 1835
+      "transformed_start": 1833,
+      "transformed_end": 1836
     },
     {
       "surface": "時",
@@ -5158,8 +5188,8 @@
       "accent": 2,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1836,
-      "transformed_end": 1838
+      "transformed_start": 1837,
+      "transformed_end": 1839
     },
     {
       "surface": "蛇",
@@ -5173,8 +5203,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1840,
-      "transformed_end": 1842
+      "transformed_start": 1841,
+      "transformed_end": 1843
     },
     {
       "surface": "見せる",
@@ -5188,8 +5218,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1843,
-      "transformed_end": 1846
+      "transformed_start": 1844,
+      "transformed_end": 1847
     },
     {
       "surface": "思っ",
@@ -5203,8 +5233,8 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1850,
-      "transformed_end": 1853
+      "transformed_start": 1851,
+      "transformed_end": 1854
     },
     {
       "surface": "蘆",
@@ -5218,8 +5248,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1855,
-      "transformed_end": 1857
+      "transformed_start": 1856,
+      "transformed_end": 1858
     },
     {
       "surface": "鳴る",
@@ -5233,8 +5263,8 @@
       "accent": 0,
       "connection": "C4",
       "pos": "動詞",
-      "transformed_start": 1858,
-      "transformed_end": 1860
+      "transformed_start": 1859,
+      "transformed_end": 1861
     },
     {
       "surface": "所",
@@ -5248,8 +5278,8 @@
       "accent": null,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 1860,
-      "transformed_end": 1863
+      "transformed_start": 1861,
+      "transformed_end": 1864
     },
     {
       "surface": "立っ",
@@ -5263,8 +5293,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1864,
-      "transformed_end": 1866
+      "transformed_start": 1865,
+      "transformed_end": 1867
     },
     {
       "surface": "一人",
@@ -5278,8 +5308,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 1871,
-      "transformed_end": 1874
+      "transformed_start": 1872,
+      "transformed_end": 1875
     },
     {
       "surface": "待っ",
@@ -5293,8 +5323,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1879,
-      "transformed_end": 1881
+      "transformed_start": 1880,
+      "transformed_end": 1882
     },
     {
       "surface": "爺",
@@ -5308,8 +5338,8 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 1889,
-      "transformed_end": 1891
+      "transformed_start": 1890,
+      "transformed_end": 1892
     },
     {
       "surface": "上がっ",
@@ -5323,8 +5353,8 @@
       "accent": 0,
       "connection": "C2",
       "pos": "動詞",
-      "transformed_start": 1899,
-      "transformed_end": 1902
+      "transformed_start": 1900,
+      "transformed_end": 1903
     },
     {
       "surface": "来",
@@ -5338,8 +5368,8 @@
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 1903,
-      "transformed_end": 1904
+      "transformed_start": 1904,
+      "transformed_end": 1905
     }
   ]
 }

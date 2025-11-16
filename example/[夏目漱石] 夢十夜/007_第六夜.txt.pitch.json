@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "text_sha1": "6cec3ebfe7db36c190d04fb35947e3beb4e55721",
+  "text_sha1": "1ec8f0b33bd7e433494e7f0d9b0b6e9f9083537f",
   "tokens": [
     {
       "surface": "第",
@@ -702,6 +702,24 @@
       },
       "sources": [
         "ruby"
+      ]
+    },
+    {
+      "surface": "合っ",
+      "reading": "アッ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": {
+        "transformed": 188,
+        "original": 141
+      },
+      "end": {
+        "transformed": 190,
+        "original": 143
+      },
+      "sources": [
+        "unidic-gap"
       ]
     },
     {
