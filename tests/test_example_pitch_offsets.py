@@ -7,6 +7,16 @@ import pytest
 
 
 EXAMPLE_PITCH_FILES = sorted(Path("example").rglob("*.pitch.json"))
+EXAMPLE_TRANSFORMED_TEXTS = [
+    path
+    for path in Path("example").rglob("*.txt")
+    if not path.name.endswith(".original.txt") and not path.name.endswith(".pitch.json") and not path.name.endswith(".token.json")
+]
+BOOK_TRANSFORMED_TEXTS = [
+    path
+    for path in Path("books/フィクション/舟を編む").rglob("*.txt")
+    if not path.name.endswith(".original.txt") and not path.name.endswith(".pitch.json") and not path.name.endswith(".token.json")
+]
 
 if not EXAMPLE_PITCH_FILES:
     pytest.skip("example pitch fixtures not found", allow_module_level=True)
@@ -28,6 +38,22 @@ def _assert_index_order(tokens: list[dict], key: str, *, pitch_path: Path) -> No
                 start >= prev_end
             ), f"{pitch_path} token #{idx} has {key} overlap (start={start}, prev_end={prev_end})"
         prev_end = end
+
+
+def _contains_cjk(text: str) -> bool:
+    for ch in text:
+        code = ord(ch)
+        if (
+            0x4E00 <= code <= 0x9FFF
+            or 0x3400 <= code <= 0x4DBF
+            or 0x20000 <= code <= 0x2A6DF
+            or 0x2A700 <= code <= 0x2B73F
+            or 0x2B740 <= code <= 0x2B81F
+            or 0x2B820 <= code <= 0x2CEAF
+            or 0xF900 <= code <= 0xFAFF
+        ):
+            return True
+    return False
 
 
 @pytest.mark.parametrize("pitch_path", EXAMPLE_PITCH_FILES)
@@ -98,3 +124,15 @@ def test_book_tokens_match_text(token_path: Path) -> None:
             f"{token_path} token #{idx} transformed slice mismatch "
             f"(expected '{reading}', got '{transformed_text[t_start:t_end]}')"
         )
+
+
+@pytest.mark.parametrize("text_path", EXAMPLE_TRANSFORMED_TEXTS)
+def test_example_transformed_text_has_no_kanji(text_path: Path) -> None:
+    transformed_text = text_path.read_text(encoding="utf-8")
+    assert not _contains_cjk(transformed_text), f"{text_path} still contains kanji"
+
+
+@pytest.mark.parametrize("text_path", BOOK_TRANSFORMED_TEXTS)
+def test_book_transformed_text_has_no_kanji(text_path: Path) -> None:
+    transformed_text = text_path.read_text(encoding="utf-8")
+    assert not _contains_cjk(transformed_text), f"{text_path} still contains kanji"
