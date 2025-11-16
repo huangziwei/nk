@@ -84,7 +84,7 @@ def _build_simple_epub(target: Path) -> Path:
 
 def test_chapterized_output_matches_join(tmp_path: Path, backend: NLPBackend) -> None:
     epub_path = _build_simple_epub(tmp_path)
-    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 3
     assert chapters[1].source.endswith("ch1.xhtml")
     assert chapters[2].source.endswith("ch2.xhtml")
@@ -154,7 +154,7 @@ def test_repeated_dialogue_lines_are_preserved(tmp_path: Path, backend: NLPBacke
         zf.writestr("ch1.xhtml", ch1_html)
         zf.writestr("ch2.xhtml", ch2_html)
 
-    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 2
     target_line = next(
         (line.strip() for line in chapters[0].text.splitlines() if "そうか" in line),
@@ -211,7 +211,7 @@ def test_ascii_ruby_is_propagated(tmp_path: Path, backend: NLPBackend) -> None:
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ch1_html)
 
-    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 1
     text = chapters[0].text
     assert "JUN" not in text
@@ -259,7 +259,7 @@ def test_pitch_tokens_capture_transformation_sources(tmp_path: Path, backend: NL
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ch1_html)
 
-    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 1
     tokens = chapters[0].pitch_data
     assert tokens is not None
@@ -307,7 +307,7 @@ def test_chapter_title_preserves_original_text(tmp_path: Path, backend: NLPBacke
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ch1_html)
 
-    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 1
     assert chapters[0].title == "Interlude Melancholic ハイドランジア"
 
@@ -350,7 +350,7 @@ def test_ellipsis_normalization_survives_backend(tmp_path: Path, backend: NLPBac
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ellipsis_html)
 
-    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 1
     text = chapters[0].text
     assert "…" in text
@@ -427,7 +427,7 @@ def test_toc_splits_shared_spine_item(tmp_path: Path, backend: NLPBackend) -> No
         zf.writestr("OEBPS/nav.xhtml", nav_html)
         zf.writestr("OEBPS/text.xhtml", text_html)
 
-    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 3
     assert chapters[0].title == "ジョ"
     assert chapters[1].title == "ダイイチヤ"
@@ -475,7 +475,7 @@ def test_first_chapter_inserts_break_between_title_and_author(tmp_path: Path, ba
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ch1_html)
 
-    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 1
     lines = chapters[0].text.splitlines()
     assert lines[0] == "ユメジュウヤ"
@@ -499,7 +499,7 @@ def _assert_token_offsets_match(text: str | None, tokens: list, *, use_original:
 
 def test_pitch_tokens_align_with_example_text(backend: NLPBackend) -> None:
     epub_path = Path("example/[夏目漱石] 夢十夜.epub")
-    chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert chapters
     for chapter in chapters[:3]:
         tokens = chapter.pitch_data or []

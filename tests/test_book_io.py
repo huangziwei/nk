@@ -17,6 +17,7 @@ from nk.book_io import (
 )
 from nk.core import ChapterText, CoverImage
 from nk.pitch import PitchToken
+from nk.tokens import ChapterToken
 
 
 def test_write_book_package_emits_metadata_and_cover(tmp_path: Path) -> None:
@@ -130,6 +131,31 @@ def test_write_book_package_persists_pitch_metadata(tmp_path: Path) -> None:
     loaded = load_pitch_metadata(record.path)
     assert loaded is not None
     assert len(loaded.tokens) == 2
+
+
+def test_write_book_package_writes_token_metadata(tmp_path: Path) -> None:
+    output_dir = tmp_path / "TokenBook"
+    chapter_tokens = [
+        ChapterToken(surface="雨", start=0, end=1, reading="アメ", reading_source="ruby", transformed_start=0, transformed_end=2),
+        ChapterToken(surface="飴", start=1, end=2, reading="アメ", reading_source="unidic", transformed_start=2, transformed_end=4),
+    ]
+    chapters = [
+        ChapterText(
+            source="ch1.xhtml",
+            title="Reading",
+            text="アメアメ",
+            tokens=chapter_tokens,
+        )
+    ]
+    package = write_book_package(output_dir, chapters)
+    record = package.chapter_records[0]
+    token_path = record.path.with_name(record.path.name + ".token.json")
+    assert token_path.exists()
+    payload = json.loads(token_path.read_text(encoding="utf-8"))
+    assert payload["version"] == 1
+    assert len(payload["tokens"]) == 2
+    assert payload["tokens"][0]["surface"] == "雨"
+    assert payload["tokens"][0]["reading_source"] == "ruby"
 
 
 def test_write_book_package_preserves_tts_defaults(tmp_path: Path) -> None:

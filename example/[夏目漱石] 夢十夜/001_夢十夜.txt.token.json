@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "tokens": [
+    {
+      "surface": "夢",
+      "start": 0,
+      "end": 1,
+      "reading": "ユメ",
+      "reading_source": "unidic",
+      "fallback_reading": "ユメ",
+      "context_prefix": "",
+      "context_suffix": "十夜\n",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "transformed_start": 0,
+      "transformed_end": 2
+    },
+    {
+      "surface": "十",
+      "start": 1,
+      "end": 2,
+      "reading": "ジュウ",
+      "reading_source": "unidic",
+      "fallback_reading": "ジュウ",
+      "context_prefix": "夢",
+      "context_suffix": "夜\n\n",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "transformed_start": 2,
+      "transformed_end": 5
+    },
+    {
+      "surface": "夜",
+      "start": 2,
+      "end": 3,
+      "reading": "ヤ",
+      "reading_source": "unidic",
+      "fallback_reading": "ヤ",
+      "context_prefix": "夢十",
+      "context_suffix": "\n\n夏",
+      "accent": null,
+      "connection": "C3",
+      "pos": "接尾辞",
+      "transformed_start": 5,
+      "transformed_end": 6
+    },
+    {
+      "surface": "夏目",
+      "start": 5,
+      "end": 7,
+      "reading": "ナツメ",
+      "reading_source": "unidic",
+      "fallback_reading": "ナツメ",
+      "context_prefix": "夜\n\n",
+      "context_suffix": "漱石",
+      "accent": 0,
+      "connection": null,
+      "pos": "名詞",
+      "transformed_start": 8,
+      "transformed_end": 11
+    },
+    {
+      "surface": "漱石",
+      "start": 7,
+      "end": 9,
+      "reading": "ソウセキ",
+      "reading_source": "nhk",
+      "fallback_reading": "ソウセキ",
+      "context_prefix": "\n夏目",
+      "context_suffix": "",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "transformed_start": 11,
+      "transformed_end": 15
+    }
+  ]
+}

@@ -77,9 +77,9 @@
     {
       "surface": "漱石",
       "reading": "ソウセキ",
-      "accent": 1,
+      "accent": null,
       "connection": null,
-      "pos": "名詞",
+      "pos": null,
       "start": {
         "transformed": 11,
         "original": 7

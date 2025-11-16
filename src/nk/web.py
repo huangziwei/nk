@@ -1378,13 +1378,14 @@ def _ensure_chapterized(root: Path) -> None:
             continue
         try:
             print(f"[nk web] Generating chapters for {epub_path.name}")
-            chapters = epub_to_chapter_texts(str(epub_path), nlp=nlp)
+            chapters, ruby_evidence = epub_to_chapter_texts(str(epub_path), nlp=nlp)
             cover = get_epub_cover(str(epub_path))
             write_book_package(
                 output_dir,
                 chapters,
                 source_epub=epub_path,
                 cover_image=cover,
+                ruby_evidence=ruby_evidence,
             )
         except Exception as exc:  # pragma: no cover - fail fast
             raise RuntimeError(f"Failed to chapterize {epub_path}: {exc}") from exc

@@ -211,6 +211,9 @@ class NLPBackend:
         result = "".join(pieces)
         return _normalize_katakana(result)
 
+    def tokenize(self, text: str) -> list[_Token]:
+        return self._tokenize(text)
+
     def _tokenize(self, text: str) -> list[_Token]:
         tokens: list[_Token] = []
         if not text:

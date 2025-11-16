@@ -19,12 +19,15 @@ from .pitch import (
     deserialize_pitch_tokens,
     serialize_pitch_tokens,
 )
+from .tokens import serialize_chapter_tokens
 
 BOOK_METADATA_FILENAME = ".nk-book.json"
 M4B_MANIFEST_FILENAME = "m4b.json"
+RUBY_EVIDENCE_FILENAME = "ruby_evidence.json"
 _SUPPORTED_COVER_EXTS = (".jpg", ".jpeg", ".png")
 _CUSTOM_PITCH_FILENAME = "custom_pitch.json"
 _PITCH_SUFFIX = ".pitch.json"
+_TOKEN_SUFFIX = ".token.json"
 _PITCH_METADATA_VERSION = 3
 
 
@@ -44,6 +47,7 @@ class BookPackage:
     book_title: str | None
     book_author: str | None
     m4b_manifest_path: Path
+    ruby_evidence_path: Path | None = None
 
 
 @dataclass
@@ -178,12 +182,17 @@ def _write_chapter_texts(output_dir: Path, chapters: Iterable[ChapterText]) -> l
         else:
             original_path.unlink(missing_ok=True)
         _maybe_write_pitch_metadata(path, chapter)
+        _maybe_write_token_metadata(path, chapter)
         records.append(ChapterFileRecord(chapter=chapter, path=path, index=index + 1))
     return records
 
 
 def _pitch_metadata_path(chapter_path: Path) -> Path:
     return chapter_path.with_name(chapter_path.name + _PITCH_SUFFIX)
+
+
+def _token_metadata_path(chapter_path: Path) -> Path:
+    return chapter_path.with_name(chapter_path.name + _TOKEN_SUFFIX)
 
 
 def _maybe_write_pitch_metadata(chapter_path: Path, chapter: ChapterText) -> None:
@@ -200,6 +209,18 @@ def _maybe_write_pitch_metadata(chapter_path: Path, chapter: ChapterText) -> Non
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+
+def _maybe_write_token_metadata(chapter_path: Path, chapter: ChapterText) -> None:
+    token_path = _token_metadata_path(chapter_path)
+    if not chapter.tokens:
+        token_path.unlink(missing_ok=True)
+        return
+    payload = {
+        "version": 1,
+        "tokens": serialize_chapter_tokens(chapter.tokens),
+    }
+    token_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _resolve_book_title(chapters: Iterable[ChapterText], output_dir: Path) -> str | None:
@@ -239,6 +260,15 @@ def _write_cover_image(output_dir: Path, cover: CoverImage) -> Path | None:
     cover_path.write_bytes(cover.data)
     ensure_cover_is_square(cover_path)
     return cover_path
+
+
+def _write_ruby_evidence(output_dir: Path, payload: list[dict[str, object]] | None) -> Path | None:
+    path = output_dir / RUBY_EVIDENCE_FILENAME
+    if not payload:
+        path.unlink(missing_ok=True)
+        return None
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
 
 
 def _write_m4b_manifest(
@@ -377,6 +407,7 @@ def write_book_package(
     *,
     source_epub: Path | None = None,
     cover_image: CoverImage | None = None,
+    ruby_evidence: list[dict[str, object]] | None = None,
 ) -> BookPackage:
     previous_metadata = load_book_metadata(output_dir)
     records = _write_chapter_texts(output_dir, chapters)
@@ -403,6 +434,7 @@ def write_book_package(
         records,
         cover_path,
     )
+    ruby_evidence_path = _write_ruby_evidence(output_dir, ruby_evidence)
     _ensure_custom_pitch_template(output_dir)
     return BookPackage(
         output_dir=output_dir,
@@ -412,6 +444,7 @@ def write_book_package(
         book_title=book_title,
         book_author=book_author,
         m4b_manifest_path=m4b_manifest_path,
+        ruby_evidence_path=ruby_evidence_path,
     )
 
 

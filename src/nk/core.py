@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field, replace
 import json
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Mapping
 from urllib.parse import unquote
 try:
     from importlib import resources
@@ -28,6 +28,7 @@ from bs4 import (
 )  # type: ignore
 
 from .pitch import PitchToken
+from .tokens import ChapterToken, tokens_to_pitch_tokens
 
 if TYPE_CHECKING:
     from .nlp import NLPBackend
@@ -236,6 +237,27 @@ def _context_rule_for_accumulator(base: str, accumulator: _ReadingAccumulator) -
     return _ContextRule(prefixes=tuple(prefixes), max_prefix=max_prefix)
 
 
+def _extract_numeric_prefix_from_text(text: str, start: int, max_prefix: int) -> str:
+    if start <= 0 or max_prefix <= 0:
+        return ""
+    chars: list[str] = []
+    idx = start - 1
+    while idx >= 0 and len(chars) < max_prefix:
+        ch = text[idx]
+        if ch.isspace():
+            if chars:
+                break
+            idx -= 1
+            continue
+        if ch not in _NUMERIC_PREFIX_CHARS:
+            break
+        chars.append(ch)
+        idx -= 1
+    if not chars:
+        return ""
+    return _normalize_numeric_prefix("".join(reversed(chars)))
+
+
 @dataclass
 class ChapterText:
     source: str
@@ -246,6 +268,7 @@ class ChapterText:
     book_title: str | None = None
     pitch_data: list[PitchToken] | None = None
     book_author: str | None = None
+    tokens: list[ChapterToken] | None = None
 
 
 @dataclass
@@ -283,12 +306,14 @@ class _PendingChapter:
     raw_original: str
     title_hint: str | None
     tokens: list[PitchToken] = field(default_factory=list)
+    ruby_spans: list[_RubySpan] = field(default_factory=list)
 
 
 @dataclass
 class _TextFragment:
     text: str
     tokens: list[PitchToken]
+    ruby_spans: list[_RubySpan] | None = None
 
 
 @dataclass
@@ -397,6 +422,98 @@ def _tracker_marker_spans(text: str) -> list[tuple[int, int]]:
         spans.append((start_idx, span_end))
         idx = span_end
     return spans
+
+
+@dataclass
+class _RubySpanRecord:
+    base: str
+    reading: str
+
+
+@dataclass
+class _RubySpan:
+    start: int
+    end: int
+    base: str
+    reading: str
+
+
+class _RubySpanTracker:
+    _START_PREFIX = "[[NKR:"
+    _END_PREFIX = "[[/NKR:"
+    _SUFFIX = "]]"
+
+    def __init__(self) -> None:
+        self._next_id = 1
+        self._records: dict[str, _RubySpanRecord] = {}
+
+    def wrap_ruby(self, ruby: Tag) -> None:
+        token_id = str(self._next_id)
+        self._next_id += 1
+        base_raw = _normalize_ws(_ruby_base_text(ruby))
+        reading_raw = _normalize_ws(_ruby_reading_text(ruby))
+        if not base_raw or not reading_raw:
+            return
+        base_norm = unicodedata.normalize("NFKC", base_raw)
+        reading_norm = _normalize_katakana(_hiragana_to_katakana(reading_raw))
+        if not reading_norm:
+            return
+        self._records[token_id] = _RubySpanRecord(base=base_norm, reading=reading_norm)
+        start_marker = NavigableString(f"{self._START_PREFIX}{token_id}{self._SUFFIX}")
+        end_marker = NavigableString(f"{self._END_PREFIX}{token_id}{self._SUFFIX}")
+        ruby.insert_before(start_marker)
+        ruby.insert_after(end_marker)
+
+    def mark_soup(self, soup: BeautifulSoup) -> None:
+        for ruby in list(soup.find_all("ruby")):
+            self.wrap_ruby(ruby)
+
+    def extract(self, text: str) -> tuple[str, list[_RubySpan]]:
+        if not text:
+            return "", []
+        result_chars: list[str] = []
+        spans: list[_RubySpan] = []
+        idx = 0
+        length = len(text)
+        while idx < length:
+            if text.startswith(self._START_PREFIX, idx):
+                id_start = idx + len(self._START_PREFIX)
+                id_end = text.find(self._SUFFIX, id_start)
+                if id_end == -1:
+                    result_chars.append(text[idx])
+                    idx += 1
+                    continue
+                token_id = text[id_start:id_end]
+                idx = id_end + len(self._SUFFIX)
+                start_pos = len(result_chars)
+                close_marker = f"{self._END_PREFIX}{token_id}{self._SUFFIX}"
+                close_idx = text.find(close_marker, idx)
+                if close_idx == -1:
+                    # Marker not closed; re-emit the literal marker text.
+                    literal = f"{self._START_PREFIX}{token_id}{self._SUFFIX}"
+                    result_chars.append(literal)
+                    continue
+                # Consume everything between markers.
+                while idx < close_idx:
+                    result_chars.append(text[idx])
+                    idx += 1
+                end_pos = len(result_chars)
+                idx += len(close_marker)
+                record = self._records.get(token_id)
+                if record is None:
+                    continue
+                spans.append(
+                    _RubySpan(
+                        start=start_pos,
+                        end=end_pos,
+                        base=record.base,
+                        reading=record.reading,
+                    )
+                )
+            else:
+                result_chars.append(text[idx])
+                idx += 1
+        return "".join(result_chars), spans
 
 
 def _is_cjk_char(ch: str) -> bool:
@@ -512,6 +629,52 @@ def _apply_mapping_with_pattern(
         return replacement
 
     return pattern.sub(repl, text)
+
+
+def _mapping_match_allowed(text: str, start: int, end: int, base: str) -> bool:
+    prev_ch = text[start - 1] if start > 0 else ""
+    next_ch = text[end] if end < len(text) else ""
+    if base:
+        if base[0].isdigit() and prev_ch.isdigit():
+            return False
+        if base[-1].isdigit() and next_ch.isdigit():
+            return False
+    if len(base) == 1:
+        if (_is_cjk_char(prev_ch) and prev_ch != "\n") or _is_cjk_char(next_ch):
+            return False
+        if base.isascii() and base.isalnum():
+            if (prev_ch.isascii() and prev_ch.isalnum()) or (next_ch.isascii() and next_ch.isalnum()):
+                return False
+    elif _is_numeric_string(base):
+        if (prev_ch and prev_ch.isdigit()) or (next_ch and next_ch.isdigit()):
+            return False
+    return True
+
+
+def _iter_mapping_matches(
+    text: str,
+    mapping: Mapping[str, str],
+    context_rules: Mapping[str, _ContextRule] | None = None,
+) -> list[tuple[int, int, str, str]]:
+    pattern = _build_mapping_pattern(mapping)
+    if pattern is None:
+        return []
+    matches: list[tuple[int, int, str, str]] = []
+    for match in pattern.finditer(text):
+        start, end = match.span()
+        base = match.group(0)
+        reading = mapping.get(base)
+        if not reading:
+            continue
+        if not _mapping_match_allowed(text, start, end, base):
+            continue
+        rule = context_rules.get(base) if context_rules else None
+        if rule:
+            prefix = _extract_numeric_prefix_from_text(text, start, rule.max_prefix)
+            if not prefix or prefix not in rule.prefixes:
+                continue
+        matches.append((start, end, base, reading))
+    return matches
 
 
 def _get_book_title(zf: zipfile.ZipFile) -> str | None:
@@ -726,6 +889,39 @@ def _find_surface_positions(text: str, surface: str) -> list[int]:
     return positions
 
 
+def _range_is_free(ranges: list[tuple[int, int]], start: int, end: int) -> bool:
+    for existing_start, existing_end in ranges:
+        if end <= existing_start:
+            continue
+        if start >= existing_end:
+            continue
+        return False
+    return True
+
+
+def _add_coverage_range(ranges: list[tuple[int, int]], start: int, end: int) -> None:
+    ranges.append((start, end))
+    ranges.sort(key=lambda item: item[0])
+
+
+def _slice_ruby_spans(spans: list[_RubySpan], start: int, end: int) -> list[_RubySpan]:
+    if not spans or end <= start:
+        return []
+    sliced: list[_RubySpan] = []
+    for span in spans:
+        if span.end <= start or span.start >= end:
+            continue
+        sliced.append(
+            _RubySpan(
+                start=max(0, span.start - start),
+                end=min(end, span.end) - start,
+                base=span.base,
+                reading=span.reading,
+            )
+        )
+    return sliced
+
+
 def _align_tokens_to_original_text(original_text: str | None, tokens: list[PitchToken] | None) -> None:
     if not original_text or not tokens:
         return
@@ -798,6 +994,129 @@ def _realign_tokens_to_text(
     _align_tokens_to_original_text(original_text, realigned)
     _normalize_token_order(piece_text, realigned)
     return realigned
+
+
+def _build_chapter_tokens_from_original(
+    text: str,
+    backend: "NLPBackend",
+    ruby_spans: list[_RubySpan] | None,
+    unique_mapping: Mapping[str, str],
+    common_mapping: Mapping[str, str],
+    unique_sources: Mapping[str, str],
+    common_sources: Mapping[str, str],
+    context_rules: Mapping[str, _ContextRule],
+) -> list[ChapterToken]:
+    coverage: list[tuple[int, int]] = []
+    tokens: list[ChapterToken] = []
+
+    def _append_token(
+        start: int,
+        end: int,
+        reading: str,
+        source: str,
+        fallback: str | None = None,
+        accent_type: int | None = None,
+        accent_connection: str | None = None,
+        pos: str | None = None,
+    ) -> None:
+        surface = text[start:end]
+        if not surface:
+            return
+        token = ChapterToken(
+            surface=surface,
+            start=start,
+            end=end,
+            reading=_normalize_katakana(reading),
+            reading_source=source,
+            fallback_reading=_normalize_katakana(fallback or reading),
+            context_prefix=text[max(0, start - 3) : start],
+            context_suffix=text[end : end + 3],
+            accent_type=accent_type,
+            accent_connection=accent_connection,
+            pos=pos,
+        )
+        tokens.append(token)
+        _add_coverage_range(coverage, start, end)
+
+    if ruby_spans:
+        for span in ruby_spans:
+            start = max(0, min(len(text), span.start))
+            end = max(start, min(len(text), span.end))
+            if not _range_is_free(coverage, start, end):
+                continue
+            _append_token(start, end, span.reading, "ruby")
+
+    for mapping, sources in (
+        (unique_mapping, unique_sources),
+        (common_mapping, common_sources),
+    ):
+        if not mapping:
+            continue
+        for start, end, base, reading in _iter_mapping_matches(text, mapping, context_rules):
+            if not _range_is_free(coverage, start, end):
+                continue
+            source_label = sources.get(base, "propagation")
+            _append_token(start, end, reading, source_label)
+
+    raw_tokens = backend.tokenize(text)
+    for raw in raw_tokens:
+        start = raw.start
+        end = raw.end
+        if not _range_is_free(coverage, start, end):
+            continue
+        surface = raw.surface
+        if not surface or not _contains_cjk(surface):
+            continue
+        reading = _normalize_katakana(raw.reading)
+        if not reading:
+            continue
+        _append_token(
+            start,
+            end,
+            reading,
+            "unidic",
+            fallback=reading,
+            accent_type=raw.accent_type,
+            accent_connection=raw.accent_connection,
+            pos=raw.pos,
+        )
+
+    tokens.sort(key=lambda token: (token.start, token.end))
+    return tokens
+
+
+def _render_text_from_tokens(text: str, tokens: list[ChapterToken]) -> tuple[str, list[ChapterToken]]:
+    if not text:
+        return "", []
+    if not tokens:
+        normalized = _normalize_katakana(_hiragana_to_katakana(text))
+        normalized = _normalize_ellipsis(normalized)
+        return normalized, []
+    output: list[str] = []
+    cursor = 0
+    out_pos = 0
+    for token in sorted(tokens, key=lambda t: (t.start, t.end)):
+        if token.start > cursor:
+            chunk = text[cursor : token.start]
+            normalized_chunk = _normalize_katakana(_hiragana_to_katakana(chunk))
+            if normalized_chunk:
+                output.append(normalized_chunk)
+                out_pos += len(normalized_chunk)
+        reading = token.reading or token.fallback_reading or token.surface
+        normalized_reading = _normalize_katakana(reading)
+        token.reading = normalized_reading
+        token.transformed_start = out_pos
+        output.append(normalized_reading)
+        out_pos += len(normalized_reading)
+        token.transformed_end = out_pos
+        cursor = token.end
+    if cursor < len(text):
+        chunk = text[cursor:]
+        normalized_chunk = _normalize_katakana(_hiragana_to_katakana(chunk))
+        if normalized_chunk:
+            output.append(normalized_chunk)
+    rendered = _normalize_ellipsis("".join(output))
+    return rendered, tokens
 
 
 def _hiragana_to_katakana(text: str) -> str:
@@ -1111,10 +1430,10 @@ def _insert_nav_markers(soup: BeautifulSoup, entries: list[_NavPoint]) -> None:
         target.insert_before(marker)
 
 
-def _split_text_by_markers(text: str) -> tuple[str, list[tuple[int, str]]]:
+def _split_text_by_markers(text: str) -> tuple[str, list[tuple[int, str, int, int]]]:
     if not text:
         return "", []
-    segments: list[tuple[int, str]] = []
+    segments: list[tuple[int, str, int, int]] = []
     cursor = 0
     current_marker: int | None = None
     leading = ""
@@ -1122,12 +1441,13 @@ def _split_text_by_markers(text: str) -> tuple[str, list[tuple[int, str]]]:
         if current_marker is None:
             leading = text[: match.start()]
         else:
-            segment = text[cursor : match.start()]
-            segments.append((current_marker, segment))
+            segment_start = cursor
+            segment = text[segment_start : match.start()]
+            segments.append((current_marker, segment, segment_start, match.start()))
         current_marker = int(match.group(1))
         cursor = match.end()
     if current_marker is not None:
-        segments.append((current_marker, text[cursor:]))
+        segments.append((current_marker, text[cursor:], cursor, len(text)))
     else:
         leading = text
     return leading, segments
@@ -1139,16 +1459,16 @@ def _fragment_from_tracker(text: str, tracker: _TransformationTracker | None) ->
     return tracker.extract(text)
 
 
-def _strip_fragment_newlines(fragment: _TextFragment) -> tuple[str, list[PitchToken]]:
+def _strip_fragment_newlines(fragment: _TextFragment) -> tuple[str, list[PitchToken], list[_RubySpan]]:
     raw_text = fragment.text
     if not raw_text:
-        return "", []
+        return "", [], []
     leading_trim = len(raw_text) - len(raw_text.lstrip("\n"))
     trailing_trim = len(raw_text) - len(raw_text.rstrip("\n"))
     end_idx = len(raw_text) - trailing_trim if trailing_trim else len(raw_text)
     trimmed = raw_text[leading_trim:end_idx]
     if not trimmed:
-        return "", []
+        return "", [], []
     adjusted: list[PitchToken] = []
     for token in fragment.tokens:
         start = token.start - leading_trim
@@ -1156,7 +1476,22 @@ def _strip_fragment_newlines(fragment: _TextFragment) -> tuple[str, list[PitchTo
         if end <= 0 or start >= len(trimmed):
             continue
         adjusted.append(replace(token, start=start, end=end))
-    return trimmed, adjusted
+    span_results: list[_RubySpan] = []
+    if fragment.ruby_spans:
+        for span in fragment.ruby_spans:
+            start = span.start - leading_trim
+            end = span.end - leading_trim
+            if end <= 0 or start >= len(trimmed):
+                continue
+            span_results.append(
+                _RubySpan(
+                    start=max(0, start),
+                    end=min(len(trimmed), end),
+                    base=span.base,
+                    reading=span.reading,
+                )
+            )
+    return trimmed, adjusted, span_results
 
 
 def _trim_text_and_tokens(
@@ -1186,17 +1521,18 @@ def _trim_text_and_tokens(
     return trimmed, adjusted
 
 
-def _combine_text_fragments(fragments: list[_TextFragment]) -> tuple[str, list[PitchToken]]:
+def _combine_text_fragments(fragments: list[_TextFragment]) -> tuple[str, list[PitchToken], list[_RubySpan]]:
     if not fragments:
-        return "", []
+        return "", [], []
     filtered = [fragment for fragment in fragments if fragment.text.strip()]
     if not filtered:
-        return "", []
+        return "", [], []
     text_parts: list[str] = []
     tokens: list[PitchToken] = []
+    spans: list[_RubySpan] = []
     cursor = 0
     for fragment in filtered:
-        trimmed_text, fragment_tokens = _strip_fragment_newlines(fragment)
+        trimmed_text, fragment_tokens, fragment_spans = _strip_fragment_newlines(fragment)
         if not trimmed_text:
             continue
         if text_parts:
@@ -1204,9 +1540,18 @@ def _combine_text_fragments(fragments: list[_TextFragment]) -> tuple[str, list[P
         text_parts.append(trimmed_text)
         for token in fragment_tokens:
             tokens.append(replace(token, start=token.start + cursor, end=token.end + cursor))
+        for span in fragment_spans:
+            spans.append(
+                _RubySpan(
+                    start=span.start + cursor,
+                    end=span.end + cursor,
+                    base=span.base,
+                    reading=span.reading,
+                )
+            )
         cursor += len(trimmed_text)
     combined_text = "\n\n".join(text_parts)
-    return combined_text, tokens
+    return combined_text, tokens, spans
 
 
 def _first_non_blank_line(text: str) -> str | None:
@@ -1286,37 +1631,33 @@ def _finalize_segment_text(
     backend: "NLPBackend" | None,
     preset_tokens: list[PitchToken] | None = None,
     original_text: str | None = None,
-) -> tuple[str, list[PitchToken] | None]:
-    piece_text = raw_text.strip()
-    piece_text = _normalize_ellipsis(piece_text)
-    if not piece_text:
-        return "", None
-    collected_tokens: list[PitchToken] = list(preset_tokens or [])
-    if backend is not None:
-        converted_text, tokens = backend.to_reading_with_pitch(piece_text)
-        piece_text = _normalize_ellipsis(converted_text)
-        if tokens:
-            collected_tokens.extend(tokens)
-        if collected_tokens:
-            _fill_missing_pitch_from_surface(collected_tokens, backend)
-            collected_tokens.sort(key=lambda token: token.start)
-            piece_text, trimmed_tokens = _trim_text_and_tokens(piece_text, collected_tokens)
-            if trimmed_tokens:
-                aligned_tokens = _align_pitch_tokens(piece_text, trimmed_tokens)
-                if aligned_tokens:
-                    _align_tokens_to_original_text(original_text, aligned_tokens)
-                    _normalize_token_order(piece_text, aligned_tokens)
-                    return piece_text, aligned_tokens
-        piece_text, _ = _trim_text_and_tokens(piece_text, None)
-        return piece_text, None
-    if collected_tokens:
-        collected_tokens.sort(key=lambda token: token.start)
-        aligned_tokens = _align_pitch_tokens(piece_text, collected_tokens)
-        if aligned_tokens:
-            _align_tokens_to_original_text(original_text, aligned_tokens)
-            _normalize_token_order(piece_text, aligned_tokens)
-            return piece_text, aligned_tokens
-    return piece_text, None
+    ruby_spans: list[_RubySpan] | None = None,
+    unique_mapping: Mapping[str, str] | None = None,
+    common_mapping: Mapping[str, str] | None = None,
+    unique_sources: Mapping[str, str] | None = None,
+    common_sources: Mapping[str, str] | None = None,
+    context_rules: Mapping[str, _ContextRule] | None = None,
+) -> tuple[str, list[PitchToken] | None, list[ChapterToken] | None]:
+    del preset_tokens  # unused; legacy parameter retained for compatibility
+    base_text = (original_text or raw_text or "").strip()
+    if not base_text:
+        return "", None, None
+    if backend is None:
+        normalized = _normalize_ellipsis(_normalize_katakana(_hiragana_to_katakana(base_text)))
+        return normalized, None, None
+    tokens = _build_chapter_tokens_from_original(
+        base_text,
+        backend,
+        ruby_spans or [],
+        unique_mapping or {},
+        common_mapping or {},
+        unique_sources or {},
+        common_sources or {},
+        context_rules or {},
+    )
+    rendered_text, finalized_tokens = _render_text_from_tokens(base_text, tokens)
+    pitch_tokens = tokens_to_pitch_tokens(finalized_tokens)
+    return rendered_text, pitch_tokens, finalized_tokens
 
 
 def _extract_cover_image(zf: zipfile.ZipFile) -> CoverImage | None:
@@ -1920,7 +2261,14 @@ def _select_reading_mapping(
 def _build_book_mapping(
     zf: zipfile.ZipFile,
     nlp: "NLPBackend",
-) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str], dict[str, _ContextRule]]:
+) -> tuple[
+    dict[str, str],
+    dict[str, str],
+    dict[str, str],
+    dict[str, str],
+    dict[str, _ContextRule],
+    list[dict[str, object]],
+]:
     accumulators: dict[str, _ReadingAccumulator] = defaultdict(_ReadingAccumulator)
     base_sources: dict[str, str] = {}
     for name in zf.namelist():
@@ -1945,7 +2293,34 @@ def _build_book_mapping(
     tier3, tier2, context_rules = _select_reading_mapping(accumulators, nlp)
     tier3_sources = {base: base_sources.get(base, "propagation") for base in tier3}
     tier2_sources = {base: base_sources.get(base, "propagation") for base in tier2}
-    return tier3, tier2, tier3_sources, tier2_sources, context_rules
+    evidence_payload = _serialize_ruby_evidence(accumulators)
+    return tier3, tier2, tier3_sources, tier2_sources, context_rules, evidence_payload
+
+
+def _serialize_ruby_evidence(accumulators: Mapping[str, _ReadingAccumulator]) -> list[dict[str, object]]:
+    entries: list[dict[str, object]] = []
+    for base, accumulator in accumulators.items():
+        if not accumulator.counts:
+            continue
+        top_reading, top_count = accumulator.counts.most_common(1)[0]
+        suffixes: list[dict[str, object]] = []
+        for value, count in accumulator.suffix_counts.most_common(_MAX_SUFFIX_CONTEXTS):
+            suffixes.append({"value": value, "count": count})
+        prefixes: list[dict[str, object]] = []
+        for value, count in accumulator.prefix_counts.most_common(_MAX_PREFIX_CONTEXTS):
+            prefixes.append({"value": value, "count": count})
+        entry: dict[str, object] = {
+            "base": base,
+            "reading": top_reading,
+            "count": top_count,
+            "suffix": suffixes[0]["value"] if suffixes else "",
+            "suffixes": suffixes,
+        }
+        if prefixes:
+            entry["prefixes"] = prefixes
+        entries.append(entry)
+    entries.sort(key=lambda item: (-int(item.get("count", 0)), item.get("base", "")))
+    return entries
 
 
 def _replace_outside_ruby_with_readings(
@@ -2037,7 +2412,7 @@ def _strip_html_to_text(soup: BeautifulSoup) -> str:
 def epub_to_chapter_texts(
     inp_epub: str,
     nlp: "NLPBackend" | None = None,
-) -> list[ChapterText]:
+) -> tuple[list[ChapterText], list[dict[str, object]]]:
     """
     Convert an EPUB into chapterized text segments with ruby expansion.
 
@@ -2049,7 +2424,14 @@ def epub_to_chapter_texts(
 
         backend = NLPBackend()
     with zipfile.ZipFile(inp_epub, "r") as zf:
-        unique_mapping, common_mapping, unique_sources, common_sources, context_rules = _build_book_mapping(zf, backend)
+        (
+            unique_mapping,
+            common_mapping,
+            unique_sources,
+            common_sources,
+            context_rules,
+            ruby_evidence,
+        ) = _build_book_mapping(zf, backend)
         spine = _spine_items(zf)
         nav_points = _toc_nav_points(zf, spine)
         nav_buckets: dict[int, dict[str, list[object]]] = {
@@ -2101,10 +2483,13 @@ def epub_to_chapter_texts(
             html = _zip_read_text(zf, name)
             nav_entries_for_file = nav_by_spine.get(spine_index, [])
             original_soup = _soup_from_html(html)
+            ruby_tracker = _RubySpanTracker()
+            ruby_tracker.mark_soup(original_soup)
             for rt in original_soup.find_all("rt"):
                 rt.decompose()
             _insert_nav_markers(original_soup, nav_entries_for_file)
-            original_plain_text = _strip_html_to_text(original_soup)
+            original_marked_text = _strip_html_to_text(original_soup)
+            original_plain_text, ruby_spans = ruby_tracker.extract(original_marked_text)
             soup = _soup_from_html(html)
             tracker = _TransformationTracker()
             # 1) propagate: replace base outside ruby using the global mapping
@@ -2177,18 +2562,22 @@ def epub_to_chapter_texts(
             leading_piece, piece_segments = _split_text_by_markers(raw_piece_text)
             leading_fragment = _fragment_from_tracker(leading_piece, tracker)
             leading_original, original_segments = _split_text_by_markers(original_plain_text)
-            original_segment_map = {marker: segment for marker, segment in original_segments}
-            for marker_id, segment_text in piece_segments:
+            original_segment_map = {marker: (segment, start, end) for marker, segment, start, end in original_segments}
+            for marker_id, segment_text, _, _ in piece_segments:
                 bucket = nav_buckets.get(marker_id)
                 if bucket is None:
                     continue
                 if not segment_text.strip():
                     continue
                 fragment = _fragment_from_tracker(segment_text, tracker)
+                original_segment, seg_start, seg_end = original_segment_map.get(marker_id, ("", 0, 0))
+                fragment.ruby_spans = _slice_ruby_spans(ruby_spans, seg_start, seg_end)
                 bucket["text_fragments"].append(fragment)
-                bucket["original_parts"].append(original_segment_map.get(marker_id, ""))
+                bucket["original_parts"].append(original_segment)
             if leading_fragment.text.strip():
                 order = -1 if nav_entries_for_file else 0
+                leading_span_list = _slice_ruby_spans(ruby_spans, 0, len(leading_original))
+                leading_fragment.ruby_spans = leading_span_list
                 fallback_segments.append(
                     _FallbackSegment(
                         spine_index=spine_index,
@@ -2214,6 +2603,7 @@ def epub_to_chapter_texts(
                     raw_original=segment.raw_original,
                     title_hint=None,
                     tokens=list(segment.fragment.tokens),
+                    ruby_spans=list(segment.fragment.ruby_spans or []),
                 )
             )
         for entry in nav_points:
@@ -2221,7 +2611,7 @@ def epub_to_chapter_texts(
             if not bucket:
                 continue
             fragments = bucket.get("text_fragments", [])
-            raw_text, fragment_tokens = _combine_text_fragments(fragments)
+            raw_text, fragment_tokens, fragment_spans = _combine_text_fragments(fragments)
             if not raw_text.strip():
                 continue
             original_parts = [part for part in bucket["original_parts"] if part.strip()]
@@ -2234,26 +2624,30 @@ def epub_to_chapter_texts(
                     raw_original=raw_original,
                     title_hint=entry.title.strip() if entry.title else None,
                     tokens=fragment_tokens,
+                    ruby_spans=fragment_spans,
                 )
             )
 
         chapters: list[ChapterText] = []
         for pending in sorted(pending_outputs, key=lambda item: item.sort_key):
             original_basis = pending.raw_original.strip() or pending.raw_text
-            finalized_text, pitch_tokens = _finalize_segment_text(
+            processing_basis = original_basis
+            if not chapters:
+                processing_basis = _ensure_title_author_break(processing_basis)
+            finalized_text, pitch_tokens, chapter_tokens = _finalize_segment_text(
                 pending.raw_text,
                 backend,
                 preset_tokens=pending.tokens,
-                original_text=original_basis,
+                original_text=processing_basis,
+                ruby_spans=pending.ruby_spans,
+                unique_mapping=unique_mapping,
+                common_mapping=common_mapping,
+                unique_sources=unique_sources,
+                common_sources=common_sources,
+                context_rules=context_rules,
             )
             if not finalized_text:
                 continue
-            if not chapters:
-                adjusted_text = _ensure_title_author_break(finalized_text)
-                if adjusted_text != finalized_text:
-                    if pitch_tokens:
-                        pitch_tokens = _realign_tokens_to_text(adjusted_text, pitch_tokens, original_basis)
-                    finalized_text = adjusted_text
             original_title = _first_non_blank_line(original_basis)
             processed_title = _first_non_blank_line(finalized_text)
             title = processed_title or pending.title_hint
@@ -2268,10 +2662,11 @@ def epub_to_chapter_texts(
                     book_title=book_title,
                     book_author=book_author,
                     pitch_data=pitch_tokens,
+                    tokens=chapter_tokens,
                 )
             )
 
-        return chapters
+        return chapters, ruby_evidence
 
 
 def epub_to_txt(
@@ -2285,7 +2680,7 @@ def epub_to_txt(
     that match or dominate in-book evidence, and fills remaining kanji with
     dictionary readings.
     """
-    chapters = epub_to_chapter_texts(inp_epub, nlp=nlp)
+    chapters, _ = epub_to_chapter_texts(inp_epub, nlp=nlp)
     combined = "\n\n".join(chapter.text for chapter in chapters).strip()
     return combined
 

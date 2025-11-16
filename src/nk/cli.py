@@ -485,13 +485,14 @@ def _ensure_tts_source_ready(
                     backend = NLPBackend()
                 except NLPBackendUnavailableError as exc:
                     raise SystemExit(str(exc)) from exc
-            chapters = epub_to_chapter_texts(str(input_path), nlp=backend)
+            chapters, ruby_evidence = epub_to_chapter_texts(str(input_path), nlp=backend)
             cover = get_epub_cover(str(input_path))
             write_book_package(
                 target_dir,
                 chapters,
                 source_epub=input_path,
                 cover_image=cover,
+                ruby_evidence=ruby_evidence,
             )
         else:
             regenerate_m4b_manifest(target_dir)
@@ -1230,7 +1231,7 @@ def main(argv: list[str] | None = None) -> int:
             raise FileNotFoundError(f"No .epub files found in directory: {inp_path}")
         for epub_path in epubs:
             if emit_chapterized:
-                chapters = epub_to_chapter_texts(str(epub_path), nlp=backend)
+                chapters, ruby_evidence = epub_to_chapter_texts(str(epub_path), nlp=backend)
                 output_dir = epub_path.with_suffix("")
                 cover = get_epub_cover(str(epub_path))
                 write_book_package(
@@ -1238,6 +1239,7 @@ def main(argv: list[str] | None = None) -> int:
                     chapters,
                     source_epub=epub_path,
                     cover_image=cover,
+                    ruby_evidence=ruby_evidence,
                 )
             else:
                 txt = epub_to_txt(str(epub_path), nlp=backend)
@@ -1248,7 +1250,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError(f"Input must be an .epub file or directory: {inp_path}")
 
         if emit_chapterized:
-            chapters = epub_to_chapter_texts(str(inp_path), nlp=backend)
+            chapters, ruby_evidence = epub_to_chapter_texts(str(inp_path), nlp=backend)
             output_dir = inp_path.with_suffix("")
             cover = get_epub_cover(str(inp_path))
             write_book_package(
@@ -1256,6 +1258,7 @@ def main(argv: list[str] | None = None) -> int:
                 chapters,
                 source_epub=inp_path,
                 cover_image=cover,
+                ruby_evidence=ruby_evidence,
             )
         else:
             if args.output_name:

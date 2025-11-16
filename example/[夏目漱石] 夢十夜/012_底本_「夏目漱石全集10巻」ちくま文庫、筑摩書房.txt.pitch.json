@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "text_sha1": "de6a5329182c3fae8b08fc6303e19bac63e45f17",
+  "text_sha1": "f3b4dc2f27633373a3d429e71bce4bb1ab8bb8d0",
   "tokens": [
     {
       "surface": "底本",
@@ -41,9 +41,9 @@
     {
       "surface": "漱石",
       "reading": "ソウセキ",
-      "accent": 1,
+      "accent": null,
       "connection": null,
-      "pos": "名詞",
+      "pos": null,
       "start": {
         "transformed": 9,
         "original": 6
@@ -275,9 +275,9 @@
     {
       "surface": "平成",
       "reading": "ヘイセイ",
-      "accent": 0,
+      "accent": null,
       "connection": null,
-      "pos": "名詞",
+      "pos": null,
       "start": {
         "transformed": 82,
         "original": 60
@@ -527,9 +527,9 @@
     {
       "surface": "漱石",
       "reading": "ソウセキ",
-      "accent": 1,
+      "accent": null,
       "connection": null,
-      "pos": "名詞",
+      "pos": null,
       "start": {
         "transformed": 137,
         "original": 93
@@ -657,11 +657,11 @@
       "connection": null,
       "pos": null,
       "start": {
-        "transformed": 164,
+        "transformed": 182,
         "original": 126
       },
       "end": {
-        "transformed": 168,
+        "transformed": 186,
         "original": 128
       },
       "sources": [
@@ -851,9 +851,9 @@
     {
       "surface": "番号",
       "reading": "バンゴウ",
-      "accent": 3,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 230,
         "original": 162
@@ -905,9 +905,9 @@
     {
       "surface": "野口",
       "reading": "ノグチ",
-      "accent": 1,
+      "accent": null,
       "connection": null,
-      "pos": "名詞",
+      "pos": null,
       "start": {
         "transformed": 263,
         "original": 188
@@ -995,9 +995,9 @@
     {
       "surface": "公開",
       "reading": "コウカイ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 285,
         "original": 205

@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "text_sha1": "c53dce6f6788313d465902c5531c295ccc54458b",
+  "text_sha1": "ebe55cde1bf9a2a4f9918f48ddd993a90b6334af",
   "tokens": [
     {
       "surface": "第",
@@ -95,9 +95,9 @@
     {
       "surface": "和尚",
       "reading": "オショウ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 19,
         "original": 17
@@ -165,29 +165,11 @@
       ]
     },
     {
-      "surface": "下",
-      "reading": "シタ",
-      "accent": 0,
-      "connection": "C4",
-      "pos": "名詞",
-      "start": {
-        "transformed": 814,
-        "original": 28
-      },
-      "end": {
-        "transformed": 816,
-        "original": 29
-      },
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 39,
         "original": 32
@@ -203,9 +185,9 @@
     {
       "surface": "部屋",
       "reading": "ヘヤ",
-      "accent": 2,
-      "connection": "C3",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 43,
         "original": 35
@@ -275,33 +257,15 @@
     {
       "surface": "片膝",
       "reading": "カタヒザ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 66,
         "original": 54
       },
       "end": {
         "transformed": 70,
-        "original": 56
-      },
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
-      "surface": "膝",
-      "reading": "ヒザ",
-      "accent": 0,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": {
-        "transformed": 1478,
-        "original": 55
-      },
-      "end": {
-        "transformed": 1480,
         "original": 56
       },
       "sources": [
@@ -324,24 +288,6 @@
       },
       "sources": [
         "ruby"
-      ]
-    },
-    {
-      "surface": "蒲団",
-      "reading": "フトン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": {
-        "transformed": 397,
-        "original": 58
-      },
-      "end": {
-        "transformed": 400,
-        "original": 60
-      },
-      "sources": [
-        "unidic"
       ]
     },
     {
@@ -405,33 +351,15 @@
       "connection": null,
       "pos": null,
       "start": {
-        "transformed": 66,
+        "transformed": 88,
         "original": 70
       },
       "end": {
-        "transformed": 67,
+        "transformed": 89,
         "original": 71
       },
       "sources": [
         "ruby"
-      ]
-    },
-    {
-      "surface": "立て",
-      "reading": "タテ",
-      "accent": 2,
-      "connection": "C1",
-      "pos": "動詞",
-      "start": {
-        "transformed": 90,
-        "original": 72
-      },
-      "end": {
-        "transformed": 92,
-        "original": 74
-      },
-      "sources": [
-        "unidic"
       ]
     },
     {
@@ -455,9 +383,9 @@
     {
       "surface": "丁子",
       "reading": "チョウジ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 102,
         "original": 83
@@ -473,9 +401,9 @@
     {
       "surface": "朱塗",
       "reading": "シュヌリ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 111,
         "original": 90
@@ -543,29 +471,11 @@
       ]
     },
     {
-      "surface": "時",
-      "reading": "トキ",
-      "accent": 2,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": {
-        "transformed": 795,
-        "original": 100
-      },
-      "end": {
-        "transformed": 797,
-        "original": 101
-      },
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
       "surface": "部屋",
       "reading": "ヘヤ",
-      "accent": 2,
-      "connection": "C3",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 127,
         "original": 102
@@ -635,9 +545,9 @@
     {
       "surface": "蕪村",
       "reading": "ブソン",
-      "accent": 1,
+      "accent": null,
       "connection": null,
-      "pos": "名詞",
+      "pos": null,
       "start": {
         "transformed": 150,
         "original": 123
@@ -797,9 +707,9 @@
     {
       "surface": "笠",
       "reading": "カサ",
-      "accent": 0,
+      "accent": null,
       "connection": null,
-      "pos": "名詞",
+      "pos": null,
       "start": {
         "transformed": 191,
         "original": 155
@@ -842,24 +752,6 @@
       },
       "end": {
         "transformed": 201,
-        "original": 162
-      },
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
-      "surface": "手",
-      "reading": "テ",
-      "accent": 1,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": {
-        "transformed": 345,
-        "original": 161
-      },
-      "end": {
-        "transformed": 346,
         "original": 162
       },
       "sources": [
@@ -939,29 +831,11 @@
       ]
     },
     {
-      "surface": "中",
-      "reading": "ジュウ",
-      "accent": null,
-      "connection": "C4",
-      "pos": "接尾辞",
-      "start": {
-        "transformed": 1702,
-        "original": 172
-      },
-      "end": {
-        "transformed": 1705,
-        "original": 173
-      },
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
       "surface": "軸",
       "reading": "ジク",
-      "accent": 2,
-      "connection": "C4",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 223,
         "original": 176
@@ -1031,9 +905,9 @@
     {
       "surface": "線香",
       "reading": "センコウ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 239,
         "original": 189
@@ -1044,24 +918,6 @@
       },
       "sources": [
         "nhk"
-      ]
-    },
-    {
-      "surface": "香",
-      "reading": "ニオイ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": {
-        "transformed": 1375,
-        "original": 190
-      },
-      "end": {
-        "transformed": 1378,
-        "original": 191
-      },
-      "sources": [
-        "ruby"
       ]
     },
     {
@@ -1157,9 +1013,9 @@
     {
       "surface": "森閑",
       "reading": "シンカン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "形状詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 269,
         "original": 212
@@ -1211,9 +1067,9 @@
     {
       "surface": "天井",
       "reading": "テンジョウ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 287,
         "original": 226
@@ -1260,24 +1116,6 @@
       },
       "sources": [
         "ruby"
-      ]
-    },
-    {
-      "surface": "行灯",
-      "reading": "アンドウ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": {
-        "transformed": 1242,
-        "original": 232
-      },
-      "end": {
-        "transformed": 1246,
-        "original": 234
-      },
-      "sources": [
-        "propagation"
       ]
     },
     {
@@ -1335,29 +1173,11 @@
       ]
     },
     {
-      "surface": "向",
-      "reading": "ムコウ",
+      "surface": "途端",
+      "reading": "トタン",
       "accent": null,
       "connection": null,
       "pos": null,
-      "start": {
-        "transformed": 567,
-        "original": 241
-      },
-      "end": {
-        "transformed": 570,
-        "original": 242
-      },
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
-      "surface": "途端",
-      "reading": "トタン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
       "start": {
         "transformed": 313,
         "original": 243
@@ -1407,29 +1227,11 @@
       ]
     },
     {
-      "surface": "見",
-      "reading": "ミ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "動詞",
-      "start": {
-        "transformed": 1018,
-        "original": 253
-      },
-      "end": {
-        "transformed": 1019,
-        "original": 254
-      },
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
       "surface": "立膝",
       "reading": "タテヒザ",
-      "accent": 2,
-      "connection": "C1",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 331,
         "original": 260
@@ -1440,24 +1242,6 @@
       },
       "sources": [
         "ruby"
-      ]
-    },
-    {
-      "surface": "膝",
-      "reading": "ヒザ",
-      "accent": 0,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": {
-        "transformed": 1496,
-        "original": 261
-      },
-      "end": {
-        "transformed": 1498,
-        "original": 262
-      },
-      "sources": [
-        "unidic"
       ]
     },
     {
@@ -1485,11 +1269,11 @@
       "connection": "C3",
       "pos": "名詞",
       "start": {
-        "transformed": 802,
+        "transformed": 345,
         "original": 270
       },
       "end": {
-        "transformed": 803,
+        "transformed": 346,
         "original": 271
       },
       "sources": [
@@ -1605,24 +1389,6 @@
       ]
     },
     {
-      "surface": "思",
-      "reading": "オモイ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": {
-        "transformed": 1597,
-        "original": 291
-      },
-      "end": {
-        "transformed": 1600,
-        "original": 292
-      },
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
       "surface": "所",
       "reading": "トコロ",
       "accent": null,
@@ -1643,9 +1409,9 @@
     {
       "surface": "安心",
       "reading": "アンシン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 389,
         "original": 308
@@ -1656,6 +1422,24 @@
       },
       "sources": [
         "nhk"
+      ]
+    },
+    {
+      "surface": "蒲団",
+      "reading": "フトン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": {
+        "transformed": 397,
+        "original": 314
+      },
+      "end": {
+        "transformed": 400,
+        "original": 316
+      },
+      "sources": [
+        "unidic"
       ]
     },
     {
@@ -1713,24 +1497,6 @@
       ]
     },
     {
-      "surface": "坐っ",
-      "reading": "スワッ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "動詞",
-      "start": {
-        "transformed": 1656,
-        "original": 335
-      },
-      "end": {
-        "transformed": 1659,
-        "original": 337
-      },
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
       "surface": "お前",
       "reading": "オマエ",
       "accent": 0,
@@ -1751,9 +1517,9 @@
     {
       "surface": "侍",
       "reading": "サムライ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 433,
         "original": 345
@@ -1805,9 +1571,9 @@
     {
       "surface": "和尚",
       "reading": "オショウ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 459,
         "original": 364
@@ -1931,9 +1697,9 @@
     {
       "surface": "人間",
       "reading": "ニンゲン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 509,
         "original": 407
@@ -1949,9 +1715,9 @@
     {
       "surface": "屑",
       "reading": "クズ",
-      "accent": 1,
-      "connection": "C3",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 514,
         "original": 410
@@ -2075,9 +1841,9 @@
     {
       "surface": "証拠",
       "reading": "ショウコ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 550,
         "original": 442
@@ -2127,24 +1893,6 @@
       ]
     },
     {
-      "surface": "来",
-      "reading": "キ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "動詞",
-      "start": {
-        "transformed": 1004,
-        "original": 448
-      },
-      "end": {
-        "transformed": 1005,
-        "original": 449
-      },
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
       "surface": "云っ",
       "reading": "イッ",
       "accent": 0,
@@ -2160,6 +1908,24 @@
       },
       "sources": [
         "unidic"
+      ]
+    },
+    {
+      "surface": "向",
+      "reading": "ムコウ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": {
+        "transformed": 567,
+        "original": 457
+      },
+      "end": {
+        "transformed": 570,
+        "original": 458
+      },
+      "sources": [
+        "ruby"
       ]
     },
     {
@@ -2273,9 +2039,9 @@
     {
       "surface": "時計",
       "reading": "トケイ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 602,
         "original": 485
@@ -2435,9 +2201,9 @@
     {
       "surface": "入室",
       "reading": "ニュウシツ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 643,
         "original": 519
@@ -2453,9 +2219,9 @@
     {
       "surface": "和尚",
       "reading": "オショウ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 655,
         "original": 528
@@ -2507,9 +2273,9 @@
     {
       "surface": "引替",
       "reading": "ヒキカエ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 667,
         "original": 536
@@ -2517,24 +2283,6 @@
       "end": {
         "transformed": 671,
         "original": 538
-      },
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
-      "surface": "引",
-      "reading": "ヒ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": {
-        "transformed": 836,
-        "original": 536
-      },
-      "end": {
-        "transformed": 837,
-        "original": 537
       },
       "sources": [
         "ruby"
@@ -2561,15 +2309,15 @@
     {
       "surface": "和尚",
       "reading": "オショウ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
-        "transformed": 655,
+        "transformed": 685,
         "original": 551
       },
       "end": {
-        "transformed": 659,
+        "transformed": 689,
         "original": 553
       },
       "sources": [
@@ -2633,9 +2381,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 716,
         "original": 577
@@ -2687,33 +2435,15 @@
     {
       "surface": "自刃",
       "reading": "ジジン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 740,
         "original": 596
       },
       "end": {
         "transformed": 743,
-        "original": 598
-      },
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
-      "surface": "刃",
-      "reading": "ハ",
-      "accent": 1,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": {
-        "transformed": 817,
-        "original": 597
-      },
-      "end": {
-        "transformed": 818,
         "original": 598
       },
       "sources": [
@@ -2813,9 +2543,9 @@
     {
       "surface": "綺麗",
       "reading": "キレイ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "形状詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 774,
         "original": 623
@@ -2865,17 +2595,35 @@
       ]
     },
     {
-      "surface": "自分",
-      "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
+      "surface": "時",
+      "reading": "トキ",
+      "accent": 2,
+      "connection": "C3",
       "pos": "名詞",
       "start": {
-        "transformed": 716,
+        "transformed": 795,
+        "original": 641
+      },
+      "end": {
+        "transformed": 797,
+        "original": 642
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "自分",
+      "reading": "ジブン",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": {
+        "transformed": 798,
         "original": 643
       },
       "end": {
-        "transformed": 719,
+        "transformed": 801,
         "original": 645
       },
       "sources": [
@@ -2889,11 +2637,11 @@
       "connection": "C3",
       "pos": "名詞",
       "start": {
-        "transformed": 1937,
+        "transformed": 802,
         "original": 646
       },
       "end": {
-        "transformed": 1938,
+        "transformed": 803,
         "original": 647
       },
       "sources": [
@@ -2921,9 +2669,9 @@
     {
       "surface": "布団",
       "reading": "フトン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 810,
         "original": 653
@@ -2943,11 +2691,11 @@
       "connection": "C4",
       "pos": "名詞",
       "start": {
-        "transformed": 1711,
+        "transformed": 814,
         "original": 656
       },
       "end": {
-        "transformed": 1713,
+        "transformed": 816,
         "original": 657
       },
       "sources": [
@@ -2975,9 +2723,9 @@
     {
       "surface": "朱鞘",
       "reading": "シュザヤ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 826,
         "original": 667
@@ -2988,24 +2736,6 @@
       },
       "sources": [
         "ruby"
-      ]
-    },
-    {
-      "surface": "鞘",
-      "reading": "サヤ",
-      "accent": 1,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": {
-        "transformed": 858,
-        "original": 668
-      },
-      "end": {
-        "transformed": 860,
-        "original": 669
-      },
-      "sources": [
-        "unidic"
       ]
     },
     {
@@ -3027,17 +2757,35 @@
       ]
     },
     {
+      "surface": "引",
+      "reading": "ヒ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": {
+        "transformed": 836,
+        "original": 673
+      },
+      "end": {
+        "transformed": 837,
+        "original": 674
+      },
+      "sources": [
+        "ruby"
+      ]
+    },
+    {
       "surface": "摺",
       "reading": "ズ",
       "accent": null,
       "connection": null,
       "pos": null,
       "start": {
-        "transformed": 752,
+        "transformed": 838,
         "original": 675
       },
       "end": {
-        "transformed": 753,
+        "transformed": 839,
         "original": 676
       },
       "sources": [
@@ -3057,24 +2805,6 @@
       "end": {
         "transformed": 842,
         "original": 679
-      },
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
-      "surface": "出",
-      "reading": "デ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "動詞",
-      "start": {
-        "transformed": 1536,
-        "original": 677
-      },
-      "end": {
-        "transformed": 1537,
-        "original": 678
       },
       "sources": [
         "unidic"
@@ -3141,11 +2871,11 @@
       "connection": "C3",
       "pos": "名詞",
       "start": {
-        "transformed": 1096,
+        "transformed": 858,
         "original": 692
       },
       "end": {
-        "transformed": 1098,
+        "transformed": 860,
         "original": 693
       },
       "sources": [
@@ -3208,20 +2938,20 @@
     },
     {
       "surface": "刃",
-      "reading": "ヤイバ",
+      "reading": "ハ",
       "accent": null,
-      "connection": "C1",
-      "pos": "名詞",
+      "connection": null,
+      "pos": null,
       "start": {
-        "transformed": 968,
+        "transformed": 874,
         "original": 704
       },
       "end": {
-        "transformed": 971,
+        "transformed": 875,
         "original": 705
       },
       "sources": [
-        "unidic"
+        "ruby"
       ]
     },
     {
@@ -3240,24 +2970,6 @@
       },
       "sources": [
         "nhk"
-      ]
-    },
-    {
-      "surface": "一",
-      "reading": "イチ",
-      "accent": 2,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": {
-        "transformed": 947,
-        "original": 706
-      },
-      "end": {
-        "transformed": 949,
-        "original": 707
-      },
-      "sources": [
-        "unidic"
       ]
     },
     {
@@ -3281,9 +2993,9 @@
     {
       "surface": "部屋",
       "reading": "ヘヤ",
-      "accent": 2,
-      "connection": "C3",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 883,
         "original": 711
@@ -3317,9 +3029,9 @@
     {
       "surface": "凄",
       "reading": "スゴ",
-      "accent": 2,
-      "connection": "C1",
-      "pos": "形容詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 891,
         "original": 718
@@ -3407,9 +3119,9 @@
     {
       "surface": "切先",
       "reading": "キッサキ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 932,
         "original": 756
@@ -3420,24 +3132,6 @@
       },
       "sources": [
         "ruby"
-      ]
-    },
-    {
-      "surface": "先",
-      "reading": "サキ",
-      "accent": 0,
-      "connection": "C4",
-      "pos": "名詞",
-      "start": {
-        "transformed": 1001,
-        "original": 757
-      },
-      "end": {
-        "transformed": 1003,
-        "original": 758
-      },
-      "sources": [
-        "unidic"
       ]
     },
     {
@@ -3474,6 +3168,24 @@
       },
       "sources": [
         "ruby"
+      ]
+    },
+    {
+      "surface": "一",
+      "reading": "イチ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": {
+        "transformed": 947,
+        "original": 767
+      },
+      "end": {
+        "transformed": 949,
+        "original": 768
+      },
+      "sources": [
+        "unidic"
       ]
     },
     {
@@ -3515,9 +3227,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 958,
         "original": 776
@@ -3549,6 +3261,24 @@
       ]
     },
     {
+      "surface": "刃",
+      "reading": "ヤイバ",
+      "accent": null,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": {
+        "transformed": 968,
+        "original": 783
+      },
+      "end": {
+        "transformed": 971,
+        "original": 784
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
       "surface": "無念",
       "reading": "ムネン",
       "accent": null,
@@ -3564,24 +3294,6 @@
       },
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "無",
-      "reading": "ム",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": {
-        "transformed": 1140,
-        "original": 786
-      },
-      "end": {
-        "transformed": 1141,
-        "original": 787
-      },
-      "sources": [
-        "ruby"
       ]
     },
     {
@@ -3657,17 +3369,35 @@
       ]
     },
     {
+      "surface": "先",
+      "reading": "サキ",
+      "accent": 0,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": {
+        "transformed": 1001,
+        "original": 808
+      },
+      "end": {
+        "transformed": 1003,
+        "original": 809
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
       "surface": "来",
       "reading": "キ",
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
       "start": {
-        "transformed": 1057,
+        "transformed": 1004,
         "original": 810
       },
       "end": {
-        "transformed": 1058,
+        "transformed": 1005,
         "original": 811
       },
       "sources": [
@@ -3693,6 +3423,24 @@
       ]
     },
     {
+      "surface": "見",
+      "reading": "ミ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": {
+        "transformed": 1018,
+        "original": 823
+      },
+      "end": {
+        "transformed": 1019,
+        "original": 824
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
       "surface": "身体",
       "reading": "カラダ",
       "accent": null,
@@ -3708,24 +3456,6 @@
       },
       "sources": [
         "ruby"
-      ]
-    },
-    {
-      "surface": "身",
-      "reading": "ミ",
-      "accent": 0,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": {
-        "transformed": 1601,
-        "original": 842
-      },
-      "end": {
-        "transformed": 1602,
-        "original": 843
-      },
-      "sources": [
-        "unidic"
       ]
     },
     {
@@ -3767,9 +3497,9 @@
     {
       "surface": "手首",
       "reading": "テクビ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1046,
         "original": 849
@@ -3780,24 +3510,6 @@
       },
       "sources": [
         "nhk"
-      ]
-    },
-    {
-      "surface": "首",
-      "reading": "クビ",
-      "accent": 0,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": {
-        "transformed": 1324,
-        "original": 850
-      },
-      "end": {
-        "transformed": 1326,
-        "original": 851
-      },
-      "sources": [
-        "unidic"
       ]
     },
     {
@@ -3838,16 +3550,16 @@
     },
     {
       "surface": "来",
-      "reading": "コ",
+      "reading": "キ",
       "accent": 1,
       "connection": "C1",
       "pos": "動詞",
       "start": {
-        "transformed": 1538,
+        "transformed": 1057,
         "original": 857
       },
       "end": {
-        "transformed": 1539,
+        "transformed": 1058,
         "original": 858
       },
       "sources": [
@@ -3893,9 +3605,9 @@
     {
       "surface": "唇",
       "reading": "クチビル",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1078,
         "original": 876
@@ -3945,6 +3657,24 @@
       ]
     },
     {
+      "surface": "鞘",
+      "reading": "サヤ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": {
+        "transformed": 1096,
+        "original": 888
+      },
+      "end": {
+        "transformed": 1098,
+        "original": 889
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
       "surface": "収め",
       "reading": "オサメ",
       "accent": 3,
@@ -3975,24 +3705,6 @@
       "end": {
         "transformed": 1107,
         "original": 895
-      },
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
-      "surface": "右",
-      "reading": "ミギ",
-      "accent": null,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": {
-        "transformed": 1934,
-        "original": 893
-      },
-      "end": {
-        "transformed": 1936,
-        "original": 894
       },
       "sources": [
         "unidic"
@@ -4055,9 +3767,9 @@
     {
       "surface": "趙州",
       "reading": "ジョウシュウ",
-      "accent": 1,
+      "accent": null,
       "connection": null,
-      "pos": "名詞",
+      "pos": null,
       "start": {
         "transformed": 1131,
         "original": 918
@@ -4092,32 +3804,32 @@
       "surface": "無",
       "reading": "ム",
       "accent": null,
-      "connection": "P2",
-      "pos": "接頭辞",
+      "connection": null,
+      "pos": null,
       "start": {
-        "transformed": 1143,
+        "transformed": 1140,
         "original": 922
       },
       "end": {
-        "transformed": 1144,
+        "transformed": 1141,
         "original": 923
       },
       "sources": [
-        "unidic"
+        "ruby"
       ]
     },
     {
       "surface": "無",
       "reading": "ム",
       "accent": null,
-      "connection": "C3",
-      "pos": "名詞",
+      "connection": "P2",
+      "pos": "接頭辞",
       "start": {
-        "transformed": 1343,
+        "transformed": 1143,
         "original": 925
       },
       "end": {
-        "transformed": 1344,
+        "transformed": 1144,
         "original": 926
       },
       "sources": [
@@ -4158,24 +3870,6 @@
       },
       "sources": [
         "ruby"
-      ]
-    },
-    {
-      "surface": "坊主",
-      "reading": "ボウズ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
-      "start": {
-        "transformed": 1308,
-        "original": 932
-      },
-      "end": {
-        "transformed": 1311,
-        "original": 934
-      },
-      "sources": [
-        "unidic"
       ]
     },
     {
@@ -4239,11 +3933,11 @@
       "connection": null,
       "pos": null,
       "start": {
-        "transformed": 1134,
+        "transformed": 1176,
         "original": 953
       },
       "end": {
-        "transformed": 1135,
+        "transformed": 1177,
         "original": 954
       },
       "sources": [
@@ -4341,24 +4035,6 @@
       ]
     },
     {
-      "surface": "出",
-      "reading": "デ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "動詞",
-      "start": {
-        "transformed": 1542,
-        "original": 968
-      },
-      "end": {
-        "transformed": 1543,
-        "original": 969
-      },
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
       "surface": "釣っ",
       "reading": "ツッ",
       "accent": 0,
@@ -4415,9 +4091,9 @@
     {
       "surface": "普通",
       "reading": "フツウ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1212,
         "original": 984
@@ -4485,29 +4161,11 @@
       ]
     },
     {
-      "surface": "開",
-      "reading": "ア",
+      "surface": "懸物",
+      "reading": "カケモノ",
       "accent": null,
       "connection": null,
       "pos": null,
-      "start": {
-        "transformed": 1285,
-        "original": 992
-      },
-      "end": {
-        "transformed": 1286,
-        "original": 993
-      },
-      "sources": [
-        "ruby"
-      ]
-    },
-    {
-      "surface": "懸物",
-      "reading": "カケモノ",
-      "accent": 2,
-      "connection": "C1",
-      "pos": "名詞",
       "start": {
         "transformed": 1233,
         "original": 1002
@@ -4539,39 +4197,21 @@
       ]
     },
     {
-      "surface": "見え",
-      "reading": "ミエ",
-      "accent": 2,
-      "connection": "C1",
-      "pos": "動詞",
-      "start": {
-        "transformed": 1851,
-        "original": 1005
-      },
-      "end": {
-        "transformed": 1853,
-        "original": 1007
-      },
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
       "surface": "行灯",
       "reading": "アンドウ",
       "accent": null,
       "connection": null,
       "pos": null,
       "start": {
-        "transformed": 1810,
+        "transformed": 1242,
         "original": 1009
       },
       "end": {
-        "transformed": 1814,
+        "transformed": 1246,
         "original": 1011
       },
       "sources": [
-        "ruby"
+        "propagation"
       ]
     },
     {
@@ -4595,9 +4235,9 @@
     {
       "surface": "畳",
       "reading": "タタミ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1251,
         "original": 1016
@@ -4631,9 +4271,9 @@
     {
       "surface": "和尚",
       "reading": "オショウ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1259,
         "original": 1022
@@ -4662,42 +4302,6 @@
       },
       "sources": [
         "ruby"
-      ]
-    },
-    {
-      "surface": "薬缶",
-      "reading": "ヤカン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
-      "start": {
-        "transformed": 1320,
-        "original": 1025
-      },
-      "end": {
-        "transformed": 1323,
-        "original": 1027
-      },
-      "sources": [
-        "unidic"
-      ]
-    },
-    {
-      "surface": "頭",
-      "reading": "アタマ",
-      "accent": null,
-      "connection": "C1",
-      "pos": "名詞",
-      "start": {
-        "transformed": 1418,
-        "original": 1027
-      },
-      "end": {
-        "transformed": 1421,
-        "original": 1028
-      },
-      "sources": [
-        "unidic"
       ]
     },
     {
@@ -4731,6 +4335,24 @@
       "end": {
         "transformed": 1284,
         "original": 1040
+      },
+      "sources": [
+        "ruby"
+      ]
+    },
+    {
+      "surface": "開",
+      "reading": "ア",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": {
+        "transformed": 1285,
+        "original": 1041
+      },
+      "end": {
+        "transformed": 1286,
+        "original": 1042
       },
       "sources": [
         "ruby"
@@ -4797,15 +4419,69 @@
       "connection": null,
       "pos": null,
       "start": {
-        "transformed": 1224,
+        "transformed": 1303,
         "original": 1055
       },
       "end": {
-        "transformed": 1225,
+        "transformed": 1304,
         "original": 1056
       },
       "sources": [
         "ruby"
+      ]
+    },
+    {
+      "surface": "坊主",
+      "reading": "ボウズ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": {
+        "transformed": 1308,
+        "original": 1060
+      },
+      "end": {
+        "transformed": 1311,
+        "original": 1062
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "薬缶",
+      "reading": "ヤカン",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "start": {
+        "transformed": 1320,
+        "original": 1071
+      },
+      "end": {
+        "transformed": 1323,
+        "original": 1073
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "首",
+      "reading": "クビ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": {
+        "transformed": 1324,
+        "original": 1074
+      },
+      "end": {
+        "transformed": 1326,
+        "original": 1075
+      },
+      "sources": [
+        "unidic"
       ]
     },
     {
@@ -4833,11 +4509,11 @@
       "connection": "C3",
       "pos": "名詞",
       "start": {
-        "transformed": 1346,
+        "transformed": 1343,
         "original": 1091
       },
       "end": {
-        "transformed": 1347,
+        "transformed": 1344,
         "original": 1092
       },
       "sources": [
@@ -4851,11 +4527,11 @@
       "connection": "C3",
       "pos": "名詞",
       "start": {
-        "transformed": 1359,
+        "transformed": 1346,
         "original": 1094
       },
       "end": {
-        "transformed": 1360,
+        "transformed": 1347,
         "original": 1095
       },
       "sources": [
@@ -4920,18 +4596,18 @@
       "surface": "無",
       "reading": "ム",
       "accent": null,
-      "connection": null,
-      "pos": null,
+      "connection": "C3",
+      "pos": "名詞",
       "start": {
-        "transformed": 1530,
+        "transformed": 1359,
         "original": 1105
       },
       "end": {
-        "transformed": 1531,
+        "transformed": 1360,
         "original": 1106
       },
       "sources": [
-        "ruby"
+        "unidic"
       ]
     },
     {
@@ -4955,9 +4631,9 @@
     {
       "surface": "線香",
       "reading": "センコウ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1370,
         "original": 1116
@@ -4968,6 +4644,24 @@
       },
       "sources": [
         "nhk"
+      ]
+    },
+    {
+      "surface": "香",
+      "reading": "ニオイ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": {
+        "transformed": 1375,
+        "original": 1119
+      },
+      "end": {
+        "transformed": 1378,
+        "original": 1120
+      },
+      "sources": [
+        "ruby"
       ]
     },
     {
@@ -4991,15 +4685,15 @@
     {
       "surface": "線香",
       "reading": "センコウ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
-        "transformed": 1370,
+        "transformed": 1385,
         "original": 1126
       },
       "end": {
-        "transformed": 1374,
+        "transformed": 1389,
         "original": 1128
       },
       "sources": [
@@ -5009,9 +4703,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1397,
         "original": 1136
@@ -5027,9 +4721,9 @@
     {
       "surface": "拳骨",
       "reading": "ゲンコツ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1405,
         "original": 1143
@@ -5040,24 +4734,6 @@
       },
       "sources": [
         "ruby"
-      ]
-    },
-    {
-      "surface": "骨",
-      "reading": "ホネ",
-      "accent": 2,
-      "connection": "C3",
-      "pos": "名詞",
-      "start": {
-        "transformed": 1616,
-        "original": 1144
-      },
-      "end": {
-        "transformed": 1618,
-        "original": 1145
-      },
-      "sources": [
-        "unidic"
       ]
     },
     {
@@ -5081,15 +4757,15 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
-        "transformed": 1397,
+        "transformed": 1414,
         "original": 1149
       },
       "end": {
-        "transformed": 1400,
+        "transformed": 1417,
         "original": 1151
       },
       "sources": [
@@ -5103,11 +4779,11 @@
       "connection": "C1",
       "pos": "名詞",
       "start": {
-        "transformed": 1799,
+        "transformed": 1418,
         "original": 1152
       },
       "end": {
-        "transformed": 1802,
+        "transformed": 1421,
         "original": 1153
       },
       "sources": [
@@ -5175,11 +4851,11 @@
       "connection": null,
       "pos": null,
       "start": {
-        "transformed": 1321,
+        "transformed": 1447,
         "original": 1177
       },
       "end": {
-        "transformed": 1322,
+        "transformed": 1448,
         "original": 1178
       },
       "sources": [
@@ -5243,9 +4919,9 @@
     {
       "surface": "背中",
       "reading": "セナカ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1464,
         "original": 1190
@@ -5277,6 +4953,24 @@
       ]
     },
     {
+      "surface": "膝",
+      "reading": "ヒザ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": {
+        "transformed": 1478,
+        "original": 1202
+      },
+      "end": {
+        "transformed": 1480,
+        "original": 1203
+      },
+      "sources": [
+        "ruby"
+      ]
+    },
+    {
       "surface": "接目",
       "reading": "ツギメ",
       "accent": null,
@@ -5292,24 +4986,6 @@
       },
       "sources": [
         "ruby"
-      ]
-    },
-    {
-      "surface": "目",
-      "reading": "メ",
-      "accent": null,
-      "connection": "C4",
-      "pos": "接尾辞",
-      "start": {
-        "transformed": 1957,
-        "original": 1205
-      },
-      "end": {
-        "transformed": 1958,
-        "original": 1206
-      },
-      "sources": [
-        "unidic"
       ]
     },
     {
@@ -5343,6 +5019,24 @@
       "end": {
         "transformed": 1492,
         "original": 1211
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "膝",
+      "reading": "ヒザ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": {
+        "transformed": 1496,
+        "original": 1215
+      },
+      "end": {
+        "transformed": 1498,
+        "original": 1216
       },
       "sources": [
         "unidic"
@@ -5427,15 +5121,69 @@
       "connection": null,
       "pos": null,
       "start": {
-        "transformed": 1677,
+        "transformed": 1530,
         "original": 1245
       },
       "end": {
-        "transformed": 1678,
+        "transformed": 1531,
         "original": 1246
       },
       "sources": [
         "ruby"
+      ]
+    },
+    {
+      "surface": "出",
+      "reading": "デ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": {
+        "transformed": 1536,
+        "original": 1251
+      },
+      "end": {
+        "transformed": 1537,
+        "original": 1252
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "来",
+      "reading": "コ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": {
+        "transformed": 1538,
+        "original": 1253
+      },
+      "end": {
+        "transformed": 1539,
+        "original": 1254
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "出",
+      "reading": "デ",
+      "accent": 1,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": {
+        "transformed": 1542,
+        "original": 1257
+      },
+      "end": {
+        "transformed": 1543,
+        "original": 1258
+      },
+      "sources": [
+        "unidic"
       ]
     },
     {
@@ -5549,9 +5297,9 @@
     {
       "surface": "非常",
       "reading": "ヒジョウ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "形状詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1572,
         "original": 1283
@@ -5619,6 +5367,42 @@
       ]
     },
     {
+      "surface": "思",
+      "reading": "オモイ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": {
+        "transformed": 1597,
+        "original": 1304
+      },
+      "end": {
+        "transformed": 1600,
+        "original": 1305
+      },
+      "sources": [
+        "ruby"
+      ]
+    },
+    {
+      "surface": "身",
+      "reading": "ミ",
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": {
+        "transformed": 1601,
+        "original": 1306
+      },
+      "end": {
+        "transformed": 1602,
+        "original": 1307
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
       "surface": "巨巌",
       "reading": "オオイワ",
       "accent": null,
@@ -5649,6 +5433,24 @@
       "end": {
         "transformed": 1610,
         "original": 1312
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "骨",
+      "reading": "ホネ",
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": {
+        "transformed": 1616,
+        "original": 1318
+      },
+      "end": {
+        "transformed": 1618,
+        "original": 1319
       },
       "sources": [
         "unidic"
@@ -5693,9 +5495,9 @@
     {
       "surface": "我慢",
       "reading": "ガマン",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1648,
         "original": 1347
@@ -5715,11 +5517,11 @@
       "connection": "C2",
       "pos": "動詞",
       "start": {
-        "transformed": 1881,
+        "transformed": 1656,
         "original": 1354
       },
       "end": {
-        "transformed": 1884,
+        "transformed": 1659,
         "original": 1356
       },
       "sources": [
@@ -5733,11 +5535,11 @@
       "connection": null,
       "pos": null,
       "start": {
-        "transformed": 1522,
+        "transformed": 1663,
         "original": 1360
       },
       "end": {
-        "transformed": 1523,
+        "transformed": 1664,
         "original": 1361
       },
       "sources": [
@@ -5787,11 +5589,11 @@
       "connection": null,
       "pos": null,
       "start": {
-        "transformed": 1521,
+        "transformed": 1680,
         "original": 1375
       },
       "end": {
-        "transformed": 1522,
+        "transformed": 1681,
         "original": 1376
       },
       "sources": [
@@ -5853,11 +5655,29 @@
       ]
     },
     {
+      "surface": "中",
+      "reading": "チュウ",
+      "accent": null,
+      "connection": "C4",
+      "pos": "接尾辞",
+      "start": {
+        "transformed": 1702,
+        "original": 1394
+      },
+      "end": {
+        "transformed": 1705,
+        "original": 1395
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
       "surface": "筋肉",
       "reading": "キンニク",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1706,
         "original": 1396
@@ -5868,6 +5688,24 @@
       },
       "sources": [
         "nhk"
+      ]
+    },
+    {
+      "surface": "下",
+      "reading": "シタ",
+      "accent": 0,
+      "connection": "C4",
+      "pos": "名詞",
+      "start": {
+        "transformed": 1711,
+        "original": 1399
+      },
+      "end": {
+        "transformed": 1713,
+        "original": 1400
+      },
+      "sources": [
+        "unidic"
       ]
     },
     {
@@ -6017,9 +5855,9 @@
     {
       "surface": "出口",
       "reading": "デグチ",
-      "accent": 1,
-      "connection": "C1",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1765,
         "original": 1445
@@ -6071,9 +5909,9 @@
     {
       "surface": "状態",
       "reading": "ジョウタイ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1781,
         "original": 1458
@@ -6084,6 +5922,24 @@
       },
       "sources": [
         "nhk"
+      ]
+    },
+    {
+      "surface": "頭",
+      "reading": "アタマ",
+      "accent": null,
+      "connection": "C1",
+      "pos": "名詞",
+      "start": {
+        "transformed": 1799,
+        "original": 1473
+      },
+      "end": {
+        "transformed": 1802,
+        "original": 1474
+      },
+      "sources": [
+        "unidic"
       ]
     },
     {
@@ -6105,11 +5961,29 @@
       ]
     },
     {
+      "surface": "行灯",
+      "reading": "アンドウ",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": {
+        "transformed": 1810,
+        "original": 1481
+      },
+      "end": {
+        "transformed": 1814,
+        "original": 1483
+      },
+      "sources": [
+        "ruby"
+      ]
+    },
+    {
       "surface": "蕪村",
       "reading": "ブソン",
-      "accent": 1,
+      "accent": null,
       "connection": null,
-      "pos": "名詞",
+      "pos": null,
       "start": {
         "transformed": 1815,
         "original": 1484
@@ -6249,6 +6123,24 @@
       ]
     },
     {
+      "surface": "見え",
+      "reading": "ミエ",
+      "accent": 2,
+      "connection": "C1",
+      "pos": "動詞",
+      "start": {
+        "transformed": 1851,
+        "original": 1514
+      },
+      "end": {
+        "transformed": 1853,
+        "original": 1516
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
       "surface": "云っ",
       "reading": "イッ",
       "accent": 0,
@@ -6267,11 +6159,29 @@
       ]
     },
     {
+      "surface": "無",
+      "reading": "ム",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "start": {
+        "transformed": 1859,
+        "original": 1522
+      },
+      "end": {
+        "transformed": 1860,
+        "original": 1523
+      },
+      "sources": [
+        "ruby"
+      ]
+    },
+    {
       "surface": "現前",
       "reading": "ゲンゼン",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1865,
         "original": 1528
@@ -6303,11 +6213,29 @@
       ]
     },
     {
+      "surface": "坐っ",
+      "reading": "スワッ",
+      "accent": 0,
+      "connection": "C2",
+      "pos": "動詞",
+      "start": {
+        "transformed": 1881,
+        "original": 1540
+      },
+      "end": {
+        "transformed": 1884,
+        "original": 1542
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
       "surface": "忽然",
       "reading": "コツゼン",
-      "accent": 0,
+      "accent": null,
       "connection": null,
-      "pos": "副詞",
+      "pos": null,
       "start": {
         "transformed": 1897,
         "original": 1555
@@ -6359,9 +6287,9 @@
     {
       "surface": "時計",
       "reading": "トケイ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
         "transformed": 1908,
         "original": 1561
@@ -6429,6 +6357,42 @@
       ]
     },
     {
+      "surface": "右",
+      "reading": "ミギ",
+      "accent": null,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": {
+        "transformed": 1934,
+        "original": 1584
+      },
+      "end": {
+        "transformed": 1936,
+        "original": 1585
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "手",
+      "reading": "テ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": {
+        "transformed": 1937,
+        "original": 1586
+      },
+      "end": {
+        "transformed": 1938,
+        "original": 1587
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
       "surface": "短刀",
       "reading": "タントウ",
       "accent": null,
@@ -6449,15 +6413,15 @@
     {
       "surface": "時計",
       "reading": "トケイ",
-      "accent": 0,
-      "connection": "C2",
-      "pos": "名詞",
+      "accent": null,
+      "connection": null,
+      "pos": null,
       "start": {
-        "transformed": 1908,
+        "transformed": 1950,
         "original": 1597
       },
       "end": {
-        "transformed": 1911,
+        "transformed": 1953,
         "original": 1599
       },
       "sources": [
@@ -6477,6 +6441,24 @@
       "end": {
         "transformed": 1956,
         "original": 1601
+      },
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
+      "surface": "目",
+      "reading": "メ",
+      "accent": null,
+      "connection": "C4",
+      "pos": "接尾辞",
+      "start": {
+        "transformed": 1957,
+        "original": 1602
+      },
+      "end": {
+        "transformed": 1958,
+        "original": 1603
       },
       "sources": [
         "unidic"

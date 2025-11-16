@@ -12,7 +12,7 @@
     {
       "index": 2,
       "file": "002_第一夜.txt",
-      "title": "ダイイチヤ",
+      "title": "ダイイチャ",
       "original_title": "第一夜",
       "source": "item/xhtml/0001.xhtml"
     },
@@ -47,14 +47,14 @@
     {
       "index": 7,
       "file": "007_第六夜.txt",
-      "title": "ダイロクヨル",
+      "title": "ダイロッヤ",
       "original_title": "第六夜",
       "source": "item/xhtml/0001.xhtml"
     },
     {
       "index": 8,
       "file": "008_第七夜.txt",
-      "title": "ダイシチヤ",
+      "title": "ダイシチャ",
       "original_title": "第七夜",
       "source": "item/xhtml/0001.xhtml"
     },
@@ -82,7 +82,7 @@
     {
       "index": 12,
       "file": "012_底本_「夏目漱石全集10巻」ちくま文庫、筑摩書房.txt",
-      "title": "テイホン:「ナツメソウセキゼンシュウ10マキ」ちくまブンコ、チクマショボウ",
+      "title": "テイホン:「ナツメソウセキゼンシュウ10マキ」チクマブンコ、チクマショボウ",
       "original_title": "底本:「夏目漱石全集10巻」ちくま文庫、筑摩書房",
       "source": "item/xhtml/0002.xhtml"
     }
