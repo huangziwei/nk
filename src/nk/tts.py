@@ -125,7 +125,11 @@ def resolve_text_targets(
     targets: list[TTSTarget] = []
     if path.is_dir():
         text_files = sorted(
-            p for p in path.iterdir() if p.is_file() and p.suffix.lower() == ".txt"
+            p
+            for p in path.iterdir()
+            if p.is_file()
+            and p.suffix.lower() == ".txt"
+            and not p.name.endswith(".original.txt")
         )
         if not text_files:
             raise FileNotFoundError(f"No .txt files found in directory: {path}")
@@ -159,7 +163,7 @@ def resolve_text_targets(
                 )
             )
     else:
-        if path.suffix.lower() != ".txt":
+        if path.suffix.lower() != ".txt" or path.name.endswith(".original.txt"):
             raise ValueError("TTS input must be a .txt file or a directory of .txt files.")
         base_output = output_dir or path.parent
         output = base_output / (path.stem + ".mp3")

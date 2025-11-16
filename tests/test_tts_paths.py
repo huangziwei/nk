@@ -62,6 +62,7 @@ def test_resolve_directory_with_output_override(tmp_path: Path) -> None:
     input_dir.mkdir()
     (input_dir / "a.txt").write_text("a", encoding="utf-8")
     (input_dir / "b.txt").write_text("b", encoding="utf-8")
+    (input_dir / "b.original.txt").write_text("orig", encoding="utf-8")
 
     out_dir = tmp_path / "mp3"
     targets = resolve_text_targets(input_dir, out_dir)
@@ -108,6 +109,13 @@ def test_resolve_uses_book_metadata(tmp_path: Path) -> None:
     assert target.track_number == 7
     assert target.track_total == 1
     assert target.cover_image == cover
+
+
+def test_resolve_rejects_original_file(tmp_path: Path) -> None:
+    original = tmp_path / "001_intro.original.txt"
+    original.write_text("orig", encoding="utf-8")
+    with pytest.raises(ValueError):
+        resolve_text_targets(original)
 
 
 _COVER_PNG = base64.b64decode(
