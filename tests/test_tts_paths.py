@@ -8,6 +8,8 @@ import zipfile
 
 import pytest
 
+from types import SimpleNamespace
+
 from nk.cli import _ensure_tts_source_ready, _slice_targets_by_index
 from nk.pitch import PitchToken
 from nk.tts import (
@@ -36,6 +38,21 @@ class _DummyBackend:
 
     def reading_variants(self, text: str) -> set[str]:
         return set()
+
+    def tokenize(self, text: str):
+        if not text:
+            return []
+        return [
+            SimpleNamespace(
+                surface=text,
+                reading=text,
+                start=0,
+                end=len(text),
+                accent_type=None,
+                accent_connection=None,
+                pos=None,
+            )
+        ]
 
 
 @pytest.fixture(autouse=True)

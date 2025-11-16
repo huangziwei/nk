@@ -430,10 +430,12 @@ def test_toc_splits_shared_spine_item(tmp_path: Path, backend: NLPBackend) -> No
     chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
     assert len(chapters) == 3
     assert chapters[0].title == "ジョ"
-    assert chapters[1].title == "ダイイチヤ"
-    assert chapters[2].title == "ダイニヤ"
-    assert "ダイイチヤのモノガタリ" in chapters[1].text
-    assert "ダイニヤのモノガタリ" in chapters[2].text
+    expected_first = backend.to_reading_text("第一夜").strip()
+    expected_second = backend.to_reading_text("第二夜").strip()
+    assert chapters[1].title == expected_first
+    assert chapters[2].title == expected_second
+    assert f"{expected_first}のモノガタリ" in chapters[1].text
+    assert f"{expected_second}のモノガタリ" in chapters[2].text
 
 
 def test_first_chapter_inserts_break_between_title_and_author(tmp_path: Path, backend: NLPBackend) -> None:

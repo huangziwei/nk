@@ -146,7 +146,6 @@ def _apply_dictionary_mapping(
         text,
         mapping,
         pattern,
-        tracker=None,
         source_labels=None,
         context_rules=context_rules,
     )

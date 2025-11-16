@@ -312,116 +312,10 @@ class _PendingChapter:
 @dataclass
 class _TextFragment:
     text: str
-    tokens: list[PitchToken]
+    tokens: list[PitchToken] = field(default_factory=list)
     ruby_spans: list[_RubySpan] | None = None
 
 
-@dataclass
-class _TrackedTokenRecord:
-    surface: str
-    reading: str
-    sources: tuple[str, ...]
-
-
-class _TransformationTracker:
-    _START_PREFIX = "[[NKT:"
-    _CLOSE_PREFIX = "[[/NKT:"
-    _SUFFIX = "]]"
-
-    def __init__(self) -> None:
-        self._next_id = 1
-        self._records: dict[str, _TrackedTokenRecord] = {}
-
-    def wrap(self, surface: str, reading: str, sources: tuple[str, ...]) -> str:
-        if not reading:
-            return reading
-        token_id = str(self._next_id)
-        self._next_id += 1
-        normalized_sources: tuple[str, ...] = tuple(dict.fromkeys(sources)) if sources else tuple()
-        self._records[token_id] = _TrackedTokenRecord(
-            surface=surface,
-            reading=reading,
-            sources=normalized_sources,
-        )
-        return (
-            f"{self._START_PREFIX}{token_id}{self._SUFFIX}"
-            f"{reading}"
-            f"{self._CLOSE_PREFIX}{token_id}{self._SUFFIX}"
-        )
-
-    def extract(self, text: str) -> _TextFragment:
-        if not text or self._START_PREFIX not in text:
-            return _TextFragment(text=text, tokens=[])
-        result_chars: list[str] = []
-        tokens: list[PitchToken] = []
-        idx = 0
-        length = len(text)
-        while idx < length:
-            if text.startswith(self._START_PREFIX, idx):
-                id_start = idx + len(self._START_PREFIX)
-                id_end = text.find(self._SUFFIX, id_start)
-                if id_end == -1:
-                    result_chars.append(text[idx])
-                    idx += 1
-                    continue
-                token_id = text[id_start:id_end]
-                close_marker = f"{self._CLOSE_PREFIX}{token_id}{self._SUFFIX}"
-                idx = id_end + len(self._SUFFIX)
-                start_pos = len(result_chars)
-                reading_chars: list[str] = []
-                while idx < length:
-                    if text.startswith(close_marker, idx):
-                        idx += len(close_marker)
-                        break
-                    reading_chars.append(text[idx])
-                    result_chars.append(text[idx])
-                    idx += 1
-                end_pos = len(result_chars)
-                record = self._records.get(token_id)
-                if record is None:
-                    continue
-                reading_text = "".join(reading_chars) or record.reading
-                tokens.append(
-                    PitchToken(
-                        surface=record.surface,
-                        reading=reading_text,
-                        accent_type=None,
-                        start=start_pos,
-                        end=end_pos,
-                        sources=record.sources,
-                    )
-                )
-            else:
-                result_chars.append(text[idx])
-                idx += 1
-        return _TextFragment(text="".join(result_chars), tokens=tokens)
-
-
-def _tracker_marker_spans(text: str) -> list[tuple[int, int]]:
-    spans: list[tuple[int, int]] = []
-    prefix = _TransformationTracker._START_PREFIX
-    close_prefix = _TransformationTracker._CLOSE_PREFIX
-    suffix = _TransformationTracker._SUFFIX
-    idx = 0
-    length = len(text)
-    while idx < length:
-        start_idx = text.find(prefix, idx)
-        if start_idx == -1:
-            break
-        id_start = start_idx + len(prefix)
-        id_end = text.find(suffix, id_start)
-        if id_end == -1:
-            break
-        token_id = text[id_start:id_end]
-        close_marker = f"{close_prefix}{token_id}{suffix}"
-        close_idx = text.find(close_marker, id_end + len(suffix))
-        if close_idx == -1:
-            idx = id_end + len(suffix)
-            continue
-        span_end = close_idx + len(close_marker)
-        spans.append((start_idx, span_end))
-        idx = span_end
-    return spans
 
 
 @dataclass
@@ -575,7 +469,6 @@ def _apply_mapping_with_pattern(
     text: str,
     mapping: dict[str, str],
     pattern: re.Pattern[str],
-    tracker: _TransformationTracker | None = None,
     source_labels: dict[str, str] | None = None,
     context_rules: dict[str, _ContextRule] | None = None,
     skip_chapter_markers: bool = False,
@@ -585,8 +478,6 @@ def _apply_mapping_with_pattern(
     protected_spans: list[tuple[int, int]] = []
     if skip_chapter_markers:
         protected_spans = _chapter_marker_spans(text)
-    if tracker is not None:
-        protected_spans.extend(_tracker_marker_spans(text))
     protected_spans = sorted(protected_spans)
     protected_starts: list[int] = [span[0] for span in protected_spans] if protected_spans else []
 
@@ -623,9 +514,6 @@ def _apply_mapping_with_pattern(
             if not prefix or prefix not in rule.prefixes:
                 return base
         replacement = mapping[base]
-        if tracker and replacement:
-            source = (source_labels.get(base) if source_labels else None) or "propagation"
-            replacement = tracker.wrap(base, replacement, (source,))
         return replacement
 
     return pattern.sub(repl, text)
@@ -726,7 +614,6 @@ def _apply_mapping_to_plain_text(
     text: str,
     mapping: dict[str, str],
     context_rules: dict[str, _ContextRule] | None = None,
-    tracker: _TransformationTracker | None = None,
     source_labels: dict[str, str] | None = None,
 ) -> str:
     pattern = _build_mapping_pattern(mapping)
@@ -736,7 +623,6 @@ def _apply_mapping_to_plain_text(
         text,
         mapping,
         pattern,
-        tracker=tracker,
         source_labels=source_labels,
         context_rules=context_rules,
         skip_chapter_markers=True,
@@ -1044,7 +930,23 @@ def _build_chapter_tokens_from_original(
             end = max(start, min(len(text), span.end))
             if not _range_is_free(coverage, start, end):
                 continue
-            _append_token(start, end, span.reading, "ruby")
+            reading = span.reading
+            if _contains_cjk(reading):
+                base = span.base or ""
+                canonical = None
+                if base:
+                    lookup = _lookup_surface_pitch(base, backend)
+                    if lookup:
+                        canonical = lookup[0]
+                    else:
+                        try:
+                            canonical = _normalize_katakana(backend.to_reading_text(base).strip())
+                        except Exception:
+                            canonical = None
+                if not canonical:
+                    canonical = _normalize_katakana(_hiragana_to_katakana(reading))
+                reading = canonical
+            _append_token(start, end, reading, "ruby")
 
     for mapping, sources in (
         (unique_mapping, unique_sources),
@@ -1122,8 +1024,33 @@ def _build_chapter_tokens_from_original(
     if last_end < len(text):
         _fill_gaps_with_backend(last_end, len(text))
 
+    _harmonize_small_kana(tokens, backend)
     tokens.sort(key=lambda token: (token.start, token.end))
     return tokens
+
+
+def _harmonize_small_kana(tokens: list[ChapterToken], backend: "NLPBackend") -> None:
+    if not tokens:
+        return
+    for token in tokens:
+        surface = token.surface
+        reading = token.reading
+        if not surface or not reading:
+            continue
+        canonical_reading: str | None = None
+        lookup = _lookup_surface_pitch(surface, backend)
+        if lookup:
+            canonical_reading = lookup[0]
+        if not canonical_reading:
+            try:
+                canonical_reading = _normalize_katakana(backend.to_reading_text(surface).strip())
+            except Exception:
+                canonical_reading = None
+        if not canonical_reading:
+            continue
+        if _differs_only_by_small_kana(reading, canonical_reading):
+            token.reading = canonical_reading
+            token.fallback_reading = canonical_reading
 
 
 def _render_text_from_tokens(text: str, tokens: list[ChapterToken]) -> tuple[str, list[ChapterToken]]:
@@ -1179,35 +1106,7 @@ def _normalize_katakana(text: str) -> str:
     text = text.replace("ヂ", "ジ").replace("ヅ", "ズ")
     text = text.replace("ヮ", "ワ").replace("ヵ", "カ").replace("ヶ", "ケ")
     text = text.replace("ゕ", "カ").replace("ゖ", "ケ")
-    small_map = {"ヤ": "ャ", "ユ": "ュ", "ヨ": "ョ"}
-    digraph_bases = {
-        "キ",
-        "ギ",
-        "シ",
-        "ジ",
-        "チ",
-        "ヂ",
-        "ニ",
-        "ヒ",
-        "ビ",
-        "ピ",
-        "ミ",
-        "リ",
-    }
-    chars: list[str] = []
-    idx = 0
-    while idx < len(text):
-        ch = text[idx]
-        if idx + 1 < len(text) and ch in digraph_bases:
-            nxt = text[idx + 1]
-            if nxt in small_map:
-                chars.append(ch)
-                chars.append(small_map[nxt])
-                idx += 2
-                continue
-        chars.append(ch)
-        idx += 1
-    return "".join(chars)
+    return text
 
 
 def _zip_read_text(zf: zipfile.ZipFile, name: str) -> str:
@@ -1489,12 +1388,6 @@ def _split_text_by_markers(text: str) -> tuple[str, list[tuple[int, str, int, in
     else:
         leading = text
     return leading, segments
-
-
-def _fragment_from_tracker(text: str, tracker: _TransformationTracker | None) -> _TextFragment:
-    if tracker is None:
-        return _TextFragment(text=text, tokens=[])
-    return tracker.extract(text)
 
 
 def _strip_fragment_newlines(fragment: _TextFragment) -> tuple[str, list[PitchToken], list[_RubySpan]]:
@@ -2441,7 +2334,6 @@ def _serialize_ruby_evidence(accumulators: Mapping[str, _ReadingAccumulator]) ->
 def _replace_outside_ruby_with_readings(
     soup: BeautifulSoup,
     mapping: dict[str, str],
-    tracker: _TransformationTracker | None = None,
     source_labels: dict[str, str] | None = None,
     context_rules: dict[str, _ContextRule] | None = None,
 ) -> None:
@@ -2467,7 +2359,6 @@ def _replace_outside_ruby_with_readings(
             text,
             mapping,
             pat,
-            tracker=tracker,
             source_labels=source_labels,
             context_rules=context_rules,
         )
@@ -2477,7 +2368,6 @@ def _replace_outside_ruby_with_readings(
 
 def _collapse_ruby_to_readings(
     soup: BeautifulSoup,
-    tracker: _TransformationTracker | None = None,
 ) -> None:
     """
     Replace each <ruby> with its reading only (concat of direct <rt> contents).
@@ -2485,12 +2375,7 @@ def _collapse_ruby_to_readings(
     for ruby in list(soup.find_all("ruby")):
         reading = _hiragana_to_katakana(_ruby_reading_text(ruby))
         reading = _normalize_katakana(reading)
-        replacement = reading
-        if tracker:
-            base_raw = _normalize_ws(_ruby_base_text(ruby))
-            base_norm = unicodedata.normalize("NFKC", base_raw)
-            replacement = tracker.wrap(base_norm, reading, ("ruby",))
-        ruby.replace_with(replacement)
+        ruby.replace_with(reading)
 
 
 def _strip_html_to_text(soup: BeautifulSoup) -> str:
@@ -2606,39 +2491,34 @@ def epub_to_chapter_texts(
             original_marked_text = _strip_html_to_text(original_soup)
             original_plain_text, ruby_spans = ruby_tracker.extract(original_marked_text)
             soup = _soup_from_html(html)
-            tracker = _TransformationTracker()
             # 1) propagate: replace base outside ruby using the global mapping
             _replace_outside_ruby_with_readings(
                 soup,
                 unique_mapping,
-                tracker=tracker,
                 source_labels=unique_sources,
                 context_rules=context_rules,
             )
             _replace_outside_ruby_with_readings(
                 soup,
                 common_mapping,
-                tracker=tracker,
                 source_labels=common_sources,
                 context_rules=context_rules,
             )
             _insert_nav_markers(soup, nav_entries_for_file)
             # 2) drop bases inside ruby, keep only readings
-            _collapse_ruby_to_readings(soup, tracker=tracker)
+            _collapse_ruby_to_readings(soup)
             # 3) strip remaining html to text
             piece = _strip_html_to_text(soup)
             piece = _apply_mapping_to_plain_text(
                 piece,
                 unique_mapping,
                 context_rules,
-                tracker=tracker,
                 source_labels=unique_sources,
             )
             piece = _apply_mapping_to_plain_text(
                 piece,
                 common_mapping,
                 context_rules,
-                tracker=tracker,
                 source_labels=common_sources,
             )
             filtered_lines: list[str] = []
@@ -2675,7 +2555,7 @@ def epub_to_chapter_texts(
             if not raw_piece_text:
                 continue
             leading_piece, piece_segments = _split_text_by_markers(raw_piece_text)
-            leading_fragment = _fragment_from_tracker(leading_piece, tracker)
+            leading_fragment = _TextFragment(text=leading_piece)
             leading_original, original_segments = _split_text_by_markers(original_plain_text)
             original_segment_map = {marker: (segment, start, end) for marker, segment, start, end in original_segments}
             for marker_id, segment_text, _, _ in piece_segments:
@@ -2684,7 +2564,7 @@ def epub_to_chapter_texts(
                     continue
                 if not segment_text.strip():
                     continue
-                fragment = _fragment_from_tracker(segment_text, tracker)
+                fragment = _TextFragment(text=segment_text)
                 original_segment, seg_start, seg_end = original_segment_map.get(marker_id, ("", 0, 0))
                 fragment.ruby_spans = _slice_ruby_spans(ruby_spans, seg_start, seg_end)
                 bucket["text_fragments"].append(fragment)
