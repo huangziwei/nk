@@ -6,7 +6,7 @@ import warnings
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from .tools import get_unidic_dicdir
+from .deps import get_unidic_dicdir
 from .pitch import PitchToken
 
 __all__ = [

@@ -44,7 +44,7 @@ from .core import (
     get_epub_cover,
 )
 from .nlp import NLPBackend, NLPBackendUnavailableError
-from .tools import DEFAULT_UNIDIC_URL, UniDicInstallError, ensure_unidic_installed, resolve_managed_unidic
+from .deps import dependency_statuses
 from .tts import (
     FFmpegError,
     TTSTarget,
@@ -398,35 +398,9 @@ def build_refine_parser() -> argparse.ArgumentParser:
     return ap
 
 
-def build_tools_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(description="nk helper utilities")
+def build_deps_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(description="Show nk dependency status.")
     _add_version_flag(ap)
-    subparsers = ap.add_subparsers(dest="tool_cmd")
-
-    install = subparsers.add_parser(
-        "install-unidic",
-        help="Download and register UniDic 3.1.1 inside the current virtualenv.",
-    )
-    install.add_argument(
-        "--zip",
-        help="Path to a previously downloaded unidic-cwj-3.1.1 zip archive.",
-    )
-    install.add_argument(
-        "--url",
-        default=DEFAULT_UNIDIC_URL,
-        help="Download URL for the UniDic archive (default: %(default)s).",
-    )
-    install.add_argument(
-        "--force",
-        action="store_true",
-        help="Reinstall even if the requested version already exists.",
-    )
-
-    status = subparsers.add_parser(
-        "unidic-status",
-        help="Show the currently detected UniDic dictionary path.",
-    )
-
     return ap
 
 
@@ -1111,32 +1085,22 @@ def _slice_targets_by_index(targets: list[TTSTarget], start_index: int | None) -
     return targets[start_index - 1 :]
 
 
-def _run_tools(args: argparse.Namespace) -> int:
-    if not args.tool_cmd:
-        raise SystemExit("A tools subcommand is required. Use --help for options.")
-
-    if args.tool_cmd == "install-unidic":
-        try:
-            status = ensure_unidic_installed(url=args.url, zip_path=args.zip, force=args.force)
-        except UniDicInstallError as exc:
-            raise SystemExit(str(exc)) from exc
-        print(f"UniDic {status.version} installed at {status.path}")
-        print("Set NK_UNIDIC_DIR to override or rerun 'nk tools install-unidic' to reinstall.")
-        return 0
-
-    if args.tool_cmd == "unidic-status":
-        status = resolve_managed_unidic()
-        if status.path and (status.path / "dicrc").exists():
-            print(f"Managed UniDic path: {status.path}")
-            print(f"Version: {status.version or 'unknown'}")
-        else:
-            print("No managed UniDic installation detected. Use 'nk tools install-unidic'.")
-        env_dir = os.environ.get("NK_UNIDIC_DIR")
-        if env_dir:
-            print(f"NK_UNIDIC_DIR is set to: {env_dir}")
-        return 0
-
-    raise SystemExit(f"Unknown tools subcommand: {args.tool_cmd}")
+def _run_deps(args: argparse.Namespace) -> int:
+    statuses = dependency_statuses()
+    all_ok = True
+    for status in statuses:
+        state = "OK" if status.available else "MISSING"
+        print(f"{status.name}: {state}")
+        path_text = str(status.path) if status.path else "not detected"
+        print(f"  path: {path_text}")
+        if status.version:
+            print(f"  version: {status.version}")
+        if status.detail:
+            print(f"  note: {status.detail}")
+        print()
+        if not status.available:
+            all_ok = False
+    return 0 if all_ok else 1
 
 
 def _run_web(args: argparse.Namespace) -> None:
@@ -1190,10 +1154,10 @@ def main(argv: list[str] | None = None) -> int:
         convert_parser = build_convert_parser()
         convert_args = convert_parser.parse_args(argv[1:])
         return _run_convert(convert_args)
-    if argv and argv[0] == "tools":
-        tools_parser = build_tools_parser()
-        tools_args = tools_parser.parse_args(argv[1:])
-        return _run_tools(tools_args)
+    if argv and argv[0] == "deps":
+        deps_parser = build_deps_parser()
+        deps_args = deps_parser.parse_args(argv[1:])
+        return _run_deps(deps_args)
     if argv and argv[0] == "refine":
         refine_parser = build_refine_parser()
         refine_args = refine_parser.parse_args(argv[1:])

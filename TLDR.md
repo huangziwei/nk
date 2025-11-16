@@ -18,15 +18,19 @@ It will:
 
 - install/upgrade the runtime dependencies (`curl`, `ffmpeg`, `jq`, `p7zip`, `uv`) via the detected package manager.
 - run `uv sync` to create/update `.venv` and install all Python deps.
-- call `uv run nk tools install-unidic` so fugashi can see UniDic 3.1.1.
+- download UniDic 3.1.1 into `${UNIDIC_ROOT:-$HOME/opt/unidic}/3.1.1` so fugashi can see it immediately.
 - fetch the latest VoiceVox engine release from GitHub, log the tag it grabbed, and unpack it under `${VOICEVOX_ROOT:-$HOME/opt/voicevox}/$VOICEVOX_TARGET` (with the tag recorded in `.nk-voicevox-version`; `cat "$HOME/opt/voicevox/$VOICEVOX_TARGET/.nk-voicevox-version"` to check later).
 
 > On macOS the default VoiceVox target is `macos-x64`; on Ubuntu it is `linux-cpu-x64`. Set `VOICEVOX_TARGET=linux-gpu-x64` (and optionally `VOICEVOX_ASSET_PATTERN`) if you prefer the GPU build. Run `install.sh` with `sudo` (or as root) on Ubuntu so `apt-get` can install the required packages.
 
-> Regenerate the UniDic data any time you recreate the virtualenv with `uv run nk tools install-unidic`.
+> Need to refresh UniDic? Re-run `install.sh` (set `UNIDIC_FORCE=1` if you want to overwrite the existing copy).
 
 Environment knobs:
 
+- `NK_SKIP_UNIDIC=1 ./install.sh` &rarr; skip the UniDic download.
+- `UNIDIC_ROOT=/custom/path ./install.sh` &rarr; install UniDic somewhere else.
+- `UNIDIC_FORCE=1 ./install.sh` &rarr; overwrite an existing UniDic install.
+- `UNIDIC_ZIP=/path/to/unidic.zip ./install.sh` &rarr; reuse a pre-downloaded archive instead of fetching it.
 - `NK_SKIP_VOICEVOX=1 ./install.sh` &rarr; skip the VoiceVox download.
 - `VOICEVOX_VERSION=v0.15.4 ./install.sh` &rarr; pin to a specific release tag.
 - `VOICEVOX_URL=https://.../voicevox_engine-macos-x64-*.7z.001 ./install.sh` &rarr; use a pre-downloaded macOS asset (on Ubuntu, set `VOICEVOX_TARGET=linux-cpu-x64` and point `VOICEVOX_URL` at the matching `voicevox_engine-linux-cpu-x64-*.7z.001` archive instead).
@@ -248,14 +252,10 @@ nk dav books/ [--host HOST] [--port PORT] [--auth pam-login]
 
 # Environment: NK_VOICEVOX_RUNTIME=/absolute/path/to/run
 
-# UniDic helper commands
+# Dependency audit
+nk deps
 
-nk tools install-unidic [--zip /path/to/unidic-cwj-3.1.1-full.zip]
-nk tools unidic-status
-
-- `install-unidic` downloads/extracts the official `unidic-cwj-3.1.1-full.zip` archive **into the current virtualenv** and sets it as the default dictionary for fugashi.
-- `unidic-status` prints the managed path and any `NK_UNIDIC_DIR` override so you can confirm which dictionary is active.
-
+- `nk deps` prints the detected UniDic, VoiceVox, and ffmpeg installations so you can confirm versions/paths quickly.
 - `nk dav` exposes only `.mp3` files via WebDAV using your macOS login (PAM) and mirrors new MP3s as they are added under `books/`. Point clients such as Flacbox at `http://<your-mac-ip>:PORT/` to stream your nk library without copying files.
 > Note: `-o/--output-name` is only honored when `--single-file` is provided.
 ```

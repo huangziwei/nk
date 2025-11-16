@@ -39,6 +39,14 @@ VOICEVOX_API="${VOICEVOX_API:-https://api.github.com/repos/VOICEVOX/voicevox_eng
 VOICEVOX_URL="${VOICEVOX_URL:-}"
 VOICEVOX_RELEASE_TAG=""
 VOICEVOX_ARCHIVE_PATH=""
+UNIDIC_VERSION="${UNIDIC_VERSION:-3.1.1}"
+UNIDIC_URL="${UNIDIC_URL:-https://clrd.ninjal.ac.jp/unidic_archive/cwj/3.1.1/unidic-cwj-3.1.1-full.zip}"
+UNIDIC_ROOT="${UNIDIC_ROOT:-"$HOME/opt/unidic"}"
+UNIDIC_INSTALL_DIR="$UNIDIC_ROOT/$UNIDIC_VERSION"
+UNIDIC_FORCE="${UNIDIC_FORCE:-0}"
+UNIDIC_ZIP="${UNIDIC_ZIP:-}"
+NK_SKIP_UNIDIC="${NK_SKIP_UNIDIC:-0}"
+UNIDIC_DOWNLOAD_TMP=""
 
 BREW_DEPS=(curl ffmpeg jq p7zip uv)
 APT_PACKAGES=(curl ffmpeg jq p7zip-full libasound2-dev)
@@ -188,12 +196,80 @@ sync_python_dependencies() {
   (cd "$ROOT_DIR" && uv sync)
 }
 
+download_unidic_archive() {
+  UNIDIC_DOWNLOAD_TMP="$(mktemp -d)"
+  local archive_path="$UNIDIC_DOWNLOAD_TMP/unidic-${UNIDIC_VERSION}.zip"
+  log "Downloading UniDic $UNIDIC_VERSION"
+  curl -fL "$UNIDIC_URL" -o "$archive_path"
+  echo "$archive_path"
+}
+
+extract_unidic_archive() {
+  local archive_path="$1"
+  local extract_dir
+  extract_dir="$(mktemp -d)"
+  log "Extracting UniDic archive"
+  7z x "$archive_path" -o"$extract_dir" >/dev/null
+  echo "$extract_dir"
+}
+
+find_dic_root() {
+  local base="$1"
+  local dic_file
+  dic_file="$(find "$base" -type f -name dicrc -print -quit 2>/dev/null)"
+  if [[ -z "$dic_file" ]]; then
+    return 1
+  fi
+  dirname "$dic_file"
+}
+
 install_unidic() {
-  log "Ensuring UniDic 3.1.1 is installed"
-  (
-    cd "$ROOT_DIR"
-    uv run nk tools install-unidic
-  )
+  if [[ "$NK_SKIP_UNIDIC" == "1" ]]; then
+    log "Skipping UniDic install (NK_SKIP_UNIDIC=1)"
+    return
+  fi
+
+  if [[ -f "$UNIDIC_INSTALL_DIR/dicrc" && "$UNIDIC_FORCE" != "1" ]]; then
+    log "UniDic already installed at $UNIDIC_INSTALL_DIR (set UNIDIC_FORCE=1 to reinstall)"
+    ln -sfn "$UNIDIC_INSTALL_DIR" "$UNIDIC_ROOT/current"
+    return
+  fi
+
+  mkdir -p "$UNIDIC_ROOT"
+
+  local archive_path download_cleanup="0"
+  if [[ -n "$UNIDIC_ZIP" ]]; then
+    if [[ ! -f "$UNIDIC_ZIP" ]]; then
+      echo "Specified UNIDIC_ZIP not found: $UNIDIC_ZIP" >&2
+      exit 1
+    fi
+    archive_path="$UNIDIC_ZIP"
+  else
+    archive_path="$(download_unidic_archive)"
+    download_cleanup="1"
+  fi
+
+  local extract_dir
+  extract_dir="$(extract_unidic_archive "$archive_path")"
+  local dic_root=""
+  if ! dic_root="$(find_dic_root "$extract_dir")"; then
+    echo "Failed to locate dicrc inside UniDic archive." >&2
+    rm -rf "$extract_dir"
+    if [[ "$download_cleanup" == "1" && -n "$UNIDIC_DOWNLOAD_TMP" ]]; then
+      rm -rf "$UNIDIC_DOWNLOAD_TMP"
+    fi
+    exit 1
+  fi
+
+  rm -rf "$UNIDIC_INSTALL_DIR"
+  mv "$dic_root" "$UNIDIC_INSTALL_DIR"
+  ln -sfn "$UNIDIC_INSTALL_DIR" "$UNIDIC_ROOT/current"
+  log "UniDic $UNIDIC_VERSION installed at $UNIDIC_INSTALL_DIR"
+
+  if [[ "$download_cleanup" == "1" && -n "$UNIDIC_DOWNLOAD_TMP" ]]; then
+    rm -rf "$UNIDIC_DOWNLOAD_TMP"
+  fi
+  rm -rf "$extract_dir"
 }
 
 download_voicevox_release() {
