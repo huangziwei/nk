@@ -2301,16 +2301,36 @@ def _build_book_mapping(
     tier3, tier2, context_rules = _select_reading_mapping(accumulators, nlp)
     tier3_sources = {base: base_sources.get(base, "propagation") for base in tier3}
     tier2_sources = {base: base_sources.get(base, "propagation") for base in tier2}
-    evidence_payload = _serialize_ruby_evidence(accumulators)
+    evidence_payload = _serialize_ruby_evidence(accumulators, nlp=nlp)
     return tier3, tier2, tier3_sources, tier2_sources, context_rules, evidence_payload
 
 
-def _serialize_ruby_evidence(accumulators: Mapping[str, _ReadingAccumulator]) -> list[dict[str, object]]:
+def _serialize_ruby_evidence(
+    accumulators: Mapping[str, _ReadingAccumulator],
+    *,
+    nlp: "NLPBackend | None" = None,
+) -> list[dict[str, object]]:
     entries: list[dict[str, object]] = []
+    def _normalized_unidic_reading(base: str) -> str | None:
+        if not nlp:
+            return None
+        try:
+            reading = nlp.to_reading_text(base)
+        except Exception:
+            return None
+        if not isinstance(reading, str) or not reading:
+            return None
+        normalized = _normalize_katakana(_hiragana_to_katakana(reading))
+        return normalized or None
+
     for base, accumulator in accumulators.items():
         if not accumulator.counts:
             continue
         top_reading, top_count = accumulator.counts.most_common(1)[0]
+        normalized_reading = top_reading
+        unidic_reading = _normalized_unidic_reading(base)
+        if unidic_reading and _differs_only_by_small_kana(top_reading, unidic_reading):
+            normalized_reading = unidic_reading
         suffixes: list[dict[str, object]] = []
         for value, count in accumulator.suffix_counts.most_common(_MAX_SUFFIX_CONTEXTS):
             suffixes.append({"value": value, "count": count})
@@ -2319,7 +2339,7 @@ def _serialize_ruby_evidence(accumulators: Mapping[str, _ReadingAccumulator]) ->
             prefixes.append({"value": value, "count": count})
         entry: dict[str, object] = {
             "base": base,
-            "reading": top_reading,
+            "reading": normalized_reading,
             "count": top_count,
             "suffix": suffixes[0]["value"] if suffixes else "",
             "suffixes": suffixes,
