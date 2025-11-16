@@ -393,12 +393,12 @@ def build_web_parser() -> argparse.ArgumentParser:
 
 def build_check_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
-        description="Visualize pitch alignment between transformed/original texts using a browser.",
+        description="Visualize token alignment between transformed/original texts using a browser.",
     )
     _add_version_flag(ap)
     ap.add_argument(
         "root",
-        help="Directory containing nk chapterized outputs (.txt, .pitch.json, optional .original.txt).",
+        help="Directory containing nk chapterized outputs (.txt, .token.json, optional .original.txt).",
     )
     ap.add_argument(
         "--host",

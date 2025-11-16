@@ -10,13 +10,13 @@ pytest.importorskip("PIL")
 from PIL import Image
 
 from nk.book_io import (
+    TOKEN_METADATA_VERSION,
     load_book_metadata,
-    load_pitch_metadata,
+    load_token_metadata,
     update_book_tts_defaults,
     write_book_package,
 )
 from nk.core import ChapterText, CoverImage
-from nk.pitch import PitchToken
 from nk.tokens import ChapterToken
 
 
@@ -102,37 +102,6 @@ def test_cover_is_padded_to_square(tmp_path: Path) -> None:
         assert list(extracted.getdata()) == list(source.getdata())
 
 
-def test_write_book_package_persists_pitch_metadata(tmp_path: Path) -> None:
-    output_dir = tmp_path / "PitchBook"
-    tokens = [
-        PitchToken(surface="雨", reading="アメ", accent_type=1, start=0, end=2, pos="名詞"),
-        PitchToken(surface="飴", reading="アメ", accent_type=0, start=3, end=5, pos="名詞"),
-    ]
-    chapters = [
-        ChapterText(
-            source="ch1.xhtml",
-            title="Reading",
-            text="アメトアメ",
-            pitch_data=tokens,
-        )
-    ]
-
-    package = write_book_package(output_dir, chapters)
-    record = package.chapter_records[0]
-    pitch_path = record.path.with_name(record.path.name + ".pitch.json")
-    assert pitch_path.exists()
-    payload = json.loads(pitch_path.read_text(encoding="utf-8"))
-    expected_sha1 = hashlib.sha1("アメトアメ".encode("utf-8")).hexdigest()
-    assert payload["version"] == 3
-    assert payload["text_sha1"] == expected_sha1
-    assert payload["tokens"][0]["accent"] == 1
-    assert payload["tokens"][1]["accent"] == 0
-    assert payload["tokens"][0]["sources"] == []
-    loaded = load_pitch_metadata(record.path)
-    assert loaded is not None
-    assert len(loaded.tokens) == 2
-
-
 def test_write_book_package_writes_token_metadata(tmp_path: Path) -> None:
     output_dir = tmp_path / "TokenBook"
     chapter_tokens = [
@@ -152,10 +121,16 @@ def test_write_book_package_writes_token_metadata(tmp_path: Path) -> None:
     token_path = record.path.with_name(record.path.name + ".token.json")
     assert token_path.exists()
     payload = json.loads(token_path.read_text(encoding="utf-8"))
-    assert payload["version"] == 1
+    expected_sha1 = hashlib.sha1("アメアメ".encode("utf-8")).hexdigest()
+    assert payload["version"] == TOKEN_METADATA_VERSION
+    assert payload["text_sha1"] == expected_sha1
     assert len(payload["tokens"]) == 2
     assert payload["tokens"][0]["surface"] == "雨"
     assert payload["tokens"][0]["reading_source"] == "ruby"
+    loaded = load_token_metadata(record.path)
+    assert loaded is not None
+    assert loaded.text_sha1 == expected_sha1
+    assert len(loaded.tokens) == 2
 
 
 def test_write_book_package_preserves_tts_defaults(tmp_path: Path) -> None:

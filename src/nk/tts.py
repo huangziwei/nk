@@ -25,9 +25,10 @@ from .book_io import (
     LoadedBookMetadata,
     ensure_cover_is_square,
     load_book_metadata,
-    load_pitch_metadata,
+    load_token_metadata,
 )
 from .pitch import PitchToken
+from .tokens import tokens_to_pitch_tokens
 
 _DEBUG_LOG = False
 _VOICEVOX_ENGINE_DEFAULT_KEYS = {
@@ -641,13 +642,14 @@ def _synthesize_target_with_client(
         return None
 
     text_hash = hashlib.sha1(text.encode("utf-8")).hexdigest()
-    pitch_metadata = load_pitch_metadata(target.source)
-    if pitch_metadata and pitch_metadata.text_sha1 and pitch_metadata.text_sha1 != text_hash:
+    token_metadata = load_token_metadata(target.source)
+    if token_metadata and token_metadata.text_sha1 and token_metadata.text_sha1 != text_hash:
         _debug_log(
-            f"Pitch metadata SHA mismatch (expected {pitch_metadata.text_sha1}, got {text_hash}); ignoring overrides"
+            f"Token metadata SHA mismatch (expected {token_metadata.text_sha1}, got {text_hash}); ignoring overrides"
         )
-        pitch_metadata = None
-    pitch_tokens = pitch_metadata.tokens if pitch_metadata else []
+        token_metadata = None
+    chapter_tokens = token_metadata.tokens if token_metadata else []
+    pitch_tokens = tokens_to_pitch_tokens(chapter_tokens) if chapter_tokens else []
     if pitch_tokens:
         _enrich_pitch_tokens_with_voicevox(pitch_tokens, client)
 

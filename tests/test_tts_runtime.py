@@ -10,6 +10,7 @@ import wave
 
 import pytest
 
+from nk.book_io import TOKEN_METADATA_VERSION
 from nk.tts import (
     TTSTarget,
     VoiceVoxRuntimeError,
@@ -572,17 +573,34 @@ def test_keep_cache_directory_persists(monkeypatch, tmp_path: Path) -> None:
     assert reuse_calls == []
 
 
-def _write_pitch_payload(chapter_path: Path, tokens: list[dict[str, object]], text: str) -> None:
+def _write_token_payload(chapter_path: Path, tokens: list[dict[str, object]], text: str) -> None:
+    normalized: list[dict[str, object]] = []
+    for token in tokens:
+        start = int(token.get("transformed_start", token.get("start", 0)))
+        end = int(token.get("transformed_end", token.get("end", start)))
+        normalized.append(
+            {
+                "surface": token.get("surface"),
+                "start": token.get("start", start),
+                "end": token.get("end", end),
+                "reading": token.get("reading"),
+                "reading_source": token.get("reading_source"),
+                "accent": token.get("accent"),
+                "pos": token.get("pos"),
+                "transformed_start": start,
+                "transformed_end": end,
+            }
+        )
     payload = {
-        "version": 1,
+        "version": TOKEN_METADATA_VERSION,
         "text_sha1": hashlib.sha1(text.encode("utf-8")).hexdigest(),
-        "tokens": tokens,
+        "tokens": normalized,
     }
-    pitch_path = chapter_path.with_name(chapter_path.name + ".pitch.json")
-    pitch_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    token_path = chapter_path.with_name(chapter_path.name + ".token.json")
+    token_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
-def test_pitch_metadata_overrides_voicevox(monkeypatch, tmp_path: Path) -> None:
+def test_token_metadata_overrides_voicevox(monkeypatch, tmp_path: Path) -> None:
     chapter_path = tmp_path / "011.txt"
     chapter_text = "アメヲ\n\nアメヲ"
     chapter_path.write_text(chapter_text, encoding="utf-8")
@@ -590,7 +608,7 @@ def test_pitch_metadata_overrides_voicevox(monkeypatch, tmp_path: Path) -> None:
         {"surface": "雨", "reading": "アメ", "accent": 1, "start": 0, "end": 2, "pos": "名詞"},
         {"surface": "飴", "reading": "アメ", "accent": 0, "start": 5, "end": 7, "pos": "名詞"},
     ]
-    _write_pitch_payload(chapter_path, tokens, chapter_text)
+    _write_token_payload(chapter_path, tokens, chapter_text)
 
     target = TTSTarget(source=chapter_path, output=tmp_path / "out.mp3")
 
@@ -643,12 +661,26 @@ def test_pitch_metadata_overrides_voicevox(monkeypatch, tmp_path: Path) -> None:
     assert second_accent == 3  # heiban -> mora count (アメ + ヲ)
 
 
-def test_pitch_metadata_skipped_when_hash_mismatch(monkeypatch, tmp_path: Path) -> None:
+def test_token_metadata_skipped_when_hash_mismatch(monkeypatch, tmp_path: Path) -> None:
     chapter_path = tmp_path / "chapter.txt"
     text = "アメ\n\nアメ"
     chapter_path.write_text(text, encoding="utf-8")
-    payload = {"version": 1, "text_sha1": "deadbeef", "tokens": [{"surface": "雨", "reading": "アメ", "accent": 1}]}
-    chapter_path.with_name(chapter_path.name + ".pitch.json").write_text(
+    payload = {
+        "version": TOKEN_METADATA_VERSION,
+        "text_sha1": "deadbeef",
+        "tokens": [
+            {
+                "surface": "雨",
+                "reading": "アメ",
+                "accent": 1,
+                "start": 0,
+                "end": 2,
+                "transformed_start": 0,
+                "transformed_end": 2,
+            }
+        ],
+    }
+    chapter_path.with_name(chapter_path.name + ".token.json").write_text(
         json.dumps(payload, ensure_ascii=False), encoding="utf-8"
     )
 
@@ -709,7 +741,7 @@ def test_voicevox_pitch_artifacts(monkeypatch, tmp_path: Path) -> None:
         {"surface": "雨", "reading": "アメ", "accent": 1, "start": 0, "end": 2, "pos": "名詞"},
         {"surface": "飴", "reading": "アメ", "accent": 0, "start": 5, "end": 7, "pos": "名詞"},
     ]
-    _write_pitch_payload(chapter_path, tokens, chapter_text)
+    _write_token_payload(chapter_path, tokens, chapter_text)
 
     target = TTSTarget(source=chapter_path, output=tmp_path / "out.mp3")
     cache_root = tmp_path / "cache"

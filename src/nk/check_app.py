@@ -12,7 +12,7 @@ INDEX_HTML = """<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <title>nk Pitch Checker</title>
+  <title>nk Token Inspector</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     :root {
@@ -289,7 +289,7 @@ INDEX_HTML = """<!DOCTYPE html>
   <div class="app">
     <aside>
       <div>
-        <h1>nk pitch check</h1>
+        <h1>nk token check</h1>
         <p style="margin:0.35rem 0 0;font-size:0.85rem;color:var(--muted);">
           Select a chapter and hover tokens to compare transformed vs original offsets.
         </p>
@@ -324,10 +324,9 @@ INDEX_HTML = """<!DOCTYPE html>
       </section>
       <section class="panel">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <h3>pitch tokens</h3>
+          <h3>token annotations</h3>
           <span id="token-count" class="pill">—</span>
         </div>
-        <div id="pitch-warning" class="warn" style="display:none;margin-bottom:0.4rem;"></div>
         <div class="table-wrapper">
           <table id="token-table">
             <thead>
@@ -357,7 +356,7 @@ INDEX_HTML = """<!DOCTYPE html>
         filterValue: '',
         activeToken: null,
       };
-      const baseTitle = document.title || 'nk Pitch Checker';
+      const baseTitle = document.title || 'nk Token Inspector';
 
       const listEl = document.getElementById('chapter-list');
       const filterEl = document.getElementById('chapter-filter');
@@ -371,7 +370,6 @@ INDEX_HTML = """<!DOCTYPE html>
       const originalText = document.getElementById('original-text');
       const tokenCountEl = document.getElementById('token-count');
       const tokenTableBody = document.querySelector('#token-table tbody');
-      const pitchWarning = document.getElementById('pitch-warning');
 
       function setDocumentTitle(label) {
         document.title = label ? `${label} – ${baseTitle}` : baseTitle;
@@ -407,17 +405,6 @@ INDEX_HTML = """<!DOCTYPE html>
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) return value;
         return date.toLocaleString();
-      }
-
-      function setPitchWarning(message, isError) {
-        if (!message) {
-          pitchWarning.style.display = 'none';
-          pitchWarning.textContent = '';
-          return;
-        }
-        pitchWarning.style.display = 'block';
-        pitchWarning.style.color = isError ? 'var(--danger)' : 'var(--warn)';
-        pitchWarning.textContent = message;
       }
 
       function setTokenCount(count) {
@@ -536,7 +523,7 @@ INDEX_HTML = """<!DOCTYPE html>
           cell.colSpan = 7;
           cell.style.textAlign = 'center';
           cell.style.color = 'var(--muted)';
-          cell.textContent = 'No pitch tokens.';
+          cell.textContent = 'No tokens.';
           row.appendChild(cell);
           tokenTableBody.appendChild(row);
           return;
@@ -582,7 +569,6 @@ INDEX_HTML = """<!DOCTYPE html>
 
       function updateMetaPanel(payload) {
         const chapter = payload.chapter || {};
-        const pitch = payload.pitch && typeof payload.pitch === 'object' ? payload.pitch : null;
         const tokenVersion = payload.token_version ?? '—';
         const textLength = typeof payload.text_length === 'number' ? payload.text_length : (payload.text ? payload.text.length : 0);
         const originalLength = typeof payload.original_length === 'number' ? payload.original_length : (payload.original_text ? payload.original_text.length : 0);
@@ -593,10 +579,8 @@ INDEX_HTML = """<!DOCTYPE html>
           ['Text length', formatNumber(textLength)],
           ['Original length', formatNumber(originalLength)],
           ['Token version', tokenVersion],
+          ['Token SHA1', payload.token_sha1 || '—'],
           ['Token file', payload.token_path || 'missing'],
-          ['Pitch version', pitch && pitch.version !== undefined ? pitch.version : '—'],
-          ['Pitch SHA1', pitch && pitch.text_sha1 ? pitch.text_sha1 : '—'],
-          ['Pitch file', payload.pitch_path || 'missing'],
           ['Original file', payload.original_path || 'missing'],
           ['Updated', formatDate(chapter.modified)],
         ];
@@ -649,9 +633,8 @@ INDEX_HTML = """<!DOCTYPE html>
           const meta = document.createElement('div');
           meta.className = 'meta';
           const tokenFlag = chapter.has_token ? 'token✓' : 'token×';
-          const pitchFlag = chapter.has_pitch ? 'pitch✓' : 'pitch×';
           const origFlag = chapter.has_original ? 'orig✓' : 'orig×';
-          meta.textContent = `${tokenFlag} · ${pitchFlag} · ${origFlag} · ${formatBytes(chapter.size)} · ${formatDate(chapter.modified)}`;
+          meta.textContent = `${tokenFlag} · ${origFlag} · ${formatBytes(chapter.size)} · ${formatDate(chapter.modified)}`;
           button.appendChild(name);
           button.appendChild(meta);
           button.addEventListener('click', () => {
@@ -674,7 +657,6 @@ INDEX_HTML = """<!DOCTYPE html>
         originalText.textContent = 'Original text unavailable.';
         tokenTableBody.innerHTML = '';
         setTokenCount(null);
-        setPitchWarning(null);
         setDocumentTitle(null);
         state.tokens = [];
         setHighlighted(null);
@@ -683,14 +665,10 @@ INDEX_HTML = """<!DOCTYPE html>
       function openChapter(path) {
         state.selectedPath = path;
         renderChapterList();
-        setPitchWarning(null);
         renderStatus(`Loading ${path}…`);
         fetchJSON(`/api/chapter?path=${encodeURIComponent(path)}`)
           .then((payload) => {
-            const canonicalTokens = Array.isArray(payload.tokens) ? payload.tokens : [];
-            const fallbackTokens = payload.pitch && Array.isArray(payload.pitch.tokens) ? payload.pitch.tokens : [];
-            const usingFallback = canonicalTokens.length === 0;
-            const tokens = usingFallback ? fallbackTokens : canonicalTokens;
+            const tokens = Array.isArray(payload.tokens) ? payload.tokens : [];
             state.tokens = tokens;
             setHighlighted(null);
             const chapter = payload.chapter || {};
@@ -706,17 +684,6 @@ INDEX_HTML = """<!DOCTYPE html>
             renderTextView(originalText, payload.original_text, tokens, 'original');
             setTokenCount(tokens.length);
             renderTokensTable(tokens);
-            if (payload.token_error) {
-              setPitchWarning(payload.token_error, true);
-            } else if (payload.pitch_error) {
-              setPitchWarning(payload.pitch_error, true);
-            } else if (usingFallback && fallbackTokens.length) {
-              setPitchWarning('Token file missing; displaying legacy pitch tokens.', false);
-            } else if (!tokens.length) {
-              setPitchWarning('No tokens available for this chapter.', false);
-            } else {
-              setPitchWarning(null);
-            }
           })
           .catch((err) => {
             console.error(err);
@@ -782,7 +749,6 @@ def _relative_to_root(root: Path, path: Path) -> Path:
 def _chapter_entry(root: Path, path: Path) -> dict[str, object]:
     rel = _relative_to_root(root, path)
     stat = path.stat()
-    pitch_path = path.with_name(path.name + ".pitch.json")
     token_path = path.with_name(path.name + ".token.json")
     original_path = path.with_name(f"{path.stem}.original.txt")
     modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
@@ -792,7 +758,6 @@ def _chapter_entry(root: Path, path: Path) -> dict[str, object]:
         "book": rel.parts[0] if len(rel.parts) > 1 else None,
         "size": stat.st_size,
         "modified": modified,
-        "has_pitch": pitch_path.exists(),
         "has_token": token_path.exists(),
         "has_original": original_path.exists(),
     }
@@ -896,7 +861,7 @@ def create_check_app(root: Path) -> FastAPI:
     if not resolved_root.exists() or not resolved_root.is_dir():
         raise FileNotFoundError(f"Root not found: {resolved_root}")
 
-    app = FastAPI(title="nk Pitch Checker")
+    app = FastAPI(title="nk Token Inspector")
     app.state.root = resolved_root
 
     @app.get("/", response_class=HTMLResponse)
@@ -929,15 +894,6 @@ def create_check_app(root: Path) -> FastAPI:
         original_path = chapter_path.with_name(f"{chapter_path.stem}.original.txt")
         original_text = _safe_read_text(original_path)
 
-        pitch_path = chapter_path.with_name(chapter_path.name + ".pitch.json")
-        pitch_payload: dict[str, object] | None = None
-        pitch_error: str | None = None
-        if pitch_path.exists():
-            try:
-                pitch_payload = json.loads(pitch_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError as exc:
-                pitch_error = f"Failed to parse {pitch_path.name}: {exc}"
-
         token_path = chapter_path.with_name(chapter_path.name + ".token.json")
         tokens_list, token_payload, token_error = _load_token_payload(token_path)
 
@@ -949,11 +905,9 @@ def create_check_app(root: Path) -> FastAPI:
             "text_length": len(text) if text else 0,
             "original_text": original_text,
             "original_length": len(original_text) if original_text else 0,
-            "pitch": pitch_payload,
-            "pitch_path": _relative_to_root(resolved_root, pitch_path).as_posix() if pitch_path.exists() else None,
-            "pitch_error": pitch_error,
             "tokens": tokens_list,
             "token_version": token_payload.get("version") if isinstance(token_payload, Mapping) else None,
+            "token_sha1": token_payload.get("text_sha1") if isinstance(token_payload, Mapping) else None,
             "token_path": _relative_to_root(resolved_root, token_path).as_posix() if token_path.exists() else None,
             "token_error": token_error,
             "original_path": _relative_to_root(resolved_root, original_path).as_posix() if original_path.exists() else None,

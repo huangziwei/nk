@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 
-EXAMPLE_PITCH_FILES = sorted(Path("example").rglob("*.pitch.json"))
+EXAMPLE_TOKEN_FILES = sorted(Path("example").rglob("*.txt.token.json"))
 EXAMPLE_TRANSFORMED_TEXTS = [
     path
     for path in Path("example").rglob("*.txt")
@@ -18,26 +18,8 @@ BOOK_TRANSFORMED_TEXTS = [
     if not path.name.endswith(".original.txt") and not path.name.endswith(".pitch.json") and not path.name.endswith(".token.json")
 ]
 
-if not EXAMPLE_PITCH_FILES:
-    pytest.skip("example pitch fixtures not found", allow_module_level=True)
-
-
-def _assert_index_order(tokens: list[dict], key: str, *, pitch_path: Path) -> None:
-    """
-    Ensure indexes monotonically increase without overlap for the given key.
-    """
-    prev_end: int | None = None
-    for idx, token in enumerate(tokens):
-        start = token["start"].get(key)
-        end = token["end"].get(key)
-        if start is None or end is None:
-            continue
-        assert start <= end, f"{pitch_path} token #{idx} has {key} start > end"
-        if prev_end is not None:
-            assert (
-                start >= prev_end
-            ), f"{pitch_path} token #{idx} has {key} overlap (start={start}, prev_end={prev_end})"
-        prev_end = end
+if not EXAMPLE_TOKEN_FILES:
+    pytest.skip("example token fixtures not found", allow_module_level=True)
 
 
 def _contains_cjk(text: str) -> bool:
@@ -56,19 +38,7 @@ def _contains_cjk(text: str) -> bool:
     return False
 
 
-@pytest.mark.parametrize("pitch_path", EXAMPLE_PITCH_FILES)
-def test_example_pitch_original_indexes_are_ordered(pitch_path: Path) -> None:
-    data = json.loads(pitch_path.read_text())
-    _assert_index_order(data["tokens"], "original", pitch_path=pitch_path)
-
-
-@pytest.mark.parametrize("pitch_path", EXAMPLE_PITCH_FILES)
-def test_example_pitch_transformed_indexes_are_ordered(pitch_path: Path) -> None:
-    data = json.loads(pitch_path.read_text())
-    _assert_index_order(data["tokens"], "transformed", pitch_path=pitch_path)
-
-
-@pytest.mark.parametrize("token_path", sorted(Path("example").rglob("*.txt.token.json")))
+@pytest.mark.parametrize("token_path", EXAMPLE_TOKEN_FILES)
 def test_example_tokens_match_text(token_path: Path) -> None:
     text_path = token_path.with_suffix("").with_suffix("")
     original_path = text_path.with_name(text_path.stem + ".original.txt")

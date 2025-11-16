@@ -81,7 +81,7 @@ nk my_book.epub --single-file -o custom_name.txt
 
 Expect katakana-only output next to the source EPUB with duplicate titles stripped and line breaks preserved. nk always runs the advanced propagation engine, which consumes `fugashi + UniDic 3.1.1 + pykakasi` to confirm rubies and fill in missing readings.
 
-Each chapterized book now carries a `.nk-book.json` manifest plus an extracted (and automatically square-padded) `cover.jpg|png`. The manifest tracks the original/reading titles for every chapter and records the book author so `nk tts` can build accurate ID3 tags; the cover is embedded into every MP3 automatically. Advanced runs also emit `<chapter>.txt.pitch.json` files that list **every** transformed token (surface, reading, offsets, sources and accent metadata when available), so you can audit ruby/UniDic conversions and hand-tune any accent lines before synth. Re-run `nk <book>.epub` if you have older chapter folders and want to backfill the metadata/cover bundle.
+Each chapterized book now carries a `.nk-book.json` manifest plus an extracted (and automatically square-padded) `cover.jpg|png`. The manifest tracks the original/reading titles for every chapter and records the book author so `nk tts` can build accurate ID3 tags; the cover is embedded into every MP3 automatically. Advanced runs also emit `<chapter>.txt.token.json` files that list **every** transformed token (surface, reading, offsets, sources and accent metadata when available), so you can audit ruby/UniDic conversions and hand-tune any accent lines before synth. Re-run `nk <book>.epub` if you have older chapter folders and want to backfill the metadata/cover bundle.
 
 ---
 
@@ -136,7 +136,7 @@ nk drops two helper files next to every chapterized book:
 
 - `.nk-book.json` – structured metadata for nk itself (titles, author, track counts, etc.).
 - `tts_defaults` inside `.nk-book.json` records the last speaker/speed/pitch/intonation nk used (whether from CLI or engine defaults).
-- `<chapter>.txt.pitch.json` – optional per-chapter token log (advanced mode) containing every kanji→kana conversion plus accent metadata so `nk tts` (or you) can override VoiceVox phrasing.
+- `<chapter>.txt.token.json` – per-chapter token log (advanced mode) containing every kanji→kana conversion plus accent metadata so `nk tts` (or you) can override VoiceVox phrasing.
 - `m4b.json` – directly consumable by [m4b-tool](https://github.com/sandreas/m4b-tool) with every MP3 listed in order, chapter labels, and the padded cover.
 
 ### Manual pitch overrides
@@ -164,7 +164,7 @@ If MeCab splits a word incorrectly or assigns the wrong accent, add a `custom_pi
 
 - `pattern` matches against the katakana `.txt` output (set `"regex": true` if you need a regular expression).
 - `replacement` rewrites the `.txt` text before re-tokenizing (omit it for pitch-only fixes).
-- `reading`/`accent` describe the curated pronunciation to inject into `.pitch.json` (defaults to `replacement` when omitted). You can now target any token because the file carries the full transformed list.
+- `reading`/`accent` describe the curated pronunciation to inject into `.token.json` (defaults to `replacement` when omitted). You can now target any token because the file carries the full transformed list.
 - `surface` lets you keep the kanji label (“天愛星”) in the pitch metadata even if the katakana body uses the ruby form.
 
 Apply the overrides with:
@@ -173,7 +173,7 @@ Apply the overrides with:
 nk refine "books/novel/"
 ```
 
-The command rewrites affected `.txt` files, updates `.pitch.json` with your curated tokens, and recomputes the hashes so subsequent `nk tts` runs use the corrected readings.
+The command rewrites affected `.txt` files, updates `.token.json` with your curated tokens, and recomputes the hashes so subsequent `nk tts` runs use the corrected readings.
 
 
 If you already have m4b-tool installed, you can jump straight from chapterized MP3s to a single M4B:

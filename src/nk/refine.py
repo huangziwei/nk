@@ -3,11 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Iterable
 
-from .pitch import PitchToken, deserialize_pitch_tokens, serialize_pitch_tokens
+from .book_io import TOKEN_METADATA_VERSION
+from .tokens import ChapterToken, deserialize_chapter_tokens, serialize_chapter_tokens
 
 
 @dataclass
@@ -94,27 +95,27 @@ def refine_chapter(text_path: Path, overrides: Iterable[OverrideRule]) -> bool:
     if text == original_text and not matches_for_tokens:
         return False
     text_path.write_text(text, encoding="utf-8")
-    pitch_path = text_path.with_name(text_path.name + ".pitch.json")
-    existing_tokens: list[PitchToken] = []
-    version = 2
-    if pitch_path.exists():
+    token_path = text_path.with_name(text_path.name + ".token.json")
+    existing_tokens: list[ChapterToken] = []
+    version = 1
+    if token_path.exists():
         try:
-            payload = json.loads(pitch_path.read_text(encoding="utf-8"))
+            payload = json.loads(token_path.read_text(encoding="utf-8"))
             version = payload.get("version", 1)
             tokens_payload = payload.get("tokens")
             if isinstance(tokens_payload, list):
-                existing_tokens = deserialize_pitch_tokens(tokens_payload)
+                existing_tokens = deserialize_chapter_tokens(tokens_payload)
         except (OSError, json.JSONDecodeError):
             existing_tokens = []
     tokens = _merge_override_tokens(existing_tokens, matches_for_tokens, text)
     normalized_for_hash = text.strip()
     sha1 = hashlib.sha1(normalized_for_hash.encode("utf-8")).hexdigest()
     payload = {
-        "version": version,
+        "version": max(version, TOKEN_METADATA_VERSION),
         "text_sha1": sha1,
-        "tokens": serialize_pitch_tokens(tokens),
+        "tokens": serialize_chapter_tokens(tokens),
     }
-    pitch_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    token_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return True
 
 
@@ -152,31 +153,65 @@ def _apply_override_to_text(text: str, rule: OverrideRule) -> tuple[str, list[tu
 
 
 def _merge_override_tokens(
-    existing: list[PitchToken],
+    existing: list[ChapterToken],
     overrides: list[tuple[int, int, OverrideRule]],
     text: str,
-) -> list[PitchToken]:
-    tokens = [PitchToken(**vars(token)) for token in existing]
+) -> list[ChapterToken]:
+    tokens = [replace(token) for token in existing]
     for start, end, rule in overrides:
-        tokens = [
-            token for token in tokens if token.end <= start or token.start >= end
-        ]
+        survivors: list[ChapterToken] = []
+        removed: list[ChapterToken] = []
+        for token in tokens:
+            token_start = _token_transformed_start(token)
+            token_end = _token_transformed_end(token)
+            if token_end <= start or token_start >= end:
+                survivors.append(token)
+            else:
+                removed.append(token)
+        tokens = survivors
         reading = rule.reading or rule.replacement or text[start:end]
-        surface = rule.surface or rule.pattern
+        if not reading:
+            reading = text[start:end]
+        surface = rule.surface
+        if not surface:
+            pieces = [token.surface for token in removed if token.surface]
+            surface = "".join(pieces) if pieces else rule.pattern
+        original_start = removed[0].start if removed else None
+        original_end = removed[-1].end if removed else None
+        start_value = original_start if original_start is not None else start
+        end_value = original_end if original_end is not None else end
         tokens.append(
-            PitchToken(
+            ChapterToken(
                 surface=surface,
+                start=start_value,
+                end=end_value,
                 reading=reading,
+                reading_source="override",
                 accent_type=rule.accent,
                 accent_connection=None,
                 pos=rule.pos,
-                start=start,
-                end=end,
-                sources=("override",),
+                transformed_start=start,
+                transformed_end=end,
             )
         )
-    tokens.sort(key=lambda token: (token.start, token.end))
+    tokens.sort(key=lambda token: (_token_transformed_start(token), _token_transformed_end(token)))
     return tokens
+
+
+def _token_transformed_start(token: ChapterToken) -> int:
+    if token.transformed_start is not None:
+        return token.transformed_start
+    if token.start is not None:
+        return token.start
+    return 0
+
+
+def _token_transformed_end(token: ChapterToken) -> int:
+    if token.transformed_end is not None:
+        return token.transformed_end
+    if token.end is not None:
+        return token.end
+    return _token_transformed_start(token)
 
 
 __all__ = ["load_override_config", "refine_book"]

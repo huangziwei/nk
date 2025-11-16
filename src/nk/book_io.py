@@ -13,22 +13,15 @@ except Exception:  # pragma: no cover - optional image padding
     Image = None  # type: ignore[assignment]
 
 from .core import ChapterText, CoverImage
-from .pitch import (
-    ChapterPitchMetadata,
-    PitchToken,
-    deserialize_pitch_tokens,
-    serialize_pitch_tokens,
-)
-from .tokens import serialize_chapter_tokens
+from .tokens import ChapterToken, deserialize_chapter_tokens, serialize_chapter_tokens
 
 BOOK_METADATA_FILENAME = ".nk-book.json"
 M4B_MANIFEST_FILENAME = "m4b.json"
 RUBY_EVIDENCE_FILENAME = "ruby_evidence.json"
 _SUPPORTED_COVER_EXTS = (".jpg", ".jpeg", ".png")
 _CUSTOM_PITCH_FILENAME = "custom_pitch.json"
-_PITCH_SUFFIX = ".pitch.json"
 _TOKEN_SUFFIX = ".token.json"
-_PITCH_METADATA_VERSION = 3
+TOKEN_METADATA_VERSION = 2
 
 
 @dataclass
@@ -181,34 +174,13 @@ def _write_chapter_texts(output_dir: Path, chapters: Iterable[ChapterText]) -> l
             original_path.write_text(chapter.original_text, encoding="utf-8")
         else:
             original_path.unlink(missing_ok=True)
-        _maybe_write_pitch_metadata(path, chapter)
         _maybe_write_token_metadata(path, chapter)
         records.append(ChapterFileRecord(chapter=chapter, path=path, index=index + 1))
     return records
 
 
-def _pitch_metadata_path(chapter_path: Path) -> Path:
-    return chapter_path.with_name(chapter_path.name + _PITCH_SUFFIX)
-
-
 def _token_metadata_path(chapter_path: Path) -> Path:
     return chapter_path.with_name(chapter_path.name + _TOKEN_SUFFIX)
-
-
-def _maybe_write_pitch_metadata(chapter_path: Path, chapter: ChapterText) -> None:
-    pitch_path = _pitch_metadata_path(chapter_path)
-    if not chapter.pitch_data:
-        pitch_path.unlink(missing_ok=True)
-        return
-    payload = {
-        "version": _PITCH_METADATA_VERSION,
-        "text_sha1": hashlib.sha1(chapter.text.encode("utf-8")).hexdigest(),
-        "tokens": serialize_pitch_tokens(chapter.pitch_data),
-    }
-    pitch_path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
 
 
 def _maybe_write_token_metadata(chapter_path: Path, chapter: ChapterText) -> None:
@@ -217,7 +189,8 @@ def _maybe_write_token_metadata(chapter_path: Path, chapter: ChapterText) -> Non
         token_path.unlink(missing_ok=True)
         return
     payload = {
-        "version": 1,
+        "version": TOKEN_METADATA_VERSION,
+        "text_sha1": hashlib.sha1(chapter.text.encode("utf-8")).hexdigest(),
         "tokens": serialize_chapter_tokens(chapter.tokens),
     }
     token_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -572,25 +545,20 @@ def load_book_metadata(book_dir: Path) -> LoadedBookMetadata | None:
     )
 
 
-def load_pitch_metadata(chapter_path: Path) -> ChapterPitchMetadata | None:
-    pitch_path = _pitch_metadata_path(chapter_path)
-    if not pitch_path.exists():
+def load_token_metadata(chapter_path: Path) -> ChapterTokenMetadata | None:
+    token_path = _token_metadata_path(chapter_path)
+    if not token_path.exists():
         return None
     try:
-        payload = json.loads(pitch_path.read_text(encoding="utf-8"))
+        payload = json.loads(token_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     tokens_payload = payload.get("tokens")
-    if not isinstance(tokens_payload, list):
-        return ChapterPitchMetadata(
-            text_sha1=payload.get("text_sha1") if isinstance(payload.get("text_sha1"), str) else None,
-            tokens=[],
-        )
-    tokens = deserialize_pitch_tokens(tokens_payload)
+    tokens = deserialize_chapter_tokens(tokens_payload) if isinstance(tokens_payload, list) else []
     text_sha1 = payload.get("text_sha1")
     if not isinstance(text_sha1, str):
         text_sha1 = None
-    return ChapterPitchMetadata(text_sha1=text_sha1, tokens=tokens)
+    return ChapterTokenMetadata(text_sha1=text_sha1, tokens=tokens)
 
 
 def update_book_tts_defaults(
@@ -655,12 +623,18 @@ __all__ = [
     "ChapterMetadata",
     "LoadedBookMetadata",
     "BookTTSDefaults",
+    "ChapterTokenMetadata",
     "BOOK_METADATA_FILENAME",
     "M4B_MANIFEST_FILENAME",
+    "TOKEN_METADATA_VERSION",
     "ensure_cover_is_square",
     "regenerate_m4b_manifest",
     "load_book_metadata",
-    "load_pitch_metadata",
+    "load_token_metadata",
     "update_book_tts_defaults",
     "write_book_package",
 ]
+@dataclass
+class ChapterTokenMetadata:
+    text_sha1: str | None
+    tokens: list[ChapterToken]
