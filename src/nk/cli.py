@@ -51,8 +51,6 @@ from .tts import (
     VoiceVoxError,
     VoiceVoxRuntimeError,
     VoiceVoxUnavailableError,
-    _play_chunk_simpleaudio,
-    _simpleaudio,
     ensure_dedicated_voicevox_url,
     discover_voicevox_runtime,
     managed_voicevox_runtime,
@@ -265,22 +263,6 @@ def build_tts_parser() -> argparse.ArgumentParser:
         help="Retain cached WAV chunks after successful synthesis.",
     )
     ap.add_argument(
-        "--live",
-        action="store_true",
-        help="Stream synthesized audio chunk-by-chunk instead of writing MP3 files.",
-    )
-    ap.add_argument(
-        "--live-prebuffer",
-        type=int,
-        default=2,
-        help="Number of chunks to buffer before starting live playback (default: 2).",
-    )
-    ap.add_argument(
-        "--live-start",
-        type=int,
-        help="Chapter index to start live playback from (1-based).",
-    )
-    ap.add_argument(
         "--clear-cache",
         action="store_true",
         help="Clear nk chunk caches under the provided path (or current directory if omitted).",
@@ -405,12 +387,6 @@ def build_web_parser() -> argparse.ArgumentParser:
         "--keep-cache",
         action="store_true",
         help="Retain cached WAV chunks after playback completes.",
-    )
-    ap.add_argument(
-        "--live-prebuffer",
-        type=int,
-        default=2,
-        help="Chunks to buffer before live playback begins (default: 2).",
     )
     return ap
 
@@ -850,7 +826,6 @@ def _run_tts(args: argparse.Namespace) -> int:
             skipped = min(total_targets, args.start_index - 1)
             print(f"Skipping {skipped} chapters; starting synthesis at index {args.start_index}.")
 
-    live_mode = bool(args.live)
     total_targets = len(targets)
     printed_progress = {"value": False}
 
@@ -915,7 +890,7 @@ def _run_tts(args: argparse.Namespace) -> int:
             return label or "chapter"
 
         def handle(self, event: dict[str, object]) -> bool:
-            if not self.enabled or bool(event.get("live")) or self.progress is None:
+            if not self.enabled or self.progress is None:
                 return False
             event_type = event.get("event")
             key, raw_label = self._source_label(event.get("source"))
@@ -990,7 +965,7 @@ def _run_tts(args: argparse.Namespace) -> int:
             with self.lock:
                 self.progress.stop()
 
-    progress_handler = _RichProgress(enabled=not live_mode, total=total_targets)
+    progress_handler = _RichProgress(enabled=True, total=total_targets)
     cancel_event = threading.Event()
 
     def _fallback_print(event: dict[str, object]) -> None:
@@ -1001,7 +976,6 @@ def _run_tts(args: argparse.Namespace) -> int:
         source = event.get("source")
         output = event.get("output")
         chunk_count = event.get("chunk_count")
-        live = bool(event.get("live"))
         if isinstance(source, Path):
             source_name = source.name
         else:
@@ -1023,11 +997,7 @@ def _run_tts(args: argparse.Namespace) -> int:
                 )
         elif event_type == "target_done":
             output_str = str(output) if output is not None else ""
-            if live:
-                status = "live playback done"
-                print(f"[{index}/{total}] {source_name} -> {status}", flush=True)
-            else:
-                print(f"[{index}/{total}] {source_name} -> {output_str}", flush=True)
+            print(f"[{index}/{total}] {source_name} -> {output_str}", flush=True)
         elif event_type == "target_skipped":
             reason = event.get("reason", "skipped")
             print(f"[{index}/{total}] {source_name} skipped ({reason})", flush=True)
@@ -1049,13 +1019,6 @@ def _run_tts(args: argparse.Namespace) -> int:
     engine_url = args.engine_url
     runtime_env, runtime_thread_flag = _engine_thread_overrides(args.engine_threads)
     cache_base = Path(args.cache_dir).expanduser() if args.cache_dir else None
-    playback_fn = None
-    if live_mode:
-        if _simpleaudio is None:
-            raise SystemExit(
-                "Live playback requires the `simpleaudio` package. Install it with `pip install simpleaudio`."
-            )
-        playback_fn = _play_chunk_simpleaudio
 
     generated: list[Path] = []
 
@@ -1075,20 +1038,8 @@ def _run_tts(args: argparse.Namespace) -> int:
             extra_env=runtime_env,
             cpu_threads=runtime_thread_flag,
         ):
-            live_targets = targets
-            if live_mode and args.live_start:
-                start_idx = max(1, args.live_start)
-                if start_idx > len(targets):
-                    raise SystemExit(
-                        f"--live-start {start_idx} exceeds total targets ({len(targets)})."
-                    )
-                live_targets = targets[start_idx - 1 :]
-                print(
-                    f"Skipping {start_idx - 1} chapters; starting live playback at index {start_idx}.",
-                    flush=True,
-                )
             generated = synthesize_texts_to_mp3(
-                live_targets,
+                targets,
                 speaker_id=args.speaker,
                 base_url=engine_url,
                 ffmpeg_path=args.ffmpeg,
@@ -1101,9 +1052,6 @@ def _run_tts(args: argparse.Namespace) -> int:
                 jobs=args.jobs,
                 cache_dir=cache_base,
                 keep_cache=args.keep_cache,
-                live_playback=live_mode,
-                playback_callback=playback_fn,
-                live_prebuffer=max(1, args.live_prebuffer),
                 progress=_progress_printer,
                 cancel_event=cancel_event,
                 engine_defaults_callback=_capture_engine_defaults,
@@ -1124,11 +1072,6 @@ def _run_tts(args: argparse.Namespace) -> int:
     finally:
         progress_handler.close()
         _persist_engine_defaults()
-
-    if live_mode:
-        if not printed_progress["value"]:
-            print("No audio played (all targets skipped).")
-        return 0
 
     if not generated:
         print("No audio generated (all input texts were empty).")
@@ -1212,7 +1155,6 @@ def _run_web(args: argparse.Namespace) -> None:
         pause=args.pause,
         cache_dir=cache_dir,
         keep_cache=args.keep_cache,
-        live_prebuffer=args.live_prebuffer,
         speed_scale=args.speed,
         pitch_scale=args.pitch,
         intonation_scale=args.intonation,

@@ -28,10 +28,6 @@ from .book_io import (
     load_pitch_metadata,
 )
 from .pitch import PitchToken
-try:
-    import simpleaudio as _simpleaudio
-except ImportError:  # pragma: no cover - optional dependency
-    _simpleaudio = None
 
 _DEBUG_LOG = False
 _VOICEVOX_ENGINE_DEFAULT_KEYS = {
@@ -592,15 +588,6 @@ def _ffmpeg_escape_path(path: Path) -> str:
     return f"'{escaped}'"
 
 
-def _play_chunk_simpleaudio(chunk_path: Path) -> None:
-    if _simpleaudio is None:
-        raise RuntimeError(
-            "simpleaudio is required for live playback. Install with `pip install simpleaudio`."
-        )
-    wave_obj = _simpleaudio.WaveObject.from_wave_file(str(chunk_path))
-    return wave_obj.play()
-
-
 def _synthesize_target_with_client(
     target: TTSTarget,
     client: VoiceVoxClient,
@@ -613,18 +600,14 @@ def _synthesize_target_with_client(
     cache_base: Path | None,
     keep_cache: bool,
     cancel_event: threading.Event | None = None,
-    live_playback: bool = False,
-    playback_callback: Callable[[Path], None] | None = None,
-    live_prebuffer: int = 2,
 ) -> Path | None:
     if cancel_event and cancel_event.is_set():
         raise KeyboardInterrupt
 
     cache_dir = _target_cache_dir(cache_base, target)
     marker_path = cache_dir / ".complete"
-    progress_path = cache_dir / ".progress"
 
-    if target.output.exists() and not overwrite and not live_playback:
+    if target.output.exists() and not overwrite:
         if cache_dir.exists() and not marker_path.exists():
             target.output.unlink(missing_ok=True)
         else:
@@ -636,7 +619,6 @@ def _synthesize_target_with_client(
                 source=target.source,
                 output=target.output,
                 reason="exists",
-                live=live_playback,
             )
             if cache_dir.exists() and not keep_cache:
                 shutil.rmtree(cache_dir, ignore_errors=True)
@@ -651,7 +633,6 @@ def _synthesize_target_with_client(
             total=total,
             source=target.source,
             reason="empty",
-            live=live_playback,
         )
         return None
 
@@ -681,7 +662,6 @@ def _synthesize_target_with_client(
             total=total,
             source=target.source,
             reason="no_chunks",
-            live=live_playback,
         )
         return None
 
@@ -694,23 +674,11 @@ def _synthesize_target_with_client(
         source=target.source,
         output=target.output,
         chunk_count=chunk_count,
-        live=live_playback,
     )
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     marker_path.unlink(missing_ok=True)
-    last_played = 0
-    if live_playback and progress_path.exists():
-        try:
-            last_played = int(progress_path.read_text(encoding="utf-8").strip() or "0")
-        except ValueError:
-            last_played = 0
-
-    prebuffer_threshold = max(1, min(live_prebuffer, chunk_count)) if live_playback else 0
-    playback_started = last_played >= prebuffer_threshold if live_playback else False
-    chunk_paths: dict[int, Path] = {}
     chunk_files: list[Path] = []
-    last_play_object = None
 
     for chunk_index, (chunk_entry, chunk_text, offset_map) in enumerate(chunk_entries, start=1):
         if cancel_event and cancel_event.is_set():
@@ -723,7 +691,6 @@ def _synthesize_target_with_client(
             chunk_index=chunk_index,
             chunk_count=chunk_count,
             source=target.source,
-            live=live_playback,
         )
         local_pitch_tokens = _slice_pitch_tokens_for_chunk(
             pitch_tokens,
@@ -766,36 +733,6 @@ def _synthesize_target_with_client(
             chunk_path.write_bytes(wav_bytes)
 
         chunk_files.append(chunk_path)
-        if live_playback:
-            if chunk_index <= last_played:
-                chunk_paths.pop(chunk_index, None)
-                continue
-            chunk_paths[chunk_index] = chunk_path
-            if not playback_started and chunk_index >= prebuffer_threshold:
-                playback_started = True
-            if playback_started:
-                while (last_played + 1) in chunk_paths:
-                    next_index = last_played + 1
-                    next_path = chunk_paths.pop(next_index)
-                    if last_play_object is not None and hasattr(last_play_object, "wait_done"):
-                        last_play_object.wait_done()
-                    last_play_object = playback_callback(next_path) if playback_callback else None
-                    last_played = next_index
-                    progress_path.write_text(str(last_played), encoding="utf-8")
-
-    if live_playback:
-        if chunk_paths:
-            for next_index in sorted(chunk_paths):
-                if next_index <= last_played:
-                    continue
-                next_path = chunk_paths[next_index]
-                if last_play_object is not None:
-                    last_play_object.wait_done()
-                last_play_object = playback_callback(next_path)
-                last_played = next_index
-                progress_path.write_text(str(last_played), encoding="utf-8")
-        if last_play_object is not None and hasattr(last_play_object, "wait_done"):
-            last_play_object.wait_done()
 
     book_title = target.book_title or target.output.parent.name or "nk"
     track_total = target.track_total or total or None
@@ -829,11 +766,10 @@ def _synthesize_target_with_client(
         chunk_files,
         target.output,
         ffmpeg_path=ffmpeg_path,
-        overwrite=overwrite or live_playback,
+        overwrite=overwrite,
         metadata=metadata,
         cover_path=target.cover_image,
     )
-    progress_path.unlink(missing_ok=True)
     if cache_dir.exists():
         if keep_cache:
             marker_path.write_text(str(chunk_count), encoding="utf-8")
@@ -848,7 +784,6 @@ def _synthesize_target_with_client(
         source=target.source,
         output=target.output,
         chunk_count=chunk_count,
-        live=live_playback,
     )
     return target.output
 
@@ -1637,9 +1572,6 @@ def synthesize_texts_to_mp3(
     jobs: int = 1,
     cache_dir: Path | None = None,
     keep_cache: bool = False,
-    live_playback: bool = False,
-    playback_callback: Callable[[Path], None] | None = None,
-    live_prebuffer: int = 2,
     progress: Callable[[dict[str, object]], None] | None = None,
     cancel_event: threading.Event | None = None,
     engine_defaults_callback: Callable[[dict[str, float]], None] | None = None,
@@ -1654,11 +1586,6 @@ def synthesize_texts_to_mp3(
 
     effective_jobs = _effective_jobs(jobs, total_targets)
     cache_base = Path(cache_dir).expanduser() if cache_dir is not None else None
-    if live_playback:
-        if playback_callback is None:
-            raise ValueError("playback_callback must be provided when live_playback=True.")
-        effective_jobs = 1
-        live_prebuffer = max(1, live_prebuffer)
     generated: list[Path | None]
 
     if effective_jobs == 1:
@@ -1689,9 +1616,6 @@ def synthesize_texts_to_mp3(
                         cache_base=cache_base,
                         keep_cache=keep_cache,
                         cancel_event=cancel_event,
-                        live_playback=live_playback,
-                        playback_callback=playback_callback,
-                        live_prebuffer=live_prebuffer,
                     )
                 except KeyboardInterrupt:
                     if cancel_event:
@@ -1734,9 +1658,6 @@ def synthesize_texts_to_mp3(
                     cache_base=cache_base,
                     keep_cache=keep_cache,
                     cancel_event=cancel_event,
-                    live_playback=live_playback,
-                    playback_callback=playback_callback,
-                    live_prebuffer=live_prebuffer,
                 )
             except KeyboardInterrupt:
                 if cancel_event:

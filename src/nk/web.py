@@ -54,7 +54,6 @@ class WebConfig:
     intonation_scale: float | None = None
     cache_dir: Path | None = None
     keep_cache: bool = True
-    live_prebuffer: int = 2  # kept for CLI compatibility
 
 
 COVER_EXTENSIONS = (".jpg", ".jpeg", ".png")
@@ -1354,9 +1353,6 @@ def _synthesize_sequence(
                             progress=progress_callback,
                             cache_base=config.cache_dir,
                             keep_cache=config.keep_cache,
-                            live_playback=False,
-                            playback_callback=None,
-                            live_prebuffer=config.live_prebuffer,
                         )
                     except Exception as exc:
                         if progress_handler is not None:

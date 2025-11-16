@@ -21,7 +21,7 @@ It will:
 - call `uv run nk tools install-unidic` so fugashi can see UniDic 3.1.1.
 - fetch the latest VoiceVox engine release from GitHub, log the tag it grabbed, and unpack it under `${VOICEVOX_ROOT:-$HOME/opt/voicevox}/$VOICEVOX_TARGET` (with the tag recorded in `.nk-voicevox-version`; `cat "$HOME/opt/voicevox/$VOICEVOX_TARGET/.nk-voicevox-version"` to check later).
 
-> On macOS the default VoiceVox target is `macos-x64`; on Ubuntu it is `linux-cpu-x64`. Set `VOICEVOX_TARGET=linux-gpu-x64` (and optionally `VOICEVOX_ASSET_PATTERN`) if you prefer the GPU build. Run `install.sh` with `sudo` (or as root) on Ubuntu so `apt-get` can install the required packages, including `libasound2-dev` for the `simpleaudio` build step.
+> On macOS the default VoiceVox target is `macos-x64`; on Ubuntu it is `linux-cpu-x64`. Set `VOICEVOX_TARGET=linux-gpu-x64` (and optionally `VOICEVOX_ASSET_PATTERN`) if you prefer the GPU build. Run `install.sh` with `sudo` (or as root) on Ubuntu so `apt-get` can install the required packages.
 
 > Regenerate the UniDic data any time you recreate the virtualenv with `uv run nk tools install-unidic`.
 
@@ -185,28 +185,7 @@ m4b-tool automatically reads the cover path and chapter names from `m4b.json`, s
 
 ---
 
-## 5. Live playback (`--live`)
-
-Stream chapters through your speakers while nk keeps synthesising chunks and writing MP3s in the background.
-
-```bash
-# Stream all chapters sequentially
-nk tts output/ --live
-
-# Buffer more chunks and jump to chapter 5
-nk tts output/ --live --live-prebuffer 3 --live-start 5
-```
-
-- `--live-prebuffer N` (default 2) buffers N chunks before playback begins, then keeps synthesising ahead.
-- `--live-start M` begins streaming at chapter index `M` (1-based), skipping earlier files.
-- Live mode runs chapters sequentially (equivalent to `--jobs 1`) so audio stays ordered while synthesis continues ahead in the background.
-- Stopping mid-chapter? nk records the last played chunk in `.progress`; rerun the command and playback resumes from there (it replays the interrupted chunk for continuity).
-- MP3s are still written when playback finishes. Combine with `--keep-cache` if you also want to preserve the chunk WAVs.
-- Need to reclaim disk space? `nk tts --clear-cache [path]` removes `.nk-tts-cache/` folders under the given path (defaults to the current directory). Use this after long runs if you didn’t enable `--keep-cache`.
-
----
-
-## 6. VoiceVox tips
+## 5. VoiceVox tips
 
 - Increase `--engine-runtime-wait` if the engine needs extra time to load models.
 - Pass `--pause 0` to keep the engine’s default trailing silence.
@@ -214,7 +193,7 @@ nk tts output/ --live --live-prebuffer 3 --live-start 5
 
 ---
 
-## 7. Web playback service (`nk web`)
+## 6. Web playback service (`nk web`)
 
 Serve your chapterized books over HTTP and stream them from a phone or tablet on the same network.
 
@@ -231,11 +210,10 @@ Serve your chapterized books over HTTP and stream them from a phone or tablet on
 
 ---
 
-## 8. Troubleshooting
+## 7. Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
-| `simpleaudio` missing | Install it: `pip install simpleaudio`. |
 | VoiceVox unavailable | Ensure `~/opt/voicevox/.../run` exists or pass `--engine-runtime`. |
 | MP3 skipped | Remove the file or add `--overwrite`. |
 | Need a clean slate | Delete `.nk-tts-cache/` (or run with `--overwrite`). |
@@ -243,7 +221,7 @@ Serve your chapterized books over HTTP and stream them from a phone or tablet on
 
 ---
 
-## 9. Command reference
+## 8. Command reference
 
 ```
 # EPUB → TXT (per-chapter by default)
@@ -260,9 +238,6 @@ nk tts book.txt|directory [--speaker N]
                           [--cache-dir DIR]
                           [--keep-cache]
                           [--overwrite]
-
-# Live playback (still writes MP3s)
-nk tts chapters/ --live [--live-prebuffer N] [--live-start M]
 
 # Web service (browse + stream)
 nk web output/ [--host HOST] [--port PORT] [--speaker N]
