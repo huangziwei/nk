@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "text_sha1": "820f3a2bb48ac4db02c4c5c4afec508c8ffc866c",
   "tokens": [
     {
@@ -8,8 +8,14 @@
       "accent": 2,
       "connection": "C3",
       "pos": "名詞",
-      "start": 0,
-      "end": 2,
+      "start": {
+        "transformed": 0,
+        "original": 0
+      },
+      "end": {
+        "transformed": 2,
+        "original": 1
+      },
       "sources": [
         "unidic"
       ]
@@ -20,8 +26,14 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "start": 2,
-      "end": 5,
+      "start": {
+        "transformed": 2,
+        "original": 1
+      },
+      "end": {
+        "transformed": 5,
+        "original": 2
+      },
       "sources": [
         "unidic"
       ]
@@ -32,8 +44,14 @@
       "accent": null,
       "connection": "C3",
       "pos": "接尾辞",
-      "start": 5,
-      "end": 6,
+      "start": {
+        "transformed": 5,
+        "original": 2
+      },
+      "end": {
+        "transformed": 6,
+        "original": 3
+      },
       "sources": [
         "unidic"
       ]
@@ -44,8 +62,14 @@
       "accent": 0,
       "connection": null,
       "pos": "名詞",
-      "start": 7,
-      "end": 10,
+      "start": {
+        "transformed": 8,
+        "original": 5
+      },
+      "end": {
+        "transformed": 11,
+        "original": 7
+      },
       "sources": [
         "unidic"
       ]
@@ -56,8 +80,14 @@
       "accent": 1,
       "connection": null,
       "pos": "名詞",
-      "start": 10,
-      "end": 14,
+      "start": {
+        "transformed": 11,
+        "original": 7
+      },
+      "end": {
+        "transformed": 15,
+        "original": 9
+      },
       "sources": [
         "nhk"
       ]
