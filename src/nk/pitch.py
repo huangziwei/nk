@@ -21,8 +21,16 @@ class PitchToken:
     start: int = 0
     end: int = 0
     sources: tuple[str, ...] | None = None
+    original_start: int | None = None
+    original_end: int | None = None
 
-    def with_offsets(self, start: int, end: int) -> "PitchToken":
+    def with_offsets(
+        self,
+        start: int,
+        end: int,
+        original_start: int | None = None,
+        original_end: int | None = None,
+    ) -> "PitchToken":
         token = PitchToken(
             surface=self.surface,
             reading=self.reading,
@@ -32,6 +40,8 @@ class PitchToken:
             start=start,
             end=end,
             sources=self.sources,
+            original_start=self.original_start if original_start is None else original_start,
+            original_end=self.original_end if original_end is None else original_end,
         )
         return token
 
@@ -40,6 +50,13 @@ class PitchToken:
 class ChapterPitchMetadata:
     text_sha1: str | None
     tokens: list[PitchToken]
+
+
+def _serialize_offset(transformed: int, original: int | None) -> dict[str, int | None]:
+    return {
+        "transformed": transformed,
+        "original": original,
+    }
 
 
 def serialize_pitch_tokens(tokens: Iterable[PitchToken]) -> list[dict[str, object]]:
@@ -51,12 +68,33 @@ def serialize_pitch_tokens(tokens: Iterable[PitchToken]) -> list[dict[str, objec
             "accent": token.accent_type,
             "connection": token.accent_connection,
             "pos": token.pos,
-            "start": token.start,
-            "end": token.end,
+            "start": _serialize_offset(token.start, token.original_start),
+            "end": _serialize_offset(token.end, token.original_end),
             "sources": list(token.sources) if token.sources else [],
         }
         serialized.append(entry)
     return serialized
+
+
+def _parse_offset(value: object) -> tuple[int, int | None]:
+    transformed = 0
+    original: int | None = None
+    if isinstance(value, Mapping):
+        transformed_val = value.get("transformed")
+        original_val = value.get("original")
+        if isinstance(transformed_val, int):
+            transformed = transformed_val
+        elif isinstance(transformed_val, str) and transformed_val.isdigit():
+            transformed = int(transformed_val)
+        if isinstance(original_val, int):
+            original = original_val
+        elif isinstance(original_val, str) and original_val.isdigit():
+            original = int(original_val)
+    elif isinstance(value, int):
+        transformed = value
+    elif isinstance(value, str) and value.isdigit():
+        transformed = int(value)
+    return transformed, original
 
 
 def deserialize_pitch_tokens(data: Iterable[Mapping[str, object]]) -> list[PitchToken]:
@@ -80,12 +118,8 @@ def deserialize_pitch_tokens(data: Iterable[Mapping[str, object]]) -> list[Pitch
             pos = None
         start_val = entry.get("start")
         end_val = entry.get("end")
-        if isinstance(start_val, int) and isinstance(end_val, int):
-            start = start_val
-            end = end_val
-        else:
-            start = 0
-            end = 0
+        start, original_start = _parse_offset(start_val)
+        end, original_end = _parse_offset(end_val)
         sources_val = entry.get("sources")
         sources: tuple[str, ...] | None = None
         if isinstance(sources_val, list):
@@ -102,6 +136,8 @@ def deserialize_pitch_tokens(data: Iterable[Mapping[str, object]]) -> list[Pitch
                 start=start,
                 end=end,
                 sources=sources,
+                original_start=original_start,
+                original_end=original_end,
             )
         )
     return tokens

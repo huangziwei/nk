@@ -241,6 +241,7 @@ class ChapterText:
     source: str
     title: str | None
     text: str
+    original_text: str | None = None
     original_title: str | None = None
     book_title: str | None = None
     pitch_data: list[PitchToken] | None = None
@@ -657,6 +658,99 @@ def _align_pitch_tokens(text: str, tokens: list[PitchToken]) -> list[PitchToken]
         aligned.append(replace(token, start=idx, end=end))
         cursor = end
     return aligned
+
+
+def _remap_tokens_to_text(text: str, tokens: list[PitchToken]) -> None:
+    if not text or not tokens:
+        return
+    cursor = 0
+    text_len = len(text)
+    for token in tokens:
+        reading = token.reading
+        if not reading:
+            token.start = cursor
+            token.end = cursor
+            continue
+        idx = text.find(reading, cursor)
+        if idx == -1:
+            fallback = max(0, min(token.start, text_len))
+            idx = fallback
+        idx = max(0, min(idx, text_len))
+        end = min(text_len, idx + len(reading))
+        token.start = idx
+        token.end = end
+        cursor = end
+
+
+def _find_surface_positions(text: str, surface: str) -> list[int]:
+    positions: list[int] = []
+    if not text or not surface:
+        return positions
+    start = 0
+    while True:
+        idx = text.find(surface, start)
+        if idx == -1:
+            break
+        positions.append(idx)
+        start = idx + max(1, len(surface))
+    return positions
+
+
+def _align_tokens_to_original_text(original_text: str | None, tokens: list[PitchToken] | None) -> None:
+    if not original_text or not tokens:
+        return
+    cursor = 0
+    text_len = len(original_text)
+    surface_positions: dict[str, list[int]] = {}
+    surface_indices: dict[str, int] = {}
+    for token in tokens:
+        surface = (token.surface or "").strip()
+        if not surface or surface in surface_positions:
+            continue
+        surface_positions[surface] = _find_surface_positions(original_text, surface)
+        surface_indices[surface] = 0
+    for token in tokens:
+        token.original_start = None
+        token.original_end = None
+        surface = (token.surface or "").strip()
+        if not surface:
+            continue
+        positions = surface_positions.get(surface)
+        if positions:
+            pos_idx = surface_indices.get(surface, 0)
+            if pos_idx < len(positions):
+                idx = positions[pos_idx]
+                surface_indices[surface] = pos_idx + 1
+            else:
+                idx = -1
+        else:
+            idx = -1
+        if idx == -1:
+            idx = original_text.find(surface, cursor)
+            if idx == -1 and cursor > 0:
+                window_start = max(0, cursor - len(surface) - 8)
+                idx = original_text.find(surface, window_start, cursor)
+        if idx == -1:
+            continue
+        start = idx
+        end = min(text_len, idx + len(surface))
+        token.original_start = start
+        token.original_end = end
+        cursor = max(cursor, end)
+
+
+def _normalize_token_order(piece_text: str, tokens: list[PitchToken]) -> None:
+    if not piece_text or not tokens:
+        return
+    if not any(token.original_start is not None for token in tokens):
+        return
+    tokens.sort(
+        key=lambda token: (
+            token.original_start if token.original_start is not None else token.start,
+            token.start,
+        )
+    )
+    _remap_tokens_to_text(piece_text, tokens)
 
 
 def _hiragana_to_katakana(text: str) -> str:
@@ -1144,6 +1238,7 @@ def _finalize_segment_text(
     raw_text: str,
     backend: "NLPBackend" | None,
     preset_tokens: list[PitchToken] | None = None,
+    original_text: str | None = None,
 ) -> tuple[str, list[PitchToken] | None]:
     piece_text = raw_text.strip()
     piece_text = _normalize_ellipsis(piece_text)
@@ -1162,6 +1257,8 @@ def _finalize_segment_text(
             if trimmed_tokens:
                 aligned_tokens = _align_pitch_tokens(piece_text, trimmed_tokens)
                 if aligned_tokens:
+                    _align_tokens_to_original_text(original_text, aligned_tokens)
+                    _normalize_token_order(piece_text, aligned_tokens)
                     return piece_text, aligned_tokens
         piece_text, _ = _trim_text_and_tokens(piece_text, None)
         return piece_text, None
@@ -1169,6 +1266,8 @@ def _finalize_segment_text(
         collected_tokens.sort(key=lambda token: token.start)
         aligned_tokens = _align_pitch_tokens(piece_text, collected_tokens)
         if aligned_tokens:
+            _align_tokens_to_original_text(original_text, aligned_tokens)
+            _normalize_token_order(piece_text, aligned_tokens)
             return piece_text, aligned_tokens
     return piece_text, None
 
@@ -2093,16 +2192,17 @@ def epub_to_chapter_texts(
 
         chapters: list[ChapterText] = []
         for pending in sorted(pending_outputs, key=lambda item: item.sort_key):
+            original_basis = pending.raw_original.strip() or pending.raw_text
             finalized_text, pitch_tokens = _finalize_segment_text(
                 pending.raw_text,
                 backend,
                 preset_tokens=pending.tokens,
+                original_text=original_basis,
             )
             if not finalized_text:
                 continue
             if not chapters:
                 finalized_text = _ensure_title_author_break(finalized_text)
-            original_basis = pending.raw_original.strip() or pending.raw_text
             original_title = _first_non_blank_line(original_basis)
             processed_title = _first_non_blank_line(finalized_text)
             title = processed_title or pending.title_hint
@@ -2112,6 +2212,7 @@ def epub_to_chapter_texts(
                     source=pending.source,
                     title=title,
                     text=finalized_text,
+                    original_text=original_basis,
                     original_title=original_title,
                     book_title=book_title,
                     book_author=book_author,

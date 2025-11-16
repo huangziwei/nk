@@ -25,7 +25,7 @@ M4B_MANIFEST_FILENAME = "m4b.json"
 _SUPPORTED_COVER_EXTS = (".jpg", ".jpeg", ".png")
 _CUSTOM_PITCH_FILENAME = "custom_pitch.json"
 _PITCH_SUFFIX = ".pitch.json"
-_PITCH_METADATA_VERSION = 2
+_PITCH_METADATA_VERSION = 3
 
 
 @dataclass
@@ -172,6 +172,11 @@ def _write_chapter_texts(output_dir: Path, chapters: Iterable[ChapterText]) -> l
         basename = _chapter_basename(index, chapter, used_names)
         path = output_dir / f"{basename}.txt"
         path.write_text(chapter.text, encoding="utf-8")
+        original_path = output_dir / f"{basename}.original.txt"
+        if chapter.original_text is not None:
+            original_path.write_text(chapter.original_text, encoding="utf-8")
+        else:
+            original_path.unlink(missing_ok=True)
         _maybe_write_pitch_metadata(path, chapter)
         records.append(ChapterFileRecord(chapter=chapter, path=path, index=index + 1))
     return records

@@ -26,6 +26,7 @@ def test_write_book_package_emits_metadata_and_cover(tmp_path: Path) -> None:
             source="ch1.xhtml",
             title="Reading Title",
             text="Reading Title\nContent",
+            original_text="原文タイトル\n原文コンテンツ",
             original_title="Chapter One",
             book_title="Book Title",
             book_author="Author Name",
@@ -67,6 +68,9 @@ def test_write_book_package_emits_metadata_and_cover(tmp_path: Path) -> None:
     file_name = package.chapter_records[0].path.name
     assert file_name in loaded.chapters
     assert loaded.chapters[file_name].original_title == "Chapter One"
+    original_path = package.chapter_records[0].path.with_name(package.chapter_records[0].path.stem + ".original.txt")
+    assert original_path.exists()
+    assert original_path.read_text(encoding="utf-8") == chapters[0].original_text
 
 
 def test_cover_is_padded_to_square(tmp_path: Path) -> None:
@@ -118,7 +122,7 @@ def test_write_book_package_persists_pitch_metadata(tmp_path: Path) -> None:
     assert pitch_path.exists()
     payload = json.loads(pitch_path.read_text(encoding="utf-8"))
     expected_sha1 = hashlib.sha1("アメトアメ".encode("utf-8")).hexdigest()
-    assert payload["version"] == 2
+    assert payload["version"] == 3
     assert payload["text_sha1"] == expected_sha1
     assert payload["tokens"][0]["accent"] == 1
     assert payload["tokens"][1]["accent"] == 0
