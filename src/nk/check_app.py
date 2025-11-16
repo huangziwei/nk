@@ -279,11 +279,13 @@ INDEX_HTML = """<!DOCTYPE html>
     }
     .line-body {
       display: block;
+      width: 100%;
       font-family: "SFMono-Regular", Consolas, "Hiragino Sans", monospace;
-      white-space: pre;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: anywhere;
       line-height: 1.6;
       min-height: 1.6rem;
-      overflow: visible;
     }
     .text-panel.hidden {
       display: none;
@@ -389,20 +391,13 @@ INDEX_HTML = """<!DOCTYPE html>
       <section class="panel text-grid" id="text-grid">
         <div class="text-controls">
           <label class="toggle">
-            <input type="checkbox" id="toggle-transformed" checked>
-            <span>Transformed text</span>
-          </label>
-          <label class="toggle">
             <input type="checkbox" id="toggle-original" checked>
             <span>Original text</span>
           </label>
-        </div>
-        <div class="text-panel" id="transformed-panel">
-          <header>
-            <strong>Transformed text</strong>
-            <span id="transformed-meta" class="pill">—</span>
-          </header>
-          <div class="text-content empty" id="transformed-text">Select a chapter to preview.</div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-transformed" checked>
+            <span>Transformed text</span>
+          </label>
         </div>
         <div class="text-panel" id="original-panel">
           <header>
@@ -410,6 +405,13 @@ INDEX_HTML = """<!DOCTYPE html>
             <span id="original-meta" class="pill">—</span>
           </header>
           <div class="text-content empty" id="original-text">Original text unavailable.</div>
+        </div>
+        <div class="text-panel" id="transformed-panel">
+          <header>
+            <strong>Transformed text</strong>
+            <span id="transformed-meta" class="pill">—</span>
+          </header>
+          <div class="text-content empty" id="transformed-text">Select a chapter to preview.</div>
         </div>
       </section>
       <section class="panel" id="meta-panel" hidden>
@@ -447,6 +449,11 @@ INDEX_HTML = """<!DOCTYPE html>
       const toggleOriginal = document.getElementById('toggle-original');
       const tokenCountEl = document.getElementById('token-count');
       const tokenTableBody = document.querySelector('#token-table tbody');
+      const lineRegistry = {
+        transformed: [],
+        original: [],
+      };
+      let alignFrame = null;
 
       function setDocumentTitle(label) {
         document.title = label ? `${label} – ${baseTitle}` : baseTitle;
@@ -494,10 +501,59 @@ INDEX_HTML = """<!DOCTYPE html>
         tokenCountEl.className = 'pill' + (count ? ' ok' : ' missing');
       }
 
+      function setLineRegistry(key, lines) {
+        if (!lineRegistry[key]) {
+          lineRegistry[key] = [];
+        }
+        lineRegistry[key] = Array.isArray(lines) ? lines : [];
+      }
+
+      function clearLineHeights() {
+        Object.values(lineRegistry).forEach((lines) => {
+          lines.forEach((line) => {
+            line.style.minHeight = '';
+          });
+        });
+      }
+
+      function alignTextLines() {
+        if (!transformedPanel || !originalPanel) return;
+        clearLineHeights();
+        const transformedVisible = !transformedPanel.classList.contains('hidden');
+        const originalVisible = !originalPanel.classList.contains('hidden');
+        if (!(transformedVisible && originalVisible)) {
+          return;
+        }
+        const maxLines = Math.max(lineRegistry.transformed.length, lineRegistry.original.length);
+        for (let i = 0; i < maxLines; i += 1) {
+          const nodes = [];
+          const tLine = lineRegistry.transformed[i];
+          const oLine = lineRegistry.original[i];
+          if (tLine) nodes.push(tLine);
+          if (oLine) nodes.push(oLine);
+          if (nodes.length < 2) continue;
+          const maxHeight = Math.max(...nodes.map((node) => node.offsetHeight || 0));
+          nodes.forEach((node) => {
+            node.style.minHeight = `${maxHeight}px`;
+          });
+        }
+      }
+
+      function scheduleAlignLines() {
+        if (alignFrame !== null) {
+          cancelAnimationFrame(alignFrame);
+        }
+        alignFrame = requestAnimationFrame(() => {
+          alignFrame = null;
+          alignTextLines();
+        });
+      }
+
       function updatePanelVisibility(panel, toggle) {
         if (!panel || !toggle) return;
         panel.classList.toggle('hidden', !toggle.checked);
         updateTextGridLayout();
+        scheduleAlignLines();
       }
 
       function updateTextGridLayout() {
@@ -535,6 +591,7 @@ INDEX_HTML = """<!DOCTYPE html>
         transformedText.addEventListener('scroll', () => syncScroll(transformedText, originalText));
         originalText.addEventListener('scroll', () => syncScroll(originalText, transformedText));
       }
+      window.addEventListener('resize', () => scheduleAlignLines());
 
       function setHighlighted(index) {
         const target = index === null || index === undefined ? null : String(index);
@@ -588,7 +645,7 @@ INDEX_HTML = """<!DOCTYPE html>
         if (!text) {
           container.classList.add('empty');
           container.textContent = key === 'original' ? 'Original text unavailable.' : 'No text available.';
-          return;
+          return [];
         }
         container.classList.remove('empty');
         const length = text.length;
@@ -644,6 +701,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
         const linesContainer = document.createElement('div');
         linesContainer.className = 'text-lines';
+        const lines = [];
         let currentLineNodes = [];
         let lineCounter = 1;
 
@@ -663,6 +721,7 @@ INDEX_HTML = """<!DOCTYPE html>
           lineEl.appendChild(numberEl);
           lineEl.appendChild(bodyEl);
           linesContainer.appendChild(lineEl);
+          lines.push(lineEl);
           currentLineNodes = [];
         };
 
@@ -704,6 +763,7 @@ INDEX_HTML = """<!DOCTYPE html>
         });
         flushLine();
         container.appendChild(linesContainer);
+        return lines;
       }
 
       function renderTokensTable(tokens) {
@@ -847,6 +907,9 @@ INDEX_HTML = """<!DOCTYPE html>
         originalText.classList.add('empty');
         originalText.textContent = 'Original text unavailable.';
         resetScrollPositions();
+        setLineRegistry('transformed', []);
+        setLineRegistry('original', []);
+        scheduleAlignLines();
         tokenTableBody.innerHTML = '';
         setTokenCount(null);
         setDocumentTitle(null);
@@ -870,10 +933,13 @@ INDEX_HTML = """<!DOCTYPE html>
             setDocumentTitle(displayName);
             updateMetaPanel(payload);
             updateTextMeta(transformedMeta, payload.text, true);
-            renderTextView(transformedText, payload.text, tokens, 'transformed');
+            const transformedLines = renderTextView(transformedText, payload.text, tokens, 'transformed');
             const hasOriginalFile = Boolean(payload.original_path);
             updateTextMeta(originalMeta, payload.original_text, hasOriginalFile);
-            renderTextView(originalText, payload.original_text, tokens, 'original');
+            const originalLines = renderTextView(originalText, payload.original_text, tokens, 'original');
+            setLineRegistry('transformed', transformedLines);
+            setLineRegistry('original', originalLines);
+            scheduleAlignLines();
             resetScrollPositions();
             setTokenCount(tokens.length);
             renderTokensTable(tokens);
