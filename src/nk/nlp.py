@@ -3,6 +3,7 @@ from __future__ import annotations
 import shlex
 import unicodedata
 import warnings
+import re
 from dataclasses import dataclass
 from typing import Callable, Optional
 
@@ -294,29 +295,47 @@ class NLPBackend:
         pieces: list[str] = []
         pitch_tokens: list[PitchToken] = []
         pos = 0
+        out_pos = 0
+
+        def _append_piece(fragment: str) -> str:
+            nonlocal out_pos
+            if not fragment:
+                return ""
+            normalized_fragment = _normalize_inline_ellipsis(fragment)
+            pieces.append(normalized_fragment)
+            out_pos += len(normalized_fragment)
+            return normalized_fragment
+
         for token in tokens:
             if token.start > pos:
-                pieces.append(text[pos:token.start])
+                gap = text[pos:token.start]
+                _append_piece(gap)
             segment = token.reading if _contains_cjk(token.surface) else token.surface
             segment = _normalize_katakana(segment)
             if segment:
-                pieces.append(segment)
+                start_out = out_pos
+                normalized_segment = _append_piece(segment)
+                end_out = out_pos
+            else:
+                start_out = out_pos
+                end_out = out_pos
+                normalized_segment = segment
             if _contains_cjk(token.surface) and token.reading:
                 pitch_tokens.append(
                     PitchToken(
                         surface=token.surface,
-                        reading=segment,
+                        reading=normalized_segment,
                         accent_type=token.accent_type,
                         accent_connection=token.accent_connection,
                         pos=token.pos,
-                        start=token.start,
-                        end=token.end,
+                        start=start_out,
+                        end=end_out,
                         sources=("unidic",),
                     )
                 )
             pos = token.end
         if pos < len(text):
-            pieces.append(text[pos:])
+            _append_piece(text[pos:])
         reading = _normalize_katakana("".join(pieces))
         return reading, pitch_tokens
 
@@ -555,3 +574,12 @@ class NLPBackend:
             return str(result)
 
         return _convert
+_ELLIPSIS_DOTS = re.compile(r"\.{3,}")
+_ELLIPSIS_REPEAT = re.compile(r"…{2,}")
+
+
+def _normalize_inline_ellipsis(text: str) -> str:
+    if not text:
+        return text
+    text = _ELLIPSIS_DOTS.sub("…", text)
+    return _ELLIPSIS_REPEAT.sub("…", text)

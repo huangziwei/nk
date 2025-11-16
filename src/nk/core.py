@@ -643,15 +643,19 @@ def _align_pitch_tokens(text: str, tokens: list[PitchToken]) -> list[PitchToken]
         return []
     aligned: list[PitchToken] = []
     cursor = 0
+    text_len = len(text)
     for token in tokens:
         reading = token.reading
         if not reading:
             continue
         idx = text.find(reading, cursor)
         if idx == -1:
-            continue
-        aligned.append(replace(token, start=idx, end=idx + len(reading)))
-        cursor = idx + len(reading)
+            fallback = max(0, min(token.start, text_len))
+            idx = fallback
+        idx = max(0, min(idx, text_len))
+        end = min(text_len, idx + len(reading))
+        aligned.append(replace(token, start=idx, end=end))
+        cursor = end
     return aligned
 
 
@@ -1014,6 +1018,33 @@ def _strip_fragment_newlines(fragment: _TextFragment) -> tuple[str, list[PitchTo
     return trimmed, adjusted
 
 
+def _trim_text_and_tokens(
+    text: str,
+    tokens: list[PitchToken] | None,
+) -> tuple[str, list[PitchToken] | None]:
+    if not text:
+        return "", tokens
+    left = 0
+    right = len(text)
+    while left < right and text[left].isspace():
+        left += 1
+    while right > left and text[right - 1].isspace():
+        right -= 1
+    if left == 0 and right == len(text):
+        return text, tokens
+    trimmed = text[left:right]
+    if not tokens:
+        return trimmed, tokens
+    adjusted: list[PitchToken] = []
+    for token in tokens:
+        start = max(left, min(token.start, right))
+        end = max(left, min(token.end, right))
+        new_start = max(0, start - left)
+        new_end = max(new_start, end - left)
+        adjusted.append(replace(token, start=new_start, end=new_end))
+    return trimmed, adjusted
+
+
 def _combine_text_fragments(fragments: list[_TextFragment]) -> tuple[str, list[PitchToken]]:
     if not fragments:
         return "", []
@@ -1115,23 +1146,25 @@ def _finalize_segment_text(
     preset_tokens: list[PitchToken] | None = None,
 ) -> tuple[str, list[PitchToken] | None]:
     piece_text = raw_text.strip()
+    piece_text = _normalize_ellipsis(piece_text)
     if not piece_text:
         return "", None
     collected_tokens: list[PitchToken] = list(preset_tokens or [])
     if backend is not None:
         converted_text, tokens = backend.to_reading_with_pitch(piece_text)
-        piece_text = converted_text.strip()
-        piece_text = _normalize_ellipsis(piece_text)
+        piece_text = _normalize_ellipsis(converted_text)
         if tokens:
             collected_tokens.extend(tokens)
         if collected_tokens:
             _fill_missing_pitch_from_surface(collected_tokens, backend)
             collected_tokens.sort(key=lambda token: token.start)
-            aligned_tokens = _align_pitch_tokens(piece_text, collected_tokens)
-            if aligned_tokens:
-                return piece_text, aligned_tokens
+            piece_text, trimmed_tokens = _trim_text_and_tokens(piece_text, collected_tokens)
+            if trimmed_tokens:
+                aligned_tokens = _align_pitch_tokens(piece_text, trimmed_tokens)
+                if aligned_tokens:
+                    return piece_text, aligned_tokens
+        piece_text, _ = _trim_text_and_tokens(piece_text, None)
         return piece_text, None
-    piece_text = _normalize_ellipsis(piece_text)
     if collected_tokens:
         collected_tokens.sort(key=lambda token: token.start)
         aligned_tokens = _align_pitch_tokens(piece_text, collected_tokens)

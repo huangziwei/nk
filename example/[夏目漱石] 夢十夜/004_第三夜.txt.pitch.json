@@ -1443,13 +1443,25 @@
       ]
     },
     {
+      "surface": "ヒヶクボ",
+      "reading": "ヒガクボ",
+      "accent": null,
+      "connection": null,
+      "pos": "名詞",
+      "start": 685,
+      "end": 689,
+      "sources": [
+        "unidic"
+      ]
+    },
+    {
       "surface": "窪",
       "reading": "クボ",
       "accent": 0,
       "connection": null,
       "pos": "名詞",
-      "start": 686,
-      "end": 688,
+      "start": 689,
+      "end": 691,
       "sources": [
         "ruby"
       ]
@@ -1460,8 +1472,8 @@
       "accent": null,
       "connection": "C3",
       "pos": "名詞",
-      "start": 689,
-      "end": 691,
+      "start": 691,
+      "end": 693,
       "sources": [
         "unidic"
       ]
@@ -1472,8 +1484,8 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "start": 691,
-      "end": 696,
+      "start": 693,
+      "end": 698,
       "sources": [
         "ruby"
       ]
