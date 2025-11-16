@@ -53,9 +53,9 @@
     {
       "surface": "漱石",
       "reading": "ソウセキ",
-      "accent": null,
+      "accent": 1,
       "connection": null,
-      "pos": null,
+      "pos": "名詞",
       "start": 10,
       "end": 14,
       "sources": [

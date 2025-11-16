@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "text_sha1": "85cb015ff94a85106ed67d7e2bab2c8643e6ef64",
+  "text_sha1": "07a296bd905f4bb831770adeab8575bc5c428bf8",
   "tokens": [
     {
       "surface": "第",
@@ -60,18 +60,6 @@
       "end": 16,
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "つ",
-      "reading": "ツ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 21,
-      "end": 22,
-      "sources": [
-        "nhk"
       ]
     },
     {
@@ -173,9 +161,9 @@
     {
       "surface": "屋敷",
       "reading": "ヤシキ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 67,
       "end": 70,
       "sources": [
@@ -365,9 +353,9 @@
     {
       "surface": "子供",
       "reading": "コドモ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 167,
       "end": 170,
       "sources": [
@@ -521,9 +509,9 @@
     {
       "surface": "頭巾",
       "reading": "ズキン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 2,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 231,
       "end": 234,
       "sources": [
@@ -545,9 +533,9 @@
     {
       "surface": "勝手",
       "reading": "カッテ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 240,
       "end": 243,
       "sources": [
@@ -629,9 +617,9 @@
     {
       "surface": "雪洞",
       "reading": "ボンボリ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 265,
       "end": 269,
       "sources": [
@@ -641,9 +629,9 @@
     {
       "surface": "灯",
       "reading": "ヒ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
       "start": 270,
       "end": 271,
       "sources": [
@@ -665,9 +653,9 @@
     {
       "surface": "闇",
       "reading": "ヤミ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
       "start": 275,
       "end": 277,
       "sources": [
@@ -833,9 +821,9 @@
     {
       "surface": "子供",
       "reading": "コドモ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 344,
       "end": 347,
       "sources": [
@@ -881,9 +869,9 @@
     {
       "surface": "子供",
       "reading": "コドモ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1323,
       "end": 1326,
       "sources": [

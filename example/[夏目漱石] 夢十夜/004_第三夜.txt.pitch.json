@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "text_sha1": "6afb45e2da1c912374e21712d488deafd98d2bb2",
+  "text_sha1": "c4a8fdf1674ab5b1650ce3c9669869fc3c06e95e",
   "tokens": [
     {
       "surface": "第",
@@ -77,9 +77,9 @@
     {
       "surface": "子供",
       "reading": "コドモ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 26,
       "end": 29,
       "sources": [
@@ -101,9 +101,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 40,
       "end": 43,
       "sources": [
@@ -125,9 +125,9 @@
     {
       "surface": "不思議",
       "reading": "フシギ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 51,
       "end": 54,
       "sources": [
@@ -144,18 +144,6 @@
       "end": 57,
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "つ",
-      "reading": "ツ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 60,
-      "end": 61,
-      "sources": [
-        "nhk"
       ]
     },
     {
@@ -209,9 +197,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 86,
       "end": 89,
       "sources": [
@@ -305,9 +293,9 @@
     {
       "surface": "子供",
       "reading": "コドモ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 127,
       "end": 130,
       "sources": [
@@ -341,9 +329,9 @@
     {
       "surface": "言葉",
       "reading": "コトバ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 141,
       "end": 144,
       "sources": [
@@ -351,23 +339,11 @@
       ]
     },
     {
-      "surface": "つ",
-      "reading": "ツ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 144,
-      "end": 145,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "大人",
       "reading": "オトナ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 150,
       "end": 153,
       "sources": [
@@ -377,9 +353,9 @@
     {
       "surface": "対等",
       "reading": "タイトウ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "形状詞",
       "start": 160,
       "end": 164,
       "sources": [
@@ -401,9 +377,9 @@
     {
       "surface": "青田",
       "reading": "アオタ",
-      "accent": null,
+      "accent": 0,
       "connection": null,
-      "pos": null,
+      "pos": "名詞",
       "start": 173,
       "end": 176,
       "sources": [
@@ -413,9 +389,9 @@
     {
       "surface": "路",
       "reading": "ミチ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
       "start": 180,
       "end": 182,
       "sources": [
@@ -437,9 +413,9 @@
     {
       "surface": "鷺",
       "reading": "サギ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
       "start": 187,
       "end": 189,
       "sources": [
@@ -473,9 +449,9 @@
     {
       "surface": "闇",
       "reading": "ヤミ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
       "start": 197,
       "end": 199,
       "sources": [
@@ -497,9 +473,9 @@
     {
       "surface": "田圃",
       "reading": "タンボ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 206,
       "end": 209,
       "sources": [
@@ -509,9 +485,9 @@
     {
       "surface": "背中",
       "reading": "セナカ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 217,
       "end": 220,
       "sources": [
@@ -593,9 +569,9 @@
     {
       "surface": "鷺",
       "reading": "サギ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C3",
+      "pos": "名詞",
       "start": 265,
       "end": 267,
       "sources": [
@@ -677,9 +653,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 307,
       "end": 310,
       "sources": [
@@ -725,9 +701,9 @@
     {
       "surface": "怖",
       "reading": "コワ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 2,
+      "connection": "C1",
+      "pos": "形容詞",
       "start": 320,
       "end": 322,
       "sources": [
@@ -893,9 +869,9 @@
     {
       "surface": "途端",
       "reading": "トタン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 410,
       "end": 413,
       "sources": [
@@ -905,9 +881,9 @@
     {
       "surface": "背中",
       "reading": "セナカ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 415,
       "end": 418,
       "sources": [
@@ -965,9 +941,9 @@
     {
       "surface": "子供",
       "reading": "コドモ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 451,
       "end": 454,
       "sources": [
@@ -977,9 +953,9 @@
     {
       "surface": "返事",
       "reading": "ヘンジ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 455,
       "end": 458,
       "sources": [
@@ -1085,9 +1061,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 523,
       "end": 526,
       "sources": [
@@ -1229,9 +1205,9 @@
     {
       "surface": "二股",
       "reading": "フタマタ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 587,
       "end": 591,
       "sources": [
@@ -1241,9 +1217,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 596,
       "end": 599,
       "sources": [
@@ -1253,9 +1229,9 @@
     {
       "surface": "股",
       "reading": "マタ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
       "start": 600,
       "end": 602,
       "sources": [
@@ -1469,9 +1445,9 @@
     {
       "surface": "窪",
       "reading": "クボ",
-      "accent": null,
+      "accent": 0,
       "connection": null,
-      "pos": null,
+      "pos": "名詞",
       "start": 686,
       "end": 688,
       "sources": [
@@ -1505,9 +1481,9 @@
     {
       "surface": "闇",
       "reading": "ヤミ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 2,
+      "connection": "C3",
+      "pos": "名詞",
       "start": 700,
       "end": 702,
       "sources": [
@@ -1541,9 +1517,9 @@
     {
       "surface": "明",
       "reading": "アキラ",
-      "accent": null,
+      "accent": 1,
       "connection": null,
-      "pos": null,
+      "pos": "名詞",
       "start": 710,
       "end": 713,
       "sources": [
@@ -1589,9 +1565,9 @@
     {
       "surface": "井守",
       "reading": "イモリ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
       "start": 724,
       "end": 727,
       "sources": [
@@ -1661,9 +1637,9 @@
     {
       "surface": "命令",
       "reading": "メイレイ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 759,
       "end": 763,
       "sources": [
@@ -1757,9 +1733,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 794,
       "end": 797,
       "sources": [
@@ -1805,9 +1781,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 814,
       "end": 817,
       "sources": [
@@ -1817,9 +1793,9 @@
     {
       "surface": "躊躇",
       "reading": "チュウチョ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
       "start": 822,
       "end": 827,
       "sources": [
@@ -1865,9 +1841,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 856,
       "end": 859,
       "sources": [
@@ -2057,9 +2033,9 @@
     {
       "surface": "背中",
       "reading": "セナカ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 932,
       "end": 935,
       "sources": [
@@ -2093,9 +2069,9 @@
     {
       "surface": "自由",
       "reading": "ジュウ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 2,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 946,
       "end": 949,
       "sources": [
@@ -2213,9 +2189,9 @@
     {
       "surface": "厭",
       "reading": "イヤ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 2,
+      "connection": "C3",
+      "pos": "形状詞",
       "start": 1042,
       "end": 1044,
       "sources": [
@@ -2345,9 +2321,9 @@
     {
       "surface": "背中",
       "reading": "セナカ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1107,
       "end": 1110,
       "sources": [
@@ -2465,9 +2441,9 @@
     {
       "surface": "子供",
       "reading": "コドモ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1168,
       "end": 1171,
       "sources": [
@@ -2657,9 +2633,9 @@
     {
       "surface": "大変",
       "reading": "タイヘン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "形状詞",
       "start": 1268,
       "end": 1272,
       "sources": [
@@ -2705,9 +2681,9 @@
     {
       "surface": "安心",
       "reading": "アンシン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1295,
       "end": 1299,
       "sources": [
@@ -2729,9 +2705,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1317,
       "end": 1320,
       "sources": [
@@ -2825,9 +2801,9 @@
     {
       "surface": "背中",
       "reading": "セナカ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1376,
       "end": 1379,
       "sources": [
@@ -2859,18 +2835,6 @@
       ]
     },
     {
-      "surface": "つ",
-      "reading": "ツ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1390,
-      "end": 1391,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "小僧",
       "reading": "コゾウ",
       "accent": 2,
@@ -2885,9 +2849,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1402,
       "end": 1405,
       "sources": [
@@ -2921,9 +2885,9 @@
     {
       "surface": "未来",
       "reading": "ミライ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
       "start": 1414,
       "end": 1417,
       "sources": [
@@ -3005,9 +2969,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1462,
       "end": 1465,
       "sources": [
@@ -3041,9 +3005,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1482,
       "end": 1485,
       "sources": [
@@ -3161,9 +3125,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1547,
       "end": 1550,
       "sources": [
@@ -3192,18 +3156,6 @@
       "end": 1558,
       "sources": [
         "unidic"
-      ]
-    },
-    {
-      "surface": "つ",
-      "reading": "ツ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1561,
-      "end": 1562,
-      "sources": [
-        "nhk"
       ]
     },
     {
@@ -3425,9 +3377,9 @@
     {
       "surface": "文化",
       "reading": "ブンカ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
       "start": 1668,
       "end": 1671,
       "sources": [
@@ -3461,9 +3413,9 @@
     {
       "surface": "辰年",
       "reading": "タツドシ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1674,
       "end": 1678,
       "sources": [
@@ -3473,9 +3425,9 @@
     {
       "surface": "文化",
       "reading": "ブンカ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
       "start": 1689,
       "end": 1692,
       "sources": [
@@ -3509,9 +3461,9 @@
     {
       "surface": "辰年",
       "reading": "タツドシ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1695,
       "end": 1699,
       "sources": [
@@ -3593,9 +3545,9 @@
     {
       "surface": "自分",
       "reading": "ジブン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1745,
       "end": 1748,
       "sources": [
@@ -3605,9 +3557,9 @@
     {
       "surface": "言葉",
       "reading": "コトバ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1751,
       "end": 1754,
       "sources": [
@@ -3677,9 +3629,9 @@
     {
       "surface": "文化",
       "reading": "ブンカ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 1,
+      "connection": "C1",
+      "pos": "名詞",
       "start": 1773,
       "end": 1776,
       "sources": [
@@ -3713,9 +3665,9 @@
     {
       "surface": "辰年",
       "reading": "タツドシ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1780,
       "end": 1784,
       "sources": [
@@ -3773,9 +3725,9 @@
     {
       "surface": "一人",
       "reading": "ヒトリ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 2,
+      "connection": "C1",
+      "pos": "名詞",
       "start": 1803,
       "end": 1806,
       "sources": [
@@ -3833,9 +3785,9 @@
     {
       "surface": "忽然",
       "reading": "コツゼン",
-      "accent": null,
+      "accent": 0,
       "connection": null,
-      "pos": null,
+      "pos": "副詞",
       "start": 1823,
       "end": 1827,
       "sources": [
@@ -3915,23 +3867,11 @@
       ]
     },
     {
-      "surface": "つ",
-      "reading": "ツ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 1864,
-      "end": 1865,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "途端",
       "reading": "トタン",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1867,
       "end": 1870,
       "sources": [
@@ -3941,9 +3881,9 @@
     {
       "surface": "背中",
       "reading": "セナカ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 1872,
       "end": 1875,
       "sources": [

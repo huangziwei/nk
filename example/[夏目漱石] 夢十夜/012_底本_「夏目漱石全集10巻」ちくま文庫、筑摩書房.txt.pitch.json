@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "text_sha1": "da03425fb2b9e87ecf79157719a9d0d99361c29e",
+  "text_sha1": "de6a5329182c3fae8b08fc6303e19bac63e45f17",
   "tokens": [
     {
       "surface": "底本",
@@ -29,9 +29,9 @@
     {
       "surface": "漱石",
       "reading": "ソウセキ",
-      "accent": null,
+      "accent": 1,
       "connection": null,
-      "pos": null,
+      "pos": "名詞",
       "start": 9,
       "end": 13,
       "sources": [
@@ -135,15 +135,15 @@
       ]
     },
     {
-      "surface": "6日",
-      "reading": "ムイカ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 60,
+      "surface": "日",
+      "reading": "ニチ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 61,
       "end": 63,
       "sources": [
-        "nhk"
+        "unidic"
       ]
     },
     {
@@ -185,9 +185,9 @@
     {
       "surface": "平成",
       "reading": "ヘイセイ",
-      "accent": null,
+      "accent": 0,
       "connection": null,
-      "pos": null,
+      "pos": "名詞",
       "start": 82,
       "end": 86,
       "sources": [
@@ -219,15 +219,15 @@
       ]
     },
     {
-      "surface": "5日",
-      "reading": "イツカ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 94,
+      "surface": "日",
+      "reading": "ニチ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 95,
       "end": 97,
       "sources": [
-        "nhk"
+        "unidic"
       ]
     },
     {
@@ -353,9 +353,9 @@
     {
       "surface": "漱石",
       "reading": "ソウセキ",
-      "accent": null,
+      "accent": 1,
       "connection": null,
-      "pos": null,
+      "pos": "名詞",
       "start": 137,
       "end": 141,
       "sources": [
@@ -569,9 +569,9 @@
     {
       "surface": "番号",
       "reading": "バンゴウ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 230,
       "end": 234,
       "sources": [
@@ -591,18 +591,6 @@
       ]
     },
     {
-      "surface": "つ",
-      "reading": "ツ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 246,
-      "end": 247,
-      "sources": [
-        "nhk"
-      ]
-    },
-    {
       "surface": "入力",
       "reading": "ニュウリョク",
       "accent": null,
@@ -617,9 +605,9 @@
     {
       "surface": "野口",
       "reading": "ノグチ",
-      "accent": null,
+      "accent": 1,
       "connection": null,
-      "pos": null,
+      "pos": "名詞",
       "start": 263,
       "end": 266,
       "sources": [
@@ -663,23 +651,23 @@
       ]
     },
     {
-      "surface": "6日",
-      "reading": "ムイカ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 282,
+      "surface": "日",
+      "reading": "ニチ",
+      "accent": 1,
+      "connection": "C3",
+      "pos": "名詞",
+      "start": 283,
       "end": 285,
       "sources": [
-        "nhk"
+        "unidic"
       ]
     },
     {
       "surface": "公開",
       "reading": "コウカイ",
-      "accent": null,
-      "connection": null,
-      "pos": null,
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
       "start": 285,
       "end": 289,
       "sources": [
@@ -711,15 +699,15 @@
       ]
     },
     {
-      "surface": "7日",
-      "reading": "ナノカ",
+      "surface": "日",
+      "reading": "ニチ",
       "accent": null,
-      "connection": null,
-      "pos": null,
-      "start": 301,
+      "connection": "C4",
+      "pos": "接尾辞",
+      "start": 302,
       "end": 304,
       "sources": [
-        "nhk"
+        "unidic"
       ]
     },
     {
