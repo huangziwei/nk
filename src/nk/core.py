@@ -1130,8 +1130,7 @@ def _render_text_from_tokens(text: str, tokens: list[ChapterToken]) -> tuple[str
     if not text:
         return "", []
     if not tokens:
-        normalized = _normalize_katakana(_hiragana_to_katakana(text))
-        normalized = _normalize_ellipsis_with_offsets(normalized, None)
+        normalized = _normalize_ellipsis_with_offsets(text, None)
         return normalized, []
     output: list[str] = []
     cursor = 0
@@ -1139,10 +1138,9 @@ def _render_text_from_tokens(text: str, tokens: list[ChapterToken]) -> tuple[str
     for token in sorted(tokens, key=lambda t: (t.start, t.end)):
         if token.start > cursor:
             chunk = text[cursor : token.start]
-            normalized_chunk = _normalize_katakana(_hiragana_to_katakana(chunk))
-            if normalized_chunk:
-                output.append(normalized_chunk)
-                out_pos += len(normalized_chunk)
+            if chunk:
+                output.append(chunk)
+                out_pos += len(chunk)
         reading = token.reading or token.fallback_reading or token.surface
         normalized_reading = _normalize_katakana(reading)
         token.reading = normalized_reading
@@ -1153,9 +1151,8 @@ def _render_text_from_tokens(text: str, tokens: list[ChapterToken]) -> tuple[str
         cursor = token.end
     if cursor < len(text):
         chunk = text[cursor:]
-        normalized_chunk = _normalize_katakana(_hiragana_to_katakana(chunk))
-        if normalized_chunk:
-            output.append(normalized_chunk)
+        if chunk:
+            output.append(chunk)
     rendered = _normalize_ellipsis_with_offsets("".join(output), tokens)
     return rendered, tokens
 
