@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from .book_io import (
@@ -31,6 +31,7 @@ from .tts import (
     discover_voicevox_runtime,
     managed_voicevox_runtime,
 )
+from .uploads import UploadJob, UploadManager
 from .voice_defaults import (
     DEFAULT_INTONATION_SCALE,
     DEFAULT_PITCH_SCALE,
@@ -149,6 +150,143 @@ INDEX_HTML = """<!DOCTYPE html>
       min-height: 160px;
       width: 100%;
       max-width: 420px;
+    }
+    .card.empty-card {
+      justify-content: center;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed rgba(255,255,255,0.08);
+    }
+    .upload-card {
+      border: 1px dashed rgba(59,130,246,0.3);
+      background: rgba(27, 31, 50, 0.9);
+      position: relative;
+      overflow: hidden;
+    }
+    .upload-card .upload-drop {
+      border-radius: calc(var(--radius) - 8px);
+      border: 1px dashed rgba(59,130,246,0.5);
+      padding: 0.9rem;
+      text-align: center;
+      cursor: pointer;
+      background: rgba(59,130,246,0.07);
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      outline: none;
+      transition: border-color 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+    }
+    .upload-card .upload-drop strong {
+      font-size: 1.05rem;
+      letter-spacing: 0.01em;
+    }
+    .upload-card .upload-drop p {
+      margin: 0;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+    .upload-card .upload-drop.dragging {
+      border-color: rgba(59,130,246,0.9);
+      background: rgba(59,130,246,0.15);
+    }
+    .upload-card .upload-drop.upload-busy {
+      opacity: 0.7;
+      pointer-events: none;
+    }
+    .upload-card .upload-actions {
+      display: inline-flex;
+      justify-content: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.2rem;
+    }
+    .upload-card .upload-actions button {
+      background: rgba(59,130,246,0.15);
+      color: var(--accent);
+      border-radius: 999px;
+      border: 1px solid rgba(59,130,246,0.4);
+      padding: 0.25rem 0.9rem;
+      font-size: 0.85rem;
+    }
+    .upload-card .upload-error {
+      min-height: 1.1rem;
+      font-size: 0.85rem;
+      color: var(--danger);
+    }
+    .upload-card .upload-jobs {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .upload-card .upload-empty {
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    .upload-card .upload-job {
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 0.6rem 0.75rem;
+      background: rgba(15,18,32,0.9);
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .upload-card .upload-job[data-status="success"] {
+      border-color: rgba(34,197,94,0.5);
+    }
+    .upload-card .upload-job[data-status="error"] {
+      border-color: rgba(248,113,113,0.5);
+    }
+    .upload-card .upload-job-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      align-items: center;
+    }
+    .upload-card .upload-job-title {
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .upload-card .upload-job-status {
+      font-size: 0.78rem;
+      border-radius: 999px;
+      padding: 0.1rem 0.6rem;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .upload-card .upload-job[data-status="success"] .upload-job-status {
+      color: #bbf7d0;
+      border-color: rgba(34,197,94,0.6);
+    }
+    .upload-card .upload-job[data-status="error"] .upload-job-status {
+      color: var(--danger);
+      border-color: rgba(248,113,113,0.6);
+    }
+    .upload-card .upload-job-message {
+      font-size: 0.82rem;
+      color: var(--muted);
+      min-height: 1rem;
+    }
+    .upload-card .upload-target {
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .upload-card .upload-progress {
+      height: 6px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .upload-card .upload-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.2s ease;
     }
     .card .title {
       font-size: 1.05rem;
@@ -584,6 +722,9 @@ INDEX_HTML = """<!DOCTYPE html>
       .cards {
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       }
+      .upload-card {
+        display: none;
+      }
       .action-bar {
         flex-direction: column;
         align-items: flex-start;
@@ -759,12 +900,23 @@ INDEX_HTML = """<!DOCTYPE html>
         lastPlayed: null,
       },
       localBuilds: new Set(),
+      uploadJobs: [],
     };
     let statusPollHandle = null;
     let lastPlaySyncAt = 0;
     let lastPlayPending = null;
     let lastOpenedBookId = null;
     let noteModalContext = null;
+    const uploadUI = {
+      root: null,
+      drop: null,
+      input: null,
+      error: null,
+      jobsList: null,
+    };
+    let uploadPollTimer = null;
+    let uploadDragDepth = 0;
+    const UPLOAD_POLL_INTERVAL = 4000;
 
     function formatTrackNumber(num) {
       if (typeof num !== 'number' || !Number.isFinite(num)) return '';
@@ -801,6 +953,256 @@ INDEX_HTML = """<!DOCTYPE html>
 
     function chapterById(chapterId) {
       return state.chapters.find(ch => ch.id === chapterId) || null;
+    }
+
+    function ensureUploadCard() {
+      if (uploadUI.root) {
+        return uploadUI.root;
+      }
+      const card = document.createElement('article');
+      card.className = 'card upload-card';
+      card.innerHTML = `
+        <div class="upload-drop" data-role="upload-drop" tabindex="0" role="button" aria-label="Upload EPUB">
+          <input type="file" accept=".epub" hidden data-role="upload-input">
+          <strong>Upload EPUB</strong>
+          <p>Drop an .epub here or click to select a file. nk will chapterize it and add it to your library.</p>
+          <div class="upload-actions">
+            <button type="button" class="secondary">Select EPUB</button>
+          </div>
+        </div>
+        <div class="upload-error" data-role="upload-error"></div>
+        <div class="upload-jobs" data-role="upload-jobs">
+          <div class="upload-empty">No uploads yet.</div>
+        </div>
+      `;
+      uploadUI.root = card;
+      uploadUI.drop = card.querySelector('[data-role="upload-drop"]');
+      uploadUI.input = card.querySelector('[data-role="upload-input"]');
+      uploadUI.error = card.querySelector('[data-role="upload-error"]');
+      uploadUI.jobsList = card.querySelector('[data-role="upload-jobs"]');
+
+      if (uploadUI.drop) {
+        uploadUI.drop.addEventListener('click', (event) => {
+          event.preventDefault();
+          uploadUI.input?.click();
+        });
+        uploadUI.drop.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            uploadUI.input?.click();
+          }
+        });
+        uploadUI.drop.addEventListener('dragenter', (event) => {
+          event.preventDefault();
+          uploadDragDepth += 1;
+          uploadUI.drop.classList.add('dragging');
+        });
+        uploadUI.drop.addEventListener('dragover', (event) => {
+          event.preventDefault();
+        });
+        uploadUI.drop.addEventListener('dragleave', (event) => {
+          event.preventDefault();
+          uploadDragDepth = Math.max(0, uploadDragDepth - 1);
+          if (uploadDragDepth === 0) {
+            uploadUI.drop.classList.remove('dragging');
+          }
+        });
+        uploadUI.drop.addEventListener('drop', (event) => {
+          event.preventDefault();
+          uploadDragDepth = 0;
+          uploadUI.drop.classList.remove('dragging');
+          const files = event.dataTransfer ? event.dataTransfer.files : null;
+          handleUploadFiles(files);
+        });
+      }
+      if (uploadUI.input) {
+        uploadUI.input.addEventListener('change', () => {
+          handleUploadFiles(uploadUI.input?.files || null);
+        });
+      }
+      renderUploadJobs();
+      return card;
+    }
+
+    function formatUploadStatus(status) {
+      if (!status) return 'Pending';
+      const text = String(status);
+      return text.charAt(0).toUpperCase() + text.slice(1);
+    }
+
+    function setUploadError(message) {
+      if (!uploadUI.error) return;
+      uploadUI.error.textContent = message || '';
+    }
+
+    function renderUploadJobs() {
+      if (!uploadUI.jobsList) return;
+      uploadUI.jobsList.innerHTML = '';
+      if (!state.uploadJobs.length) {
+        const empty = document.createElement('div');
+        empty.className = 'upload-empty';
+        empty.textContent = 'No uploads yet.';
+        uploadUI.jobsList.appendChild(empty);
+        return;
+      }
+      state.uploadJobs.forEach((job) => {
+        const item = document.createElement('div');
+        item.className = 'upload-job';
+        if (job.status) {
+          item.dataset.status = job.status;
+        }
+        const header = document.createElement('div');
+        header.className = 'upload-job-header';
+        const title = document.createElement('div');
+        title.className = 'upload-job-title';
+        title.textContent = job.filename || 'Upload';
+        const statusLabel = document.createElement('span');
+        statusLabel.className = 'upload-job-status';
+        statusLabel.textContent = formatUploadStatus(job.status);
+        header.appendChild(title);
+        header.appendChild(statusLabel);
+        item.appendChild(header);
+
+        const message = document.createElement('div');
+        message.className = 'upload-job-message';
+        const progressLabel = job.progress && job.progress.label ? job.progress.label : null;
+        const errorMessage = job.error || null;
+        message.textContent = errorMessage || job.message || progressLabel || 'Pending…';
+        item.appendChild(message);
+
+        if (job.book_dir || job.target_name) {
+          const target = document.createElement('div');
+          target.className = 'upload-target';
+          target.textContent = `→ ${job.book_dir || job.target_name}`;
+          item.appendChild(target);
+        }
+
+        const progress = job.progress;
+        if (
+          progress
+          && typeof progress.index === 'number'
+          && typeof progress.total === 'number'
+          && progress.total > 0
+        ) {
+          const percent = Math.max(0, Math.min(100, (progress.index / progress.total) * 100));
+          const wrap = document.createElement('div');
+          wrap.className = 'upload-progress';
+          const bar = document.createElement('div');
+          bar.className = 'upload-progress-bar';
+          bar.style.width = `${percent}%`;
+          wrap.appendChild(bar);
+          item.appendChild(wrap);
+        }
+
+        uploadUI.jobsList.appendChild(item);
+      });
+    }
+
+    function applyUploadJobs(jobs) {
+      if (!Array.isArray(jobs)) {
+        if (!state.uploadJobs.length) {
+          renderUploadJobs();
+        }
+        return;
+      }
+      const prevStatuses = new Map(state.uploadJobs.map(job => [job.id, job.status]));
+      const normalized = jobs.filter(entry => entry && typeof entry === 'object').map(entry => entry);
+      normalized.sort((a, b) => {
+        const aTime = new Date(a.updated || a.created || 0).getTime();
+        const bTime = new Date(b.updated || b.created || 0).getTime();
+        return bTime - aTime;
+      });
+      state.uploadJobs = normalized;
+      renderUploadJobs();
+      const hasNewSuccess = normalized.some(
+        job => job.status === 'success' && prevStatuses.get(job.id) !== 'success'
+      );
+      if (hasNewSuccess) {
+        handlePromise(loadBooks());
+      }
+    }
+
+    async function loadUploads() {
+      try {
+        const payload = await fetchJSON('/api/uploads');
+        if (payload && Array.isArray(payload.jobs)) {
+          applyUploadJobs(payload.jobs);
+        } else if (!state.uploadJobs.length) {
+          renderUploadJobs();
+        }
+      } catch (err) {
+        console.warn('Failed to load uploads', err);
+      }
+    }
+
+    function startUploadPolling() {
+      if (uploadPollTimer !== null) {
+        return;
+      }
+      uploadPollTimer = window.setInterval(() => {
+        loadUploads();
+      }, UPLOAD_POLL_INTERVAL);
+    }
+
+    function handleUploadFiles(fileList) {
+      const files = [];
+      if (!fileList) {
+        // no-op
+      } else if (typeof fileList.length === 'number') {
+        for (let i = 0; i < fileList.length; i += 1) {
+          const entry = fileList[i];
+          if (entry) files.push(entry);
+        }
+      } else if (fileList && fileList.name) {
+        files.push(fileList);
+      }
+      const file = files.find(candidate => candidate?.name?.toLowerCase().endsWith('.epub'));
+      if (!file) {
+        setUploadError('Please choose an .epub file.');
+        return;
+      }
+      setUploadError('');
+      if (uploadUI.drop) {
+        uploadUI.drop.classList.remove('dragging');
+        uploadUI.drop.classList.add('upload-busy');
+      }
+      const formData = new FormData();
+      formData.append('file', file, file.name);
+      fetch('/api/uploads', {
+        method: 'POST',
+        body: formData,
+      })
+        .then(async (res) => {
+          let payload = null;
+          try {
+            payload = await res.json();
+          } catch {
+            payload = null;
+          }
+          if (!res.ok) {
+            const detail = payload && payload.detail;
+            throw new Error(detail || `Upload failed (${res.status})`);
+          }
+          return payload;
+        })
+        .then(() => {
+          loadUploads();
+          startUploadPolling();
+        })
+        .catch((err) => {
+          console.error(err);
+          setUploadError(err.message || 'Upload failed.');
+        })
+        .finally(() => {
+          if (uploadUI.input) {
+            uploadUI.input.value = '';
+          }
+          if (uploadUI.drop) {
+            uploadUI.drop.classList.remove('upload-busy');
+            uploadUI.drop.classList.remove('dragging');
+          }
+          uploadDragDepth = 0;
+        });
     }
 
     function setBookmarks(payload) {
@@ -1372,11 +1774,16 @@ INDEX_HTML = """<!DOCTYPE html>
     }
 
     function renderBooks() {
+      if (!booksGrid) return;
       booksGrid.innerHTML = '';
+      const uploadCard = ensureUploadCard();
+      if (uploadCard) {
+        booksGrid.appendChild(uploadCard);
+      }
       if (!state.books.length) {
-        const empty = document.createElement('div');
+        const empty = document.createElement('article');
+        empty.className = 'card empty-card';
         empty.textContent = 'No books discovered under this library root.';
-        empty.style.color = 'var(--muted)';
         booksGrid.appendChild(empty);
         return;
       }
@@ -2071,6 +2478,11 @@ INDEX_HTML = """<!DOCTYPE html>
     playBookBtn.onclick = () => handlePromise(resumeLastPlay());
     restartBookBtn.onclick = () => handlePromise(playBook(true));
 
+    ensureUploadCard();
+    renderUploadJobs();
+    loadUploads();
+    startUploadPolling();
+
     setBookmarks({ manual: [], last_played: null });
 
     loadBooks().catch(err => {
@@ -2617,6 +3029,9 @@ def create_app(config: PlayerConfig) -> FastAPI:
     app.state.config = config
     app.state.root = root
     app.state.voicevox_lock = threading.Lock()
+    upload_manager = UploadManager(root)
+    app.state.upload_manager = upload_manager
+    app.add_event_handler("shutdown", upload_manager.shutdown)
 
     status_lock = threading.Lock()
     chapter_status: dict[str, dict[str, dict[str, object]]] = {}
@@ -2724,6 +3139,32 @@ def create_app(config: PlayerConfig) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
         return INDEX_HTML
+
+    @app.get("/api/uploads")
+    def api_uploads() -> JSONResponse:
+        jobs = upload_manager.list_jobs()
+        return JSONResponse({"jobs": jobs})
+
+    @app.post("/api/uploads")
+    async def api_upload_epub(file: UploadFile = File(...)) -> JSONResponse:
+        filename = file.filename or "upload.epub"
+        if Path(filename).suffix.lower() != ".epub":
+            raise HTTPException(status_code=400, detail="Only .epub files are supported.")
+        job = UploadJob(root, filename)
+        try:
+            with job.temp_path.open("wb") as destination:
+                while True:
+                    chunk = await file.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    destination.write(chunk)
+        except Exception as exc:
+            job.cleanup()
+            raise HTTPException(status_code=500, detail=f"Failed to save upload: {exc}") from exc
+        finally:
+            await file.close()
+        upload_manager.enqueue(job)
+        return JSONResponse({"job": job.to_payload()})
 
     @app.get("/api/books")
     def api_books() -> JSONResponse:
