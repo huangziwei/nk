@@ -25,6 +25,7 @@ from .tts import (
     VoiceVoxClient,
     VoiceVoxError,
     VoiceVoxUnavailableError,
+    _parse_track_number_from_name,
     _synthesize_target_with_client,
     _target_cache_dir,
     discover_voicevox_runtime,
@@ -2337,6 +2338,50 @@ def _read_original_title_from_file(chapter_path: Path) -> str | None:
         return None
     return None
 
+def _populate_target_metadata(
+    target: TTSTarget,
+    book_path: Path,
+    metadata: LoadedBookMetadata | None,
+) -> None:
+    book_title = book_path.name
+    book_author = book_title
+    cover_path = None
+    if metadata:
+        if metadata.title:
+            book_title = metadata.title
+        if metadata.author:
+            book_author = metadata.author
+        cover_path = metadata.cover_path
+    if cover_path is None:
+        cover_path = _fallback_cover_path(book_path)
+    if cover_path is not None and cover_path.exists():
+        target.cover_image = cover_path
+    target.book_title = book_title
+    target.book_author = book_author
+    chapter_meta = metadata.chapters.get(target.source.name) if metadata else None
+    if chapter_meta:
+        if chapter_meta.title:
+            target.chapter_title = chapter_meta.title
+        if chapter_meta.original_title:
+            target.original_title = chapter_meta.original_title
+        if chapter_meta.index is not None:
+            target.track_number = chapter_meta.index
+        if metadata and metadata.chapters:
+            target.track_total = len(metadata.chapters)
+    else:
+        if not target.track_total:
+            all_chapters = _list_chapters(book_path)
+            if all_chapters:
+                target.track_total = len(all_chapters)
+        if target.track_number is None:
+            target.track_number = _parse_track_number_from_name(target.source.stem)
+    if not target.chapter_title:
+        target.chapter_title = target.source.stem
+    if not target.original_title:
+        target.original_title = _read_original_title_from_file(target.source)
+    if not target.original_title:
+        target.original_title = target.chapter_title
+
 
 def _chapter_state(
     chapter_path: Path,
@@ -2999,6 +3044,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
 
         target = TTSTarget(source=chapter_path, output=chapter_path.with_suffix(".mp3"))
         metadata = load_book_metadata(book_path)
+        _populate_target_metadata(target, book_path, metadata)
         voice_overrides = _voice_settings_for_book(config, metadata)
         force_indices = frozenset({0}) if restart else frozenset()
 

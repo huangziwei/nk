@@ -771,17 +771,16 @@ def _synthesize_target_with_client(
         track_number_int = _parse_track_number_from_name(target.source.stem)
     if track_number_int is None:
         track_number_int = index
-    width = max(3, len(str(track_total))) if track_total else 3
-    display_number = f"{track_number_int:0{width}d}"
     chapter_label = target.original_title or target.chapter_title
     if not chapter_label:
         chapter_label = target.source.stem.replace("_", " ").strip()
-    metadata_title = f"{display_number} {chapter_label or book_title}"
+    track_title = chapter_label or book_title
     artist_name = target.book_author or book_title
+    album_title = book_title
     metadata: dict[str, str] = {
-        "title": metadata_title,
+        "title": track_title,
         "artist": artist_name,
-        "album": book_title,
+        "album": album_title,
         "album_artist": artist_name,
     }
     if track_number_int is not None:
