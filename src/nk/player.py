@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from fastapi import Body, FastAPI, HTTPException, Query, UploadFile, File
+from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from .book_io import (
@@ -19,6 +19,7 @@ from .book_io import (
     load_book_metadata,
     update_book_tts_defaults,
 )
+from .library import list_books_sorted
 from .tts import (
     FFmpegError,
     TTSTarget,
@@ -158,7 +159,6 @@ INDEX_HTML = """<!DOCTYPE html>
       border: 1px dashed rgba(255,255,255,0.08);
     }
     .upload-card {
-      border: 1px dashed rgba(59,130,246,0.3);
       background: rgba(27, 31, 50, 0.9);
       position: relative;
       overflow: hidden;
@@ -2496,9 +2496,10 @@ INDEX_HTML = """<!DOCTYPE html>
 
 def _list_books(root: Path) -> list[Path]:
     books: list[Path] = []
-    for entry in sorted(root.iterdir()):
-        if entry.is_dir() and any(entry.glob("*.txt")):
-            books.append(entry)
+    for listing in list_books_sorted(root):
+        path = listing.path
+        if path.is_dir() and any(path.glob("*.txt")):
+            books.append(path)
     return books
 
 
@@ -2749,6 +2750,7 @@ def _read_original_title_from_file(chapter_path: Path) -> str | None:
     except OSError:
         return None
     return None
+
 
 def _populate_target_metadata(
     target: TTSTarget,
@@ -3149,7 +3151,9 @@ def create_app(config: PlayerConfig) -> FastAPI:
     async def api_upload_epub(file: UploadFile = File(...)) -> JSONResponse:
         filename = file.filename or "upload.epub"
         if Path(filename).suffix.lower() != ".epub":
-            raise HTTPException(status_code=400, detail="Only .epub files are supported.")
+            raise HTTPException(
+                status_code=400, detail="Only .epub files are supported."
+            )
         job = UploadJob(root, filename)
         try:
             with job.temp_path.open("wb") as destination:
@@ -3160,7 +3164,9 @@ def create_app(config: PlayerConfig) -> FastAPI:
                     destination.write(chunk)
         except Exception as exc:
             job.cleanup()
-            raise HTTPException(status_code=500, detail=f"Failed to save upload: {exc}") from exc
+            raise HTTPException(
+                status_code=500, detail=f"Failed to save upload: {exc}"
+            ) from exc
         finally:
             await file.close()
         upload_manager.enqueue(job)
@@ -3507,7 +3513,9 @@ def create_app(config: PlayerConfig) -> FastAPI:
 
         with build_lock:
             if job_key in active_build_jobs:
-                raise HTTPException(status_code=409, detail="Chapter is already building.")
+                raise HTTPException(
+                    status_code=409, detail="Chapter is already building."
+                )
             future = loop.run_in_executor(None, work)
             active_build_jobs[job_key] = {"cancel": cancel_event, "future": future}
 
@@ -3515,7 +3523,9 @@ def create_app(config: PlayerConfig) -> FastAPI:
             created = await future
         except KeyboardInterrupt:
             _clear_chapter_status(book_id, chapter_id)
-            raise HTTPException(status_code=409, detail="Build aborted by user.") from None
+            raise HTTPException(
+                status_code=409, detail="Build aborted by user."
+            ) from None
         except (VoiceVoxUnavailableError, VoiceVoxError, FFmpegError) as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         except Exception as exc:
@@ -3546,7 +3556,9 @@ def create_app(config: PlayerConfig) -> FastAPI:
         with build_lock:
             job = active_build_jobs.get(key)
         if not job:
-            raise HTTPException(status_code=409, detail="Chapter is not currently building.")
+            raise HTTPException(
+                status_code=409, detail="Chapter is not currently building."
+            )
         cancel_event = job.get("cancel")
         if isinstance(cancel_event, threading.Event):
             cancel_event.set()

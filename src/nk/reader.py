@@ -8,6 +8,7 @@ from typing import Iterable, Mapping
 from fastapi import FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from .library import list_books_sorted
 from .uploads import UploadJob, UploadManager
 
 INDEX_HTML = """<!DOCTYPE html>
@@ -1177,7 +1178,7 @@ INDEX_HTML = """<!DOCTYPE html>
       }
 
       function buildChapterTree(chapters) {
-        const createDirNode = (name, path, depth) => ({
+        const createDirNode = (name, path, depth, order = Number.POSITIVE_INFINITY) => ({
           type: 'dir',
           name,
           path,
@@ -1185,26 +1186,31 @@ INDEX_HTML = """<!DOCTYPE html>
           children: [],
           dirs: new Map(),
           chapterCount: 0,
+          order,
         });
-        const root = createDirNode('', '', 0);
-        const ensureDir = (node, name) => {
+        const root = createDirNode('', '', 0, -1);
+        const ensureDir = (node, name, orderHint) => {
           if (node.dirs.has(name)) {
-            return node.dirs.get(name);
+            const existing = node.dirs.get(name);
+            if (existing && typeof orderHint === 'number') {
+              existing.order = Math.min(existing.order, orderHint);
+            }
+            return existing;
           }
           const dirPath = node.path ? `${node.path}/${name}` : name;
-          const child = createDirNode(name, dirPath, node.depth + 1);
+          const child = createDirNode(name, dirPath, node.depth + 1, orderHint);
           node.dirs.set(name, child);
           node.children.push(child);
           return child;
         };
 
-        chapters.forEach((chapter) => {
+        chapters.forEach((chapter, index) => {
           const parts = chapter.path.split('/');
           const fileName = parts.pop() || chapter.name;
           let cursor = root;
           parts.forEach((part) => {
             if (part) {
-              cursor = ensureDir(cursor, part);
+              cursor = ensureDir(cursor, part, index);
             }
           });
           cursor.children.push({
@@ -1213,12 +1219,18 @@ INDEX_HTML = """<!DOCTYPE html>
             path: chapter.path,
             depth: cursor.depth + 1,
             chapter,
+            order: index,
           });
         });
 
         const finalize = (node) => {
           let total = 0;
           node.children.sort((a, b) => {
+            const orderA = typeof a.order === 'number' ? a.order : Number.POSITIVE_INFINITY;
+            const orderB = typeof b.order === 'number' ? b.order : Number.POSITIVE_INFINITY;
+            if (orderA !== orderB) {
+              return orderA - orderB;
+            }
             if (a.type !== b.type) {
               return a.type === 'dir' ? -1 : 1;
             }
@@ -1798,10 +1810,17 @@ INDEX_HTML = """<!DOCTYPE html>
 
 
 def _iter_chapter_files(root: Path) -> Iterable[Path]:
-    for path in sorted(root.rglob("*.txt")):
-        if not path.is_file():
-            continue
-        if path.name.endswith(".original.txt"):
+    for book in list_books_sorted(root):
+        book_path = book.path
+        for path in sorted(book_path.rglob("*.txt")):
+            if not path.is_file():
+                continue
+            if path.name.endswith(".original.txt"):
+                continue
+            yield path
+    # Include any loose .txt files directly under the root (rare).
+    for path in sorted(root.glob("*.txt")):
+        if not path.is_file() or path.name.endswith(".original.txt"):
             continue
         yield path
 
