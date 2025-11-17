@@ -571,16 +571,6 @@ INDEX_HTML = """<!DOCTYPE html>
           </div>
         </div>
       </details>
-      <div class="bookmark-panel hidden" id="bookmark-panel">
-        <div class="header">
-          <h4>Bookmarks</h4>
-          <div class="bookmark-actions">
-            <button id="bookmark-add" class="secondary" disabled>Add bookmark</button>
-            <span class="bookmark-status" id="last-play-status">No last play saved.</span>
-          </div>
-        </div>
-        <div class="bookmark-list" id="bookmark-list"></div>
-      </div>
       <div class="chapters" id="chapters-list"></div>
     </section>
 
@@ -593,6 +583,9 @@ INDEX_HTML = """<!DOCTYPE html>
         </div>
       </div>
       <audio id="player" controls preload="none"></audio>
+      <div class="player-actions hidden">
+        <button id="bookmark-add" class="secondary">Add bookmark</button>
+      </div>
       <div class="status-line" id="status">Idle</div>
     </div>
   </main>
@@ -613,7 +606,7 @@ INDEX_HTML = """<!DOCTYPE html>
     const playerCover = document.getElementById('player-cover');
     const playerSubtitle = document.getElementById('player-subtitle');
     const lastPlayStatus = document.getElementById('last-play-status');
-    const bookmarkPanel = document.getElementById('bookmark-panel');
+    const bookmarkAddWrapper = document.querySelector('#player-dock .player-actions');
     const bookmarkAddBtn = document.getElementById('bookmark-add');
     const bookmarkList = document.getElementById('bookmark-list');
     const voiceSpeakerInput = document.getElementById('voice-speaker');
@@ -762,9 +755,6 @@ INDEX_HTML = """<!DOCTYPE html>
 
     function updateBookmarkUI() {
       const current = currentChapter();
-      if (bookmarkAddBtn) {
-        bookmarkAddBtn.disabled = !current;
-      }
       // chapter-level bookmarks
       const containers = document.querySelectorAll('[data-role="chapter-bookmarks"]');
       containers.forEach(container => {
@@ -1260,6 +1250,17 @@ INDEX_HTML = """<!DOCTYPE html>
       return ch.mp3_exists ? 'Play' : 'Build';
     }
 
+    function setChapterStatusLabel(chapterId, label, className = '') {
+      if (!chapterId) return;
+      const wrapper = chaptersList.querySelector(`[data-chapter-id="${chapterId}"]`);
+      if (!wrapper) return;
+      const statusEl = wrapper.querySelector('[data-role="status-label"]');
+      if (statusEl) {
+        statusEl.textContent = label;
+        statusEl.className = className ? `badge ${className}` : 'badge';
+      }
+    }
+
     function updateChapterHighlight() {
       const nodes = chaptersList.querySelectorAll('.chapter');
       let docked = false;
@@ -1274,6 +1275,9 @@ INDEX_HTML = """<!DOCTYPE html>
               node.appendChild(playerDock);
             }
             playerDock.classList.remove('hidden');
+            if (bookmarkAddWrapper) {
+              bookmarkAddWrapper.classList.remove('hidden');
+            }
             docked = true;
           }
         } else {
@@ -1283,6 +1287,9 @@ INDEX_HTML = """<!DOCTYPE html>
       if (playerDock && !docked) {
         playerDock.classList.add('hidden');
         chaptersPanel.appendChild(playerDock);
+        if (bookmarkAddWrapper) {
+          bookmarkAddWrapper.classList.add('hidden');
+        }
       }
       if (state.currentChapterIndex < 0) {
         updatePlayerDetails(null);
@@ -1406,9 +1413,6 @@ INDEX_HTML = """<!DOCTYPE html>
         stopStatusPolling();
         setBookmarks({ manual: [], last_played: null });
         lastPlaySyncAt = 0;
-       if (bookmarkPanel) {
-          bookmarkPanel.classList.add('hidden');
-        }
       }
       try {
         const data = await fetchJSON(`/api/books/${encodeURIComponent(book.id)}/chapters`);
@@ -1436,9 +1440,6 @@ INDEX_HTML = """<!DOCTYPE html>
         } else {
           setBookmarks({ manual: [], last_played: null });
         }
-        if (bookmarkPanel) {
-          bookmarkPanel.classList.remove('hidden');
-        }
         renderChapters(data.summary);
         chaptersPanel.classList.remove('hidden');
         startStatusPolling();
@@ -1453,13 +1454,19 @@ INDEX_HTML = """<!DOCTYPE html>
       if (!chapter) return;
       const params = new URLSearchParams();
       if (restart) params.set('restart', '1');
-      statusLine.textContent = restart ? 'Rebuilding audio...' : 'Building audio...';
+      if (state.currentChapterIndex === index) {
+        statusLine.textContent = restart ? 'Rebuilding audio...' : 'Building audio...';
+      }
+      setChapterStatusLabel(chapter.id, restart ? 'Rebuilding…' : 'Building…', 'badge warning');
       const res = await fetch(
         `/api/books/${encodeURIComponent(state.currentBook.id)}/chapters/${encodeURIComponent(chapter.id)}/prepare?${params.toString()}`,
         { method: 'POST' }
       );
       if (!res.ok) {
         const text = await res.text();
+        if (state.currentChapterIndex !== index) {
+          setChapterStatusLabel(chapter.id, 'Failed', 'badge danger');
+        }
         throw new Error(text || `HTTP ${res.status}`);
       }
       const result = await res.json();
@@ -1469,7 +1476,9 @@ INDEX_HTML = """<!DOCTYPE html>
       }
       chapter.has_cache = true;
       renderChapters(summaryForChapters());
-      statusLine.textContent = 'Build finished. Tap Play to listen.';
+      if (state.currentChapterIndex === index) {
+        statusLine.textContent = 'Build finished. Tap Play to listen.';
+      }
     }
 
     async function playChapter(index, { resumeTime = null } = {}) {
@@ -1637,11 +1646,11 @@ INDEX_HTML = """<!DOCTYPE html>
 
     if (bookmarkAddBtn) {
       bookmarkAddBtn.onclick = () => {
-        const chapter = currentChapter();
-        if (!chapter) {
-          alert('Select a chapter before adding bookmarks.');
-          return;
-        }
+      const chapter = currentChapter();
+      if (!chapter) {
+        alert('Select a chapter before adding bookmarks.');
+        return;
+      }
         if (!Number.isFinite(player.currentTime) || player.currentTime < 1) {
           alert('Play the audio to the desired position before bookmarking.');
           return;
