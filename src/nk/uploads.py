@@ -75,12 +75,31 @@ def _format_chapter_progress_label(
 
 
 class UploadJob:
-    def __init__(self, root: Path, filename: str | None) -> None:
+    def __init__(
+        self,
+        root: Path,
+        filename: str | None,
+        *,
+        source_path: Path | None = None,
+        output_dir: Path | None = None,
+    ) -> None:
         self.root = root
         self.id = uuid4().hex
         self.filename = _normalize_upload_filename(filename)
         self.book_label = self.filename
-        self.output_dir = root / _derive_book_dir_name(self.filename)
+        self._owns_temp = source_path is None
+        if source_path is None:
+            self.output_dir = root / _derive_book_dir_name(self.filename)
+        else:
+            target = output_dir or source_path.with_name(
+                _derive_book_dir_name(source_path.stem)
+            )
+            try:
+                target.resolve().relative_to(root)
+            except ValueError:
+                target = root / _derive_book_dir_name(target.name)
+            self.output_dir = target
+            self.book_label = source_path.name
         self.target_rel = _relative_path_or_name(root, self.output_dir)
         self.status = "pending"
         self.message: str | None = "Waiting to start"
@@ -92,8 +111,12 @@ class UploadJob:
         self.book_dir_rel: str | None = None
         self.created_at = datetime.now(timezone.utc)
         self.updated_at = self.created_at
-        self.temp_dir = Path(tempfile.mkdtemp(prefix="nk-upload-"))
-        self.temp_path = self.temp_dir / self.filename
+        if source_path is None:
+            self.temp_dir = Path(tempfile.mkdtemp(prefix="nk-upload-"))
+            self.temp_path = self.temp_dir / self.filename
+        else:
+            self.temp_dir = None
+            self.temp_path = source_path
         self.lock = threading.Lock()
 
     def _touch(self) -> None:
@@ -173,7 +196,8 @@ class UploadJob:
             }
 
     def cleanup(self) -> None:
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
+        if self._owns_temp and self.temp_dir is not None:
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
 
 
 class UploadManager:

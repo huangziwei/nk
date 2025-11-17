@@ -287,6 +287,60 @@ INDEX_HTML = """<!DOCTYPE html>
       font-size: 0.85rem;
       color: var(--muted);
     }
+    .epub-alert {
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: calc(var(--radius) - 6px);
+      padding: 1rem 1.1rem;
+      background: rgba(15,18,32,0.75);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .epub-alert-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .epub-alert-header strong {
+      font-size: 1rem;
+    }
+    .epub-alert-note {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin: 0;
+    }
+    .epub-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .epub-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.8rem;
+      align-items: center;
+      padding: 0.65rem 0.4rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .epub-item:last-child {
+      border-bottom: none;
+    }
+    .epub-item-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      font-size: 0.9rem;
+    }
+    .epub-item-name {
+      font-weight: 600;
+    }
+    .epub-item-meta {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
     .upload-card {
       background: rgba(27, 31, 50, 0.9);
       position: relative;
@@ -897,6 +951,14 @@ INDEX_HTML = """<!DOCTYPE html>
       .modal-card textarea {
         min-height: 6rem;
       }
+      .epub-alert-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .epub-item {
+        flex-direction: column;
+        align-items: flex-start;
+      }
     }
   </style>
 </head>
@@ -919,6 +981,16 @@ INDEX_HTML = """<!DOCTYPE html>
             </select>
           </label>
         </div>
+      </div>
+      <div class="epub-alert hidden" id="pending-epubs">
+        <div class="epub-alert-header">
+          <div>
+            <strong>Unprocessed EPUBs</strong>
+            <p class="epub-alert-note">These EPUB files are in this folder but haven't been chapterized yet.</p>
+          </div>
+          <button type="button" class="secondary" id="epub-chapterize-all">Chapterize all</button>
+        </div>
+        <div class="epub-list" id="pending-epub-list"></div>
       </div>
       <div class="cards collection-cards hidden" id="collections-grid"></div>
       <div class="cards" id="books-grid"></div>
@@ -1032,6 +1104,9 @@ INDEX_HTML = """<!DOCTYPE html>
     const voiceResetBtn = document.getElementById('voice-reset');
     const voiceStatus = document.getElementById('voice-status');
     const booksSortSelect = document.getElementById('books-sort');
+    const pendingEpubPanel = document.getElementById('pending-epubs');
+    const pendingEpubList = document.getElementById('pending-epub-list');
+    const pendingEpubAllBtn = document.getElementById('epub-chapterize-all');
 
     const DEFAULT_VOICE = {
       speaker: 2,
@@ -1059,6 +1134,8 @@ INDEX_HTML = """<!DOCTYPE html>
       librarySortOrder: 'author',
       libraryPrefix: '',
       parentPrefix: '',
+      pendingEpubs: [],
+      epubBusy: new Set(),
     };
     const LIBRARY_SORT_KEY = 'nkPlayerSortOrder';
     const storedLibrarySort = window.localStorage.getItem(LIBRARY_SORT_KEY);
@@ -1094,6 +1171,17 @@ INDEX_HTML = """<!DOCTYPE html>
           console.warn('Failed to persist sort order', error);
         }
         handlePromise(loadBooks());
+      });
+    }
+    if (pendingEpubAllBtn) {
+      pendingEpubAllBtn.addEventListener('click', () => {
+        if (!state.pendingEpubs.length) return;
+        const available = state.pendingEpubs
+          .map(epub => epub.path || epub.filename)
+          .filter(path => path && !state.epubBusy.has(path));
+        if (available.length) {
+          handlePromise(queueChapterizeEpubs(available));
+        }
       });
     }
     if (libraryBackButton) {
@@ -2064,6 +2152,135 @@ INDEX_HTML = """<!DOCTYPE html>
       });
     }
 
+    function formatFileSize(bytes) {
+      if (!Number.isFinite(bytes) || bytes <= 0) {
+        return '';
+      }
+      if (bytes >= 1024 * 1024) {
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      }
+      if (bytes >= 1024) {
+        return `${(bytes / 1024).toFixed(1)} kB`;
+      }
+      return `${bytes} B`;
+    }
+
+    function formatTimestamp(ts) {
+      if (!Number.isFinite(ts)) return '';
+      try {
+        const date = new Date(ts * 1000);
+        return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      } catch {
+        return '';
+      }
+    }
+
+    function syncPendingEpubBusy() {
+      if (!state.epubBusy) {
+        state.epubBusy = new Set();
+      }
+      const available = new Set(
+        Array.isArray(state.pendingEpubs) ? state.pendingEpubs.map(epub => epub.path) : []
+      );
+      for (const path of Array.from(state.epubBusy)) {
+        if (!available.has(path)) {
+          state.epubBusy.delete(path);
+        }
+      }
+    }
+
+    function renderPendingEpubs() {
+      if (!pendingEpubPanel || !pendingEpubList) return;
+      if (!state.pendingEpubs.length) {
+        pendingEpubPanel.classList.add('hidden');
+        return;
+      }
+      pendingEpubPanel.classList.remove('hidden');
+      pendingEpubList.innerHTML = '';
+      state.pendingEpubs.forEach(epub => {
+        if (!epub || typeof epub !== 'object') return;
+        const path = epub.path || epub.filename;
+        const busy = state.epubBusy.has(path);
+        const item = document.createElement('div');
+        item.className = 'epub-item';
+        const info = document.createElement('div');
+        info.className = 'epub-item-info';
+        const name = document.createElement('div');
+        name.className = 'epub-item-name';
+        name.textContent = epub.filename || path;
+        info.appendChild(name);
+        const meta = document.createElement('div');
+        meta.className = 'epub-item-meta';
+        const details = [];
+        if (epub.target_name) {
+          details.push(`→ ${epub.target_name}`);
+        } else if (epub.target_path) {
+          details.push(`→ ${epub.target_path}`);
+        }
+        if (typeof epub.size === 'number') {
+          const sizeLabel = formatFileSize(epub.size);
+          if (sizeLabel) {
+            details.push(sizeLabel);
+          }
+        }
+        if (typeof epub.modified === 'number') {
+          const dateLabel = formatTimestamp(epub.modified);
+          if (dateLabel) {
+            details.push(dateLabel);
+          }
+        }
+        meta.textContent = details.join(' · ');
+        info.appendChild(meta);
+        item.appendChild(info);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = busy ? 'secondary' : '';
+        button.disabled = busy;
+        button.textContent = busy ? 'Queued…' : 'Chapterize';
+        button.addEventListener('click', () => {
+          handlePromise(queueChapterizeEpubs([path]));
+        });
+        item.appendChild(button);
+        pendingEpubList.appendChild(item);
+      });
+      if (pendingEpubAllBtn) {
+        const anyIdle = state.pendingEpubs.some(epub => !state.epubBusy.has(epub.path || epub.filename));
+        pendingEpubAllBtn.disabled = !anyIdle;
+      }
+    }
+
+    async function queueChapterizeEpubs(paths) {
+      const valid = Array.isArray(paths)
+        ? paths
+            .map(entry => (typeof entry === 'string' ? entry : null))
+            .filter(Boolean)
+        : [];
+      if (!valid.length) return;
+      if (!state.epubBusy) {
+        state.epubBusy = new Set();
+      }
+      valid.forEach(path => state.epubBusy.add(path));
+      renderPendingEpubs();
+      try {
+        const res = await fetch('/api/epubs/chapterize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paths: valid }),
+        });
+        if (!res.ok) {
+          const detail = await res.text();
+          throw new Error(detail || `HTTP ${res.status}`);
+        }
+        await loadBooks(state.libraryPrefix || '');
+        await loadUploads();
+      } catch (err) {
+        alert(`Failed to chapterize EPUBs: ${err.message || err}`);
+      } finally {
+        syncPendingEpubBusy();
+        renderPendingEpubs();
+      }
+    }
+
     function renderBooks() {
       if (!booksGrid) return;
       booksGrid.innerHTML = '';
@@ -2461,8 +2678,11 @@ INDEX_HTML = """<!DOCTYPE html>
       state.parentPrefix = typeof data.parent_prefix === 'string' ? data.parent_prefix : '';
       state.collections = Array.isArray(data.collections) ? data.collections : [];
       state.books = Array.isArray(data.books) ? data.books : [];
+      state.pendingEpubs = Array.isArray(data.pending_epubs) ? data.pending_epubs : [];
+      syncPendingEpubBusy();
       renderLibraryNav();
       renderCollections();
+      renderPendingEpubs();
       renderBooks();
     }
 
@@ -2804,6 +3024,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
     renderLibraryNav();
     renderCollections();
+    renderPendingEpubs();
 
     loadBooks().catch(err => {
       booksGrid.innerHTML = `<div style="color:var(--danger)">Failed to load books: ${err.message}</div>`;
@@ -2953,6 +3174,29 @@ def _list_collections(root: Path, base_dir: Path) -> list[dict[str, object]]:
     return [payload for _, payload in entries]
 
 
+_INVALID_DIR_CHARS = set('<>:"/\\|?*')
+
+
+def _sanitize_dir_fragment(name: str) -> str:
+    if not isinstance(name, str):
+        name = ""
+    candidate = name.strip()
+    if not candidate:
+        candidate = "book"
+    chars: list[str] = []
+    for ch in candidate:
+        if ch in _INVALID_DIR_CHARS:
+            chars.append("_")
+        elif ord(ch) < 32:
+            continue
+        else:
+            chars.append(ch)
+    sanitized = "".join(chars).strip(" .")
+    if not sanitized:
+        sanitized = "book"
+    return sanitized[:120]
+
+
 def _list_books(base_dir: Path, sort_mode: str) -> list[BookListing]:
     books: list[BookListing] = []
     for listing in list_books_sorted(base_dir, mode=sort_mode):
@@ -2960,6 +3204,64 @@ def _list_books(base_dir: Path, sort_mode: str) -> list[BookListing]:
         if path.is_dir() and _is_book_dir(path):
             books.append(listing)
     return books
+
+
+def _epub_target_dir(root: Path, epub_path: Path) -> Path:
+    parent = epub_path.parent
+    try:
+        parent.resolve().relative_to(root)
+    except ValueError:
+        parent = root
+    sanitized = _sanitize_dir_fragment(epub_path.stem)
+    candidate = parent / sanitized
+    try:
+        candidate.resolve().relative_to(root)
+    except ValueError:
+        candidate = root / sanitized
+    return candidate
+
+
+def _list_pending_epubs(root: Path, base_dir: Path) -> list[dict[str, object]]:
+    try:
+        children = sorted(
+            base_dir.iterdir(),
+            key=lambda entry: entry.name.casefold(),
+        )
+    except OSError:
+        return []
+    pending: list[dict[str, object]] = []
+    for entry in children:
+        if not entry.is_file() or entry.suffix.lower() != ".epub":
+            continue
+        try:
+            rel_path = _relative_library_path(root, entry, allow_root=True)
+        except ValueError:
+            continue
+        target_dir = _epub_target_dir(root, entry)
+        if target_dir.exists() and _is_book_dir(target_dir):
+            continue
+        try:
+            stat = entry.stat()
+            modified = getattr(stat, "st_mtime", None)
+            size = getattr(stat, "st_size", None)
+        except OSError:
+            modified = None
+            size = None
+        try:
+            target_rel = _relative_library_path(root, target_dir, allow_root=True)
+        except ValueError:
+            target_rel = target_dir.name
+        pending.append(
+            {
+                "path": rel_path,
+                "filename": entry.name,
+                "target_path": target_rel,
+                "target_name": target_dir.name,
+                "modified": modified,
+                "size": size,
+            }
+        )
+    return pending
 
 
 def _list_chapters(book_dir: Path) -> list[Path]:
@@ -3654,6 +3956,79 @@ def create_app(config: PlayerConfig) -> FastAPI:
         upload_manager.enqueue(job)
         return JSONResponse({"job": job.to_payload()})
 
+    @app.post("/api/epubs/chapterize")
+    def api_chapterize_epubs(payload: dict[str, object] = Body(...)) -> JSONResponse:
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="Invalid payload.")
+        paths_payload = payload.get("paths")
+        if not isinstance(paths_payload, list) or not paths_payload:
+            raise HTTPException(
+                status_code=400,
+                detail="paths must be a non-empty list.",
+            )
+        queued: list[dict[str, object]] = []
+        skipped: list[dict[str, object]] = []
+        seen: set[str] = set()
+        for raw_entry in paths_payload:
+            if not isinstance(raw_entry, str):
+                skipped.append(
+                    {"path": raw_entry, "reason": "Invalid path entry."}
+                )
+                continue
+            normalized = _normalize_library_path(raw_entry)
+            if not normalized:
+                skipped.append({"path": raw_entry, "reason": "Invalid path."})
+                continue
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            candidate = root / normalized
+            try:
+                relative_path = _relative_library_path(
+                    root, candidate, allow_root=True
+                )
+            except ValueError:
+                skipped.append(
+                    {"path": normalized, "reason": "Path escapes root."}
+                )
+                continue
+            if candidate.suffix.lower() != ".epub":
+                skipped.append(
+                    {"path": relative_path, "reason": "Not an EPUB file."}
+                )
+                continue
+            if not candidate.is_file():
+                skipped.append(
+                    {"path": relative_path, "reason": "File not found."}
+                )
+                continue
+            target_dir = _epub_target_dir(root, candidate)
+            if target_dir.exists() and _is_book_dir(target_dir):
+                skipped.append(
+                    {
+                        "path": relative_path,
+                        "reason": "Book already chapterized.",
+                    }
+                )
+                continue
+            try:
+                target_rel = _relative_library_path(
+                    root, target_dir, allow_root=True
+                )
+            except ValueError:
+                target_rel = target_dir.name
+            job = UploadJob(
+                root,
+                candidate.name,
+                source_path=candidate,
+                output_dir=target_dir,
+            )
+            upload_manager.enqueue(job)
+            queued.append({"path": relative_path, "target": target_rel})
+        if not queued:
+            return JSONResponse({"queued": [], "skipped": skipped})
+        return JSONResponse({"queued": queued, "skipped": skipped})
+
     @app.get("/api/books")
     def api_books(
         prefix: str | None = Query(
@@ -3669,6 +4044,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
                 prefix_value.rsplit("/", 1)[0] if "/" in prefix_value else ""
             )
         collections_payload = _list_collections(root, prefix_path)
+        pending_epubs = _list_pending_epubs(root, prefix_path)
         books_payload = []
         for listing in _list_books(prefix_path, sort_mode):
             book_dir = listing.path
@@ -3721,6 +4097,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
                 "parent_prefix": parent_prefix,
                 "collections": collections_payload,
                 "books": books_payload,
+                "pending_epubs": pending_epubs,
             }
         )
 
