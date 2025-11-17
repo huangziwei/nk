@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-import os
-from pathlib import Path
 import hashlib
 import json
 import math
-from io import BytesIO
+import os
 import wave
+from io import BytesIO
+from pathlib import Path
 
 import pytest
 
 from nk.book_io import TOKEN_METADATA_VERSION
 from nk.tts import (
     TTSTarget,
+    VoiceVoxClient,
     VoiceVoxRuntimeError,
     _prepare_voicevox_endpoint,
     _resolve_runtime_executable,
@@ -21,7 +22,6 @@ from nk.tts import (
     discover_voicevox_runtime,
     managed_voicevox_runtime,
     synthesize_texts_to_mp3,
-    VoiceVoxClient,
 )
 
 _ARTIFACT_DIR = os.environ.get("NK_TEST_ARTIFACTS_DIR")
@@ -36,7 +36,9 @@ def _save_artifact(name: str, data: bytes) -> None:
     (root / safe_name).write_bytes(data)
 
 
-def _tone_wav_bytes(frequency: float = 440.0, duration: float = 0.25, sample_rate: int = 16000) -> bytes:
+def _tone_wav_bytes(
+    frequency: float = 440.0, duration: float = 0.25, sample_rate: int = 16000
+) -> bytes:
     total_frames = int(duration * sample_rate)
     amplitude = 12000
     frames = bytearray()
@@ -238,6 +240,7 @@ def test_managed_runtime_adds_cpu_thread_flag(monkeypatch, tmp_path: Path) -> No
     idx = captured_cmd.index("--cpu_num_threads")
     assert captured_cmd[idx + 1] == "12"
 
+
 def test_managed_runtime_reports_launch_failure(monkeypatch, tmp_path: Path) -> None:
     runtime_dir = tmp_path / "voicevox"
     runtime_dir.mkdir()
@@ -345,7 +348,9 @@ def test_voicevox_client_post_phoneme_override(monkeypatch) -> None:
 
     class DummySession:
         def __init__(self) -> None:
-            self.calls: list[tuple[str, dict[str, object] | None, dict[str, object] | None]] = []
+            self.calls: list[
+                tuple[str, dict[str, object] | None, dict[str, object] | None]
+            ] = []
 
         def post(self, url, *, params=None, json=None, timeout=None):
             if url.endswith("/audio_query"):
@@ -423,7 +428,9 @@ def test_parallel_jobs_uses_multiple_clients(monkeypatch, tmp_path: Path) -> Non
     def fake_wav_to_mp3(wav_bytes: bytes, output_path: Path, **kwargs) -> None:
         output_path.write_bytes(wav_bytes)
 
-    def fake_merge_wavs_to_mp3(wav_paths: list[Path], output_path: Path, **kwargs) -> None:
+    def fake_merge_wavs_to_mp3(
+        wav_paths: list[Path], output_path: Path, **kwargs
+    ) -> None:
         combined = b"".join(path.read_bytes() for path in wav_paths)
         output_path.write_bytes(combined)
 
@@ -536,7 +543,9 @@ def test_keep_cache_directory_persists(monkeypatch, tmp_path: Path) -> None:
             return accent_phrases
 
     monkeypatch.setattr("nk.tts.VoiceVoxClient", DummyClient)
-    monkeypatch.setattr("nk.tts.wav_bytes_to_mp3", lambda wav, out, **kwargs: out.write_bytes(wav))
+    monkeypatch.setattr(
+        "nk.tts.wav_bytes_to_mp3", lambda wav, out, **kwargs: out.write_bytes(wav)
+    )
 
     def merge(wav_paths: list[Path], output_path: Path, **kwargs) -> None:
         combined = b"".join(path.read_bytes() for path in wav_paths)
@@ -573,7 +582,9 @@ def test_keep_cache_directory_persists(monkeypatch, tmp_path: Path) -> None:
     assert reuse_calls == []
 
 
-def _write_token_payload(chapter_path: Path, tokens: list[dict[str, object]], text: str) -> None:
+def _write_token_payload(
+    chapter_path: Path, tokens: list[dict[str, object]], text: str
+) -> None:
     normalized: list[dict[str, object]] = []
     for token in tokens:
         start = int(token.get("transformed_start", token.get("start", 0)))
@@ -605,8 +616,22 @@ def test_token_metadata_overrides_voicevox(monkeypatch, tmp_path: Path) -> None:
     chapter_text = "アメヲ\n\nアメヲ"
     chapter_path.write_text(chapter_text, encoding="utf-8")
     tokens = [
-        {"surface": "雨", "reading": "アメ", "accent": 1, "start": 0, "end": 2, "pos": "名詞"},
-        {"surface": "飴", "reading": "アメ", "accent": 0, "start": 5, "end": 7, "pos": "名詞"},
+        {
+            "surface": "雨",
+            "reading": "アメ",
+            "accent": 1,
+            "start": 0,
+            "end": 2,
+            "pos": "名詞",
+        },
+        {
+            "surface": "飴",
+            "reading": "アメ",
+            "accent": 0,
+            "start": 5,
+            "end": 7,
+            "pos": "名詞",
+        },
     ]
     _write_token_payload(chapter_path, tokens, chapter_text)
 
@@ -634,7 +659,10 @@ def test_token_metadata_overrides_voicevox(monkeypatch, tmp_path: Path) -> None:
 
     client = CaptureClient()
 
-    monkeypatch.setattr("nk.tts.wav_bytes_to_mp3", lambda wav_bytes, output, **_: output.write_bytes(wav_bytes))
+    monkeypatch.setattr(
+        "nk.tts.wav_bytes_to_mp3",
+        lambda wav_bytes, output, **_: output.write_bytes(wav_bytes),
+    )
     monkeypatch.setattr(
         "nk.tts._merge_wavs_to_mp3",
         lambda wav_paths, output_path, **_: output_path.write_bytes(
@@ -704,7 +732,10 @@ def test_token_metadata_skipped_when_hash_mismatch(monkeypatch, tmp_path: Path) 
             pass
 
     client = CaptureClient()
-    monkeypatch.setattr("nk.tts.wav_bytes_to_mp3", lambda wav_bytes, output, **_: output.write_bytes(wav_bytes))
+    monkeypatch.setattr(
+        "nk.tts.wav_bytes_to_mp3",
+        lambda wav_bytes, output, **_: output.write_bytes(wav_bytes),
+    )
     monkeypatch.setattr(
         "nk.tts._merge_wavs_to_mp3",
         lambda wav_paths, output_path, **_: output_path.write_bytes(
@@ -724,7 +755,11 @@ def test_token_metadata_skipped_when_hash_mismatch(monkeypatch, tmp_path: Path) 
         keep_cache=False,
     )
     assert client.payloads
-    assert all(phrase["accent"] == len(phrase["moras"]) for payload in client.payloads for phrase in payload["accent_phrases"])
+    assert all(
+        phrase["accent"] == len(phrase["moras"])
+        for payload in client.payloads
+        for phrase in payload["accent_phrases"]
+    )
 
 
 @pytest.mark.skipif(
@@ -738,18 +773,37 @@ def test_voicevox_pitch_artifacts(monkeypatch, tmp_path: Path) -> None:
     chapter_text = "アメヲ\n\nアメヲ"
     chapter_path.write_text(chapter_text, encoding="utf-8")
     tokens = [
-        {"surface": "雨", "reading": "アメ", "accent": 1, "start": 0, "end": 2, "pos": "名詞"},
-        {"surface": "飴", "reading": "アメ", "accent": 0, "start": 5, "end": 7, "pos": "名詞"},
+        {
+            "surface": "雨",
+            "reading": "アメ",
+            "accent": 1,
+            "start": 0,
+            "end": 2,
+            "pos": "名詞",
+        },
+        {
+            "surface": "飴",
+            "reading": "アメ",
+            "accent": 0,
+            "start": 5,
+            "end": 7,
+            "pos": "名詞",
+        },
     ]
     _write_token_payload(chapter_path, tokens, chapter_text)
 
     target = TTSTarget(source=chapter_path, output=tmp_path / "out.mp3")
     cache_root = tmp_path / "cache"
 
-    monkeypatch.setattr("nk.tts.wav_bytes_to_mp3", lambda wav_bytes, output, **_: output.write_bytes(wav_bytes))
+    monkeypatch.setattr(
+        "nk.tts.wav_bytes_to_mp3",
+        lambda wav_bytes, output, **_: output.write_bytes(wav_bytes),
+    )
     monkeypatch.setattr(
         "nk.tts._merge_wavs_to_mp3",
-        lambda wav_paths, output_path, **_: output_path.write_bytes(b"".join(path.read_bytes() for path in wav_paths)),
+        lambda wav_paths, output_path, **_: output_path.write_bytes(
+            b"".join(path.read_bytes() for path in wav_paths)
+        ),
     )
 
     client = VoiceVoxClient(base_url=base_url, speaker_id=speaker)
@@ -765,13 +819,57 @@ def test_voicevox_pitch_artifacts(monkeypatch, tmp_path: Path) -> None:
             cache_base=cache_root,
             keep_cache=True,
         )
+        assert result == target.output
+        cache_dir = _target_cache_dir(cache_root, target)
+        chunk_paths = sorted(cache_dir.glob("*.wav"))
+        assert len(chunk_paths) == 2
+        for idx, chunk_path in enumerate(chunk_paths, start=1):
+            data = chunk_path.read_bytes()
+            _save_artifact(f"voicevox_chunk{idx}.wav", data)
+
+        # Capture a reference artifact where the same text stays in a single chunk.
+        single_chunk_text = chapter_text.replace("\n\n", "。")
+        single_chunk_path = tmp_path / "voice_single_chunk.txt"
+        single_chunk_path.write_text(single_chunk_text, encoding="utf-8")
+        single_tokens = [
+            {
+                "surface": "雨",
+                "reading": "アメ",
+                "accent": 1,
+                "start": 0,
+                "end": 2,
+                "pos": "名詞",
+            },
+            {
+                "surface": "飴",
+                "reading": "アメ",
+                "accent": 0,
+                "start": 4,
+                "end": 6,
+                "pos": "名詞",
+            },
+        ]
+        _write_token_payload(single_chunk_path, single_tokens, single_chunk_text)
+
+        single_target = TTSTarget(
+            source=single_chunk_path, output=tmp_path / "single_chunk.mp3"
+        )
+        single_cache_root = tmp_path / "cache_single"
+        single_result = _synthesize_target_with_client(
+            single_target,
+            client,
+            index=1,
+            total=1,
+            ffmpeg_path="ffmpeg",
+            overwrite=True,
+            progress=None,
+            cache_base=single_cache_root,
+            keep_cache=True,
+        )
+        assert single_result == single_target.output
+        single_cache_dir = _target_cache_dir(single_cache_root, single_target)
+        single_chunk_paths = sorted(single_cache_dir.glob("*.wav"))
+        assert len(single_chunk_paths) == 1
+        _save_artifact("voicevox_single_chunk.wav", single_chunk_paths[0].read_bytes())
     finally:
         client.close()
-
-    assert result == target.output
-    cache_dir = _target_cache_dir(cache_root, target)
-    chunk_paths = sorted(cache_dir.glob("*.wav"))
-    assert len(chunk_paths) == 2
-    for idx, chunk_path in enumerate(chunk_paths, start=1):
-        data = chunk_path.read_bytes()
-        _save_artifact(f"voicevox_chunk{idx}.wav", data)
