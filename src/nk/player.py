@@ -220,7 +220,34 @@ INDEX_HTML = """<!DOCTYPE html>
       margin-bottom: 1rem;
       background: rgba(20, 23, 36, 0.8);
       border-radius: calc(var(--radius) - 6px);
-      padding: 0.8rem 1rem;
+      padding: 0.4rem 0.8rem 0.8rem;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .voice-controls summary {
+      cursor: pointer;
+      list-style: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      letter-spacing: 0.03em;
+      color: var(--muted);
+      padding: 0.4rem 0.4rem 0.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .voice-controls summary::marker {
+      display: none;
+    }
+    .voice-controls summary::after {
+      content: "▸";
+      font-size: 0.8rem;
+      transition: transform 0.2s ease;
+    }
+    .voice-controls[open] summary::after {
+      transform: rotate(90deg);
+    }
+    .voice-controls-content {
+      padding: 0.6rem 0.4rem 0;
       display: flex;
       flex-direction: column;
       gap: 0.6rem;
@@ -311,6 +338,13 @@ INDEX_HTML = """<!DOCTYPE html>
     }
     .chapter-footer .badges {
       flex: 1;
+    }
+    .chapter-footer .badges.controls {
+      flex: 0 0 auto;
+      display: flex;
+      flex-wrap: nowrap;
+      justify-content: flex-end;
+      gap: 0.5rem;
     }
     .card .cover {
       width: 100%;
@@ -486,31 +520,34 @@ INDEX_HTML = """<!DOCTYPE html>
           <button id="restart-book" class="secondary">Restart Book</button>
         </div>
       </div>
-      <div class="voice-controls">
-        <div class="voice-grid">
-          <label class="voice-field">
-            Speaker
-            <input type="number" id="voice-speaker" min="1" step="1">
-          </label>
-          <label class="voice-field">
-            Speed
-            <input type="number" id="voice-speed" step="0.01">
-          </label>
-          <label class="voice-field">
-            Pitch
-            <input type="number" id="voice-pitch" step="0.01">
-          </label>
-          <label class="voice-field">
-            Intonation
-            <input type="number" id="voice-intonation" step="0.01">
-          </label>
+      <details class="voice-controls">
+        <summary>Voice settings</summary>
+        <div class="voice-controls-content">
+          <div class="voice-grid">
+            <label class="voice-field">
+              Speaker
+              <input type="number" id="voice-speaker" min="1" step="1">
+            </label>
+            <label class="voice-field">
+              Speed
+              <input type="number" id="voice-speed" step="0.01">
+            </label>
+            <label class="voice-field">
+              Pitch
+              <input type="number" id="voice-pitch" step="0.01">
+            </label>
+            <label class="voice-field">
+              Intonation
+              <input type="number" id="voice-intonation" step="0.01">
+            </label>
+          </div>
+          <div class="voice-actions">
+            <button id="voice-save">Save voice defaults</button>
+            <button id="voice-reset" class="secondary">Reset to global defaults</button>
+            <span class="voice-status" id="voice-status" style="color: var(--muted);"></span>
+          </div>
         </div>
-        <div class="voice-actions">
-          <button id="voice-save">Save voice defaults</button>
-          <button id="voice-reset" class="secondary">Reset to global defaults</button>
-          <span class="voice-status" id="voice-status"></span>
-        </div>
-      </div>
+      </details>
       <div class="chapters" id="chapters-list"></div>
     </section>
 
@@ -1264,7 +1301,7 @@ INDEX_HTML = """<!DOCTYPE html>
         footer.appendChild(statusBadges);
 
         const buttons = document.createElement('div');
-        buttons.className = 'badges';
+        buttons.className = 'badges controls';
         const playBtn = document.createElement('button');
         playBtn.textContent = chapterPrimaryLabel(ch);
         playBtn.onclick = () => {
