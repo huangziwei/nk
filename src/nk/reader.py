@@ -33,6 +33,10 @@ INDEX_HTML = """<!DOCTYPE html>
       --token-border: rgba(255,255,255,0.25);
       --token-active: #f97316;
     }
+    html {
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
     * {
       box-sizing: border-box;
     }
@@ -163,10 +167,13 @@ INDEX_HTML = """<!DOCTYPE html>
       display: flex;
       flex-direction: column;
       gap: 1.2rem;
+      min-width: 0;
     }
     .status {
       color: var(--muted);
       font-size: 0.95rem;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
     .sidebar-toggle {
       position: fixed;
@@ -247,6 +254,7 @@ INDEX_HTML = """<!DOCTYPE html>
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
+      min-width: 0;
     }
     .text-panel header {
       display: flex;
@@ -292,6 +300,7 @@ INDEX_HTML = """<!DOCTYPE html>
       padding: 0.75rem;
       background: rgba(0,0,0,0.15);
       overflow: auto;
+      min-width: 0;
     }
     .text-content.empty {
       display: flex;
@@ -308,13 +317,13 @@ INDEX_HTML = """<!DOCTYPE html>
     }
     .text-line {
       display: grid;
-      grid-template-columns: 3rem 1fr;
+      grid-template-columns: 3rem minmax(0, 1fr);
       gap: 0.75rem;
       align-items: flex-start;
       font-size: 0.9rem;
     }
     .text-grid.single-column .text-line {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
     .line-number {
       min-width: 3rem;
