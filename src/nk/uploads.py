@@ -88,17 +88,23 @@ class UploadJob:
         self.filename = _normalize_upload_filename(filename)
         self.book_label = self.filename
         self._owns_temp = source_path is None
-        if source_path is None:
-            self.output_dir = root / _derive_book_dir_name(self.filename)
-        else:
-            target = output_dir or source_path.with_name(
-                _derive_book_dir_name(source_path.stem)
-            )
-            try:
-                target.resolve().relative_to(root)
-            except ValueError:
-                target = root / _derive_book_dir_name(target.name)
-            self.output_dir = target
+        target_path: Path | None = None
+        if output_dir is not None:
+            target_path = output_dir
+        if target_path is None:
+            if source_path is None:
+                target_path = root / _derive_book_dir_name(self.filename)
+            else:
+                target_path = source_path.with_suffix("").with_name(
+                    _derive_book_dir_name(source_path.stem)
+                )
+        try:
+            target_rel = target_path.resolve().relative_to(root)
+            target_path = root / target_rel
+        except ValueError:
+            target_path = root / _derive_book_dir_name(target_path.name)
+        self.output_dir = target_path
+        if source_path is not None:
             self.book_label = source_path.name
         self.target_rel = _relative_path_or_name(root, self.output_dir)
         self.status = "pending"

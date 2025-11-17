@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import quote
 
-from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from .book_io import (
@@ -347,6 +347,7 @@ INDEX_HTML = """<!DOCTYPE html>
       overflow: hidden;
     }
     .upload-card .upload-drop {
+      position: relative;
       border-radius: calc(var(--radius) - 8px);
       border: 1px dashed rgba(59,130,246,0.5);
       padding: 0.9rem;
@@ -407,6 +408,13 @@ INDEX_HTML = """<!DOCTYPE html>
       color: var(--muted);
       font-size: 0.85rem;
       text-align: center;
+    }
+    .upload-card input[type="file"][data-role="upload-input"] {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
     }
     .upload-card .upload-job {
       border: 1px solid rgba(255,255,255,0.07);
@@ -1233,7 +1241,7 @@ INDEX_HTML = """<!DOCTYPE html>
       card.className = 'card upload-card';
       card.innerHTML = `
         <div class="upload-drop" data-role="upload-drop" tabindex="0" role="button" aria-label="Upload EPUB">
-          <input type="file" accept=".epub" hidden data-role="upload-input">
+          <input type="file" accept=".epub" data-role="upload-input" tabindex="-1" aria-hidden="true">
           <strong>Upload EPUB</strong>
           <p>Drop an .epub here or click to select a file. nk will chapterize it and add it to your library.</p>
           <div class="upload-actions">
@@ -1250,16 +1258,20 @@ INDEX_HTML = """<!DOCTYPE html>
       uploadUI.input = card.querySelector('[data-role="upload-input"]');
       uploadUI.error = card.querySelector('[data-role="upload-error"]');
       uploadUI.jobsList = card.querySelector('[data-role="upload-jobs"]');
+      const selectButton = card.querySelector('.upload-actions button');
+      const triggerFileDialog = () => {
+        uploadUI.input?.click();
+      };
 
       if (uploadUI.drop) {
         uploadUI.drop.addEventListener('click', (event) => {
           event.preventDefault();
-          uploadUI.input?.click();
+          triggerFileDialog();
         });
         uploadUI.drop.addEventListener('keydown', (event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            uploadUI.input?.click();
+            triggerFileDialog();
           }
         });
         uploadUI.drop.addEventListener('dragenter', (event) => {
@@ -1288,6 +1300,12 @@ INDEX_HTML = """<!DOCTYPE html>
       if (uploadUI.input) {
         uploadUI.input.addEventListener('change', () => {
           handleUploadFiles(uploadUI.input?.files || null);
+        });
+      }
+      if (selectButton) {
+        selectButton.addEventListener('click', (event) => {
+          event.preventDefault();
+          triggerFileDialog();
         });
       }
       renderUploadJobs();
@@ -1438,6 +1456,9 @@ INDEX_HTML = """<!DOCTYPE html>
       }
       const formData = new FormData();
       formData.append('file', file, file.name);
+      if (state.libraryPrefix && typeof state.libraryPrefix === 'string') {
+        formData.append('prefix', state.libraryPrefix);
+      }
       fetch('/api/uploads', {
         method: 'POST',
         body: formData,
@@ -3908,13 +3929,23 @@ def create_app(config: PlayerConfig) -> FastAPI:
         return JSONResponse({"jobs": jobs})
 
     @app.post("/api/uploads")
-    async def api_upload_epub(file: UploadFile = File(...)) -> JSONResponse:
+    async def api_upload_epub(
+        file: UploadFile = File(...),
+        prefix: str | None = Form(
+            None, description="Relative folder under the library root."
+        ),
+    ) -> JSONResponse:
         filename = file.filename or "upload.epub"
         if Path(filename).suffix.lower() != ".epub":
             raise HTTPException(
                 status_code=400, detail="Only .epub files are supported."
             )
-        job = UploadJob(root, filename)
+        target_parent = root
+        if prefix:
+            _, target_parent = _resolve_prefix(prefix)
+        sanitized_name = _sanitize_dir_fragment(Path(filename).stem)
+        target_dir = target_parent / sanitized_name
+        job = UploadJob(root, filename, output_dir=target_dir)
         try:
             with job.temp_path.open("wb") as destination:
                 while True:
