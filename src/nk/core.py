@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field, replace
 import json
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Mapping
+from typing import TYPE_CHECKING, Callable, Mapping
 from urllib.parse import unquote
 try:
     from importlib import resources
@@ -2482,6 +2482,7 @@ def _strip_html_to_text(soup: BeautifulSoup) -> str:
 def epub_to_chapter_texts(
     inp_epub: str,
     nlp: "NLPBackend" | None = None,
+    progress: Callable[[dict[str, object]], None] | None = None,
 ) -> tuple[list[ChapterText], list[dict[str, object]]]:
     """
     Convert an EPUB into chapterized text segments with ruby expansion.
@@ -2489,6 +2490,12 @@ def epub_to_chapter_texts(
     Returns the processed spine items in order as ChapterText objects.
     """
     backend = nlp
+    def _emit_progress(payload: dict[str, object]) -> None:
+        if progress:
+            try:
+                progress(payload)
+            except Exception:
+                pass
     if backend is None:
         from .nlp import NLPBackend  # Local import to avoid costly dependency during module import.
 
@@ -2693,12 +2700,31 @@ def epub_to_chapter_texts(
                 )
             )
 
+        sorted_pending = sorted(pending_outputs, key=lambda item: item.sort_key)
+        total_chapters = len(sorted_pending)
+        if total_chapters:
+            _emit_progress(
+                {
+                    "event": "chapter_prepare",
+                    "total": total_chapters,
+                    "book_title": book_title,
+                }
+            )
         chapters: list[ChapterText] = []
-        for pending in sorted(pending_outputs, key=lambda item: item.sort_key):
+        for idx, pending in enumerate(sorted_pending, start=1):
             original_basis = pending.raw_original if pending.raw_original is not None else pending.raw_text
             processing_basis = original_basis
             if not chapters:
                 processing_basis = _ensure_title_author_break(processing_basis)
+            _emit_progress(
+                {
+                    "event": "chapter_start",
+                    "index": idx,
+                    "total": total_chapters,
+                    "source": pending.source,
+                    "title_hint": pending.title_hint,
+                }
+            )
             finalized_text, pitch_tokens, chapter_tokens = _finalize_segment_text(
                 pending.raw_text,
                 backend,
@@ -2712,6 +2738,15 @@ def epub_to_chapter_texts(
                 context_rules=context_rules,
             )
             if not finalized_text:
+                _emit_progress(
+                    {
+                        "event": "chapter_done",
+                        "index": idx,
+                        "total": total_chapters,
+                        "source": pending.source,
+                        "title": pending.title_hint,
+                    }
+                )
                 continue
             original_title = _first_non_blank_line(original_basis)
             processed_title = _first_non_blank_line(finalized_text)
@@ -2729,6 +2764,15 @@ def epub_to_chapter_texts(
                     pitch_data=pitch_tokens,
                     tokens=chapter_tokens,
                 )
+            )
+            _emit_progress(
+                {
+                    "event": "chapter_done",
+                    "index": idx,
+                    "total": total_chapters,
+                    "source": pending.source,
+                    "title": title,
+                }
             )
 
         return chapters, ruby_evidence

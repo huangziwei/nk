@@ -18,6 +18,7 @@ from rich.console import Console
 from rich.progress import (
     BarColumn,
     Progress,
+    SpinnerColumn,
     TaskProgressColumn,
     TextColumn,
     TimeElapsedColumn,
@@ -486,6 +487,100 @@ def _ensure_tts_source_ready(
             regenerate_m4b_manifest(target_dir)
         return target_dir
     return input_path
+
+
+def _format_chapter_progress_label(
+    book_label: str,
+    index: int | None,
+    total: int | None,
+    title: str | None,
+) -> str:
+    parts: list[str] = [book_label]
+    if isinstance(index, int) and index > 0:
+        if isinstance(total, int) and total > 0:
+            parts.append(f"{index}/{total}")
+        else:
+            parts.append(str(index))
+    if title:
+        clean = str(title).strip()
+        if clean:
+            parts.append(clean)
+    return " · ".join(parts)
+
+
+def _chapterize_epub(
+    epub_path: Path,
+    backend: NLPBackend,
+    *,
+    progress_display: Progress | None,
+    console: Console,
+) -> None:
+    book_label = epub_path.name
+    output_dir = epub_path.with_suffix("")
+    task_id: int | None = None
+    if progress_display:
+        task_id = progress_display.add_task(book_label, total=1)
+    else:
+        console.print(f"[nk] {book_label}")
+
+    def _progress_callback(event: dict[str, object]) -> None:
+        event_type = event.get("event")
+        total = event.get("total")
+        if isinstance(total, int) and total <= 0:
+            total = None
+        index = event.get("index")
+        if not isinstance(index, int):
+            index = None
+        title = event.get("title") or event.get("title_hint")
+        if not isinstance(title, str) or not title.strip():
+            source = event.get("source")
+            if isinstance(source, Path):
+                title = source.stem
+            elif isinstance(source, str):
+                title = Path(source).stem
+            else:
+                title = ""
+        description = _format_chapter_progress_label(book_label, index, total, title)
+        if progress_display and task_id is not None:
+            task = progress_display.tasks[task_id]
+            if isinstance(total, int) and (task.total is None or task.total == 1):
+                progress_display.update(task_id, total=total, completed=min(task.completed, total - 1))
+            if event_type == "chapter_prepare":
+                progress_display.update(task_id, description=f"{book_label} · preparing")
+            elif event_type == "chapter_start":
+                progress_display.update(task_id, description=description)
+            elif event_type == "chapter_done":
+                completed_value = index if isinstance(index, int) else task.completed + 1
+                progress_display.update(
+                    task_id,
+                    completed=completed_value,
+                    description=description,
+                )
+        else:
+            if event_type == "chapter_done":
+                console.print(f"  {description}")
+
+    chapters, ruby_evidence = epub_to_chapter_texts(
+        str(epub_path),
+        nlp=backend,
+        progress=_progress_callback,
+    )
+    if progress_display and task_id is not None:
+        progress_display.update(task_id, description=f"{book_label} · writing…")
+    cover = get_epub_cover(str(epub_path))
+    write_book_package(
+        output_dir,
+        chapters,
+        source_epub=epub_path,
+        cover_image=cover,
+        ruby_evidence=ruby_evidence,
+    )
+    if progress_display and task_id is not None:
+        task = progress_display.tasks[task_id]
+        final_total = task.total or max(task.completed, len(chapters)) or 1
+        progress_display.update(task_id, completed=final_total, description=f"{book_label} · complete")
+    else:
+        console.print(f"  → {output_dir}", style="dim")
 
 
 def _run_tts(args: argparse.Namespace) -> int:
@@ -1211,35 +1306,32 @@ def main(argv: list[str] | None = None) -> int:
     except NLPBackendUnavailableError as exc:
         raise SystemExit(str(exc)) from exc
 
+    console = Console()
     if inp_path.is_dir():
         epubs = sorted(p for p in inp_path.iterdir() if p.suffix.lower() == ".epub")
         if not epubs:
             raise FileNotFoundError(f"No .epub files found in directory: {inp_path}")
-        for epub_path in epubs:
-            chapters, ruby_evidence = epub_to_chapter_texts(str(epub_path), nlp=backend)
-            output_dir = epub_path.with_suffix("")
-            cover = get_epub_cover(str(epub_path))
-            write_book_package(
-                output_dir,
-                chapters,
-                source_epub=epub_path,
-                cover_image=cover,
-                ruby_evidence=ruby_evidence,
-            )
     else:
         if inp_path.suffix.lower() != ".epub":
             raise ValueError(f"Input must be an .epub file or directory: {inp_path}")
+        epubs = [inp_path]
 
-        chapters, ruby_evidence = epub_to_chapter_texts(str(inp_path), nlp=backend)
-        output_dir = inp_path.with_suffix("")
-        cover = get_epub_cover(str(inp_path))
-        write_book_package(
-            output_dir,
-            chapters,
-            source_epub=inp_path,
-            cover_image=cover,
-            ruby_evidence=ruby_evidence,
+    if console.is_terminal:
+        chapter_progress = Progress(
+            SpinnerColumn(),
+            TextColumn("{task.description}", justify="left"),
+            BarColumn(bar_width=None),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=False,
         )
+        with chapter_progress:
+            for epub_path in epubs:
+                _chapterize_epub(epub_path, backend, progress_display=chapter_progress, console=console)
+    else:
+        for epub_path in epubs:
+            _chapterize_epub(epub_path, backend, progress_display=None, console=console)
     return 0
 
 
