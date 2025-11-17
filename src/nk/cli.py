@@ -61,6 +61,7 @@ from .tts import (
 from .refine import load_override_config, refine_book
 from .reader import create_reader_app
 from .player import PlayerConfig, create_app
+from .logging_utils import build_uvicorn_log_config
 from .voice_defaults import (
     DEFAULT_INTONATION_SCALE,
     DEFAULT_PITCH_SCALE,
@@ -1241,7 +1242,8 @@ def _run_play(args: argparse.Namespace) -> None:
     print(f"Serving nk play from {root}")
     print(f"Player URL: {url}")
     print("Press Ctrl+C to stop.\n")
-    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    log_config = build_uvicorn_log_config()
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info", log_config=log_config)
 
 
 def _run_read(args: argparse.Namespace) -> int:
@@ -1252,7 +1254,8 @@ def _run_read(args: argparse.Namespace) -> int:
     print(f"Serving nk read from {root}")
     print(f"Reader URL: {url}")
     print("Press Ctrl+C to stop.\n")
-    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    log_config = build_uvicorn_log_config()
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info", log_config=log_config)
     return 0
 
 
