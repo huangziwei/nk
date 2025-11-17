@@ -354,6 +354,54 @@ def test_ellipsis_normalization_survives_backend(tmp_path: Path, backend: NLPBac
     assert "..." not in text
 
 
+def test_compound_ruby_prefers_multi_kanji_mapping(tmp_path: Path, backend: NLPBackend) -> None:
+    epub_path = tmp_path / "compound.epub"
+    mimetype = "application/epub+zip"
+    container_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+"""
+    opf_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" unique-identifier="BookId" xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Compound Ruby</dc:title>
+  </metadata>
+  <manifest>
+    <item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="ch1"/>
+  </spine>
+</package>
+"""
+    ch1_html = """<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Compound Ruby</title></head>
+  <body>
+    <p><ruby><rb>慎</rb><rt>シン</rt></ruby><ruby><rb>重</rb><rt>チヨウ</rt></ruby>に答える。</p>
+  </body>
+</html>
+"""
+    with zipfile.ZipFile(epub_path, "w") as zf:
+        zf.writestr("mimetype", mimetype)
+        zf.writestr("META-INF/container.xml", container_xml)
+        zf.writestr("content.opf", opf_xml)
+        zf.writestr("ch1.xhtml", ch1_html)
+
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    assert chapters
+    chapter = chapters[0]
+    assert "シンチョウ" in chapter.text
+    assert "シンチヨウ" not in chapter.text
+    assert chapter.tokens is not None
+    tokens = chapter.tokens or []
+    assert any(token.surface == "慎重" and token.reading == "シンチョウ" for token in tokens)
+    assert not any(token.surface == "慎" for token in tokens)
+
+
 def test_nlp_backend_provides_pitch_tokens() -> None:
     pytest.importorskip("fugashi")
     from nk.nlp import NLPBackend

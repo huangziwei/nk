@@ -894,6 +894,22 @@ def _build_chapter_tokens_from_original(
 ) -> list[ChapterToken]:
     coverage: list[tuple[int, int]] = []
     tokens: list[ChapterToken] = []
+    propagation_mapping: dict[str, str] = {}
+    propagation_mapping.update(common_mapping)
+    propagation_mapping.update(unique_mapping)
+
+    compound_readings: dict[str, str] = {}
+    compound_prefixes: set[str] = set()
+    if propagation_mapping:
+        def _is_compound_candidate(base: str) -> bool:
+            return bool(base) and len(base) > 1 and any(_contains_cjk(ch) for ch in base)
+
+        for base, reading in propagation_mapping.items():
+            if not _is_compound_candidate(base):
+                continue
+            compound_readings[base] = reading
+            for idx in range(1, len(base)):
+                compound_prefixes.add(base[:idx])
 
     def _append_token(
         start: int,
@@ -925,10 +941,43 @@ def _build_chapter_tokens_from_original(
         _add_coverage_range(coverage, start, end)
 
     if ruby_spans:
-        for span in ruby_spans:
+        idx = 0
+        while idx < len(ruby_spans):
+            span = ruby_spans[idx]
             start = max(0, min(len(text), span.start))
             end = max(start, min(len(text), span.end))
             if not _range_is_free(coverage, start, end):
+                idx += 1
+                continue
+            consumed = False
+            best_combo: tuple[int, str, str, int] | None = None
+            if compound_readings and span.base:
+                combined_base = span.base
+                combined_end = end
+                last_index = idx
+                while True:
+                    if last_index > idx:
+                        candidate = compound_readings.get(combined_base)
+                        if candidate:
+                            best_combo = (last_index, combined_base, candidate, combined_end)
+                    if combined_base not in compound_prefixes:
+                        break
+                    next_index = last_index + 1
+                    if next_index >= len(ruby_spans):
+                        break
+                    next_span = ruby_spans[next_index]
+                    if next_span.start != combined_end or not next_span.base:
+                        break
+                    combined_base = combined_base + next_span.base
+                    combined_end = max(combined_end, next_span.end)
+                    last_index = next_index
+                if best_combo:
+                    last_idx, _, combo_reading, combo_end = best_combo
+                    if _range_is_free(coverage, start, combo_end):
+                        _append_token(start, combo_end, combo_reading, "ruby")
+                        idx = last_idx + 1
+                        consumed = True
+            if consumed:
                 continue
             reading = span.reading
             if _contains_cjk(reading):
@@ -947,6 +996,7 @@ def _build_chapter_tokens_from_original(
                     canonical = _normalize_katakana(_hiragana_to_katakana(reading))
                 reading = canonical
             _append_token(start, end, reading, "ruby")
+            idx += 1
 
     for mapping, sources in (
         (unique_mapping, unique_sources),
