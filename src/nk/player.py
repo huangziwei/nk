@@ -1051,6 +1051,23 @@ INDEX_HTML = """<!DOCTYPE html>
         });
     }
 
+    function recordCompletionProgress() {
+      const chapter = currentChapter();
+      if (!chapter || !state.currentBook) return;
+      let targetChapterId = chapter.id;
+      let resumeTime = Number.isFinite(player.duration) ? player.duration : player.currentTime || 0;
+      const nextIndex = state.currentChapterIndex + 1;
+      const nextChapter = state.chapters[nextIndex];
+      if (nextChapter && nextChapter.mp3_exists) {
+        targetChapterId = nextChapter.id;
+        resumeTime = 0;
+      }
+      if (!Number.isFinite(resumeTime) || resumeTime < 0) {
+        resumeTime = 0;
+      }
+      handlePromise(persistLastPlayed(targetChapterId, resumeTime));
+    }
+
     function updatePlayerDetails(chapter) {
       if (!chapter) {
         nowPlaying.textContent = 'Select a chapter to begin.';
@@ -1845,7 +1862,7 @@ INDEX_HTML = """<!DOCTYPE html>
     player.addEventListener('ended', () => {
       statusLine.textContent = 'Finished';
       renderChapters(summaryForChapters());
-      handlePromise(clearLastPlayed());
+      recordCompletionProgress();
       if (state.autoAdvance) {
         const nextIndex = state.currentChapterIndex + 1;
         const nextChapter = state.chapters[nextIndex];
