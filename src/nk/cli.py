@@ -794,6 +794,9 @@ def _run_tts(args: argparse.Namespace) -> int:
             )
             print(f"[nk tts] Saved voice overrides to {saved_path} ({saved_pairs}).")
 
+    # Persist pending defaults immediately so manual settings survive if synthesis is interrupted.
+    _persist_engine_defaults()
+
     output_dir = Path(args.output_dir) if args.output_dir else None
     try:
         targets = resolve_text_targets(input_path, output_dir)
