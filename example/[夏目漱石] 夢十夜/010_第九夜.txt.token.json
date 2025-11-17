@@ -1,5 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
+  "text_sha1": "d84485a869e9c4fce52192ab9d99afa9e66a40c7",
   "tokens": [
     {
       "surface": "第",
@@ -3245,9 +3246,9 @@
       "surface": "冷飯草履",
       "start": 902,
       "end": 906,
-      "reading": "ヒャメシゾウリ",
+      "reading": "ヒヤメシゾウリ",
       "reading_source": "ruby",
-      "fallback_reading": "ヒャメシゾウリ",
+      "fallback_reading": "ヒヤメシゾウリ",
       "context_prefix": "して、",
       "context_suffix": "の音が",
       "accent": null,
@@ -3590,9 +3591,9 @@
       "surface": "弓矢",
       "start": 1012,
       "end": 1014,
-      "reading": "ユミャ",
+      "reading": "ユミヤ",
       "reading_source": "unidic",
-      "fallback_reading": "ユミャ",
+      "fallback_reading": "ユミヤ",
       "context_prefix": "から、",
       "context_suffix": "の神の",
       "accent": 2,

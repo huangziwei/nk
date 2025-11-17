@@ -1,5 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
+  "text_sha1": "e7486835bc6c56bd426c378c776e8a31ba6dbcb7",
   "tokens": [
     {
       "surface": "第",
@@ -20,9 +21,9 @@
       "surface": "七夜",
       "start": 1,
       "end": 3,
-      "reading": "シチャ",
+      "reading": "シチヤ",
       "reading_source": "unidic",
-      "fallback_reading": "シチャ",
+      "fallback_reading": "シチヤ",
       "context_prefix": "第",
       "context_suffix": "\n\n ",
       "accent": null,
@@ -4895,9 +4896,9 @@
       "surface": "利用",
       "start": 1466,
       "end": 1468,
-      "reading": "リョウ",
+      "reading": "リヨウ",
       "reading_source": "nhk",
-      "fallback_reading": "リョウ",
+      "fallback_reading": "リヨウ",
       "context_prefix": "悟りを",
       "context_suffix": "する事",
       "accent": null,

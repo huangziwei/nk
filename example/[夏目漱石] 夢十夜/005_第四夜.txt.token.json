@@ -1,5 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
+  "text_sha1": "bab3825b8b83f2a27f078682aeae90ded9f447ff",
   "tokens": [
     {
       "surface": "第",
@@ -605,9 +606,9 @@
       "surface": "年寄",
       "start": 168,
       "end": 170,
-      "reading": "トショリ",
+      "reading": "トシヨリ",
       "reading_source": "ruby",
-      "fallback_reading": "トショリ",
+      "fallback_reading": "トシヨリ",
       "context_prefix": "るから",
       "context_suffix": "と云う",
       "accent": null,

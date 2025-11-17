@@ -1,5 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
+  "text_sha1": "d9043edaf2eb5d0f926da39b90ceb388ac805dc3",
   "tokens": [
     {
       "surface": "第",
@@ -2600,9 +2601,9 @@
       "surface": "自由",
       "start": 795,
       "end": 797,
-      "reading": "ジュウ",
+      "reading": "ジユウ",
       "reading_source": "nhk",
-      "fallback_reading": "ジュウ",
+      "fallback_reading": "ジユウ",
       "context_prefix": "目は不",
       "context_suffix": "でいけ",
       "accent": null,

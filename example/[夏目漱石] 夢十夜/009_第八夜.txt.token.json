@@ -1,5 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
+  "text_sha1": "8af3846a08422ad4b6bf7622518287d88b5250b1",
   "tokens": [
     {
       "surface": "第",
@@ -1265,9 +1266,9 @@
       "surface": "見よう",
       "start": 328,
       "end": 331,
-      "reading": "ミョウ",
+      "reading": "ミヨウ",
       "reading_source": "unidic",
-      "fallback_reading": "ミョウ",
+      "fallback_reading": "ミヨウ",
       "context_prefix": "の顔を",
       "context_suffix": "と思う",
       "accent": 1,

@@ -1,5 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
+  "text_sha1": "7bd6129bf213caccfc2e27d19830ceaaa82c4c20",
   "tokens": [
     {
       "surface": "第",
@@ -125,9 +126,9 @@
       "surface": "神代",
       "start": 28,
       "end": 30,
-      "reading": "カミョ",
+      "reading": "カミヨ",
       "reading_source": "ruby",
-      "fallback_reading": "カミョ",
+      "fallback_reading": "カミヨ",
       "context_prefix": "事で、",
       "context_suffix": "に近い",
       "accent": null,

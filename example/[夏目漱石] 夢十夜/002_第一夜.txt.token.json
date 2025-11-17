@@ -1,5 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
+  "text_sha1": "281a44da570db14af86cf45e9e29dec26f64ca25",
   "tokens": [
     {
       "surface": "第",
@@ -20,9 +21,9 @@
       "surface": "一夜",
       "start": 1,
       "end": 3,
-      "reading": "イチャ",
+      "reading": "イチヤ",
       "reading_source": "unidic",
-      "fallback_reading": "イチャ",
+      "fallback_reading": "イチヤ",
       "context_prefix": "第",
       "context_suffix": "\n\n ",
       "accent": 2,

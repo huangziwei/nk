@@ -1,5 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
+  "text_sha1": "da9bfc9a3936916926a3a74cdb070264f686d5b9",
   "tokens": [
     {
       "surface": "第",
@@ -5435,9 +5436,9 @@
       "surface": "理由",
       "start": 1647,
       "end": 1649,
-      "reading": "リュウ",
+      "reading": "リユウ",
       "reading_source": "nhk",
-      "fallback_reading": "リュウ",
+      "fallback_reading": "リユウ",
       "context_prefix": "ている",
       "context_suffix": "もほぼ",
       "accent": null,

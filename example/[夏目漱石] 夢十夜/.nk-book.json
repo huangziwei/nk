@@ -12,7 +12,7 @@
     {
       "index": 2,
       "file": "002_第一夜.txt",
-      "title": "ダイイチャ",
+      "title": "ダイイチヤ",
       "original_title": "第一夜",
       "source": "item/xhtml/0001.xhtml"
     },
@@ -54,7 +54,7 @@
     {
       "index": 8,
       "file": "008_第七夜.txt",
-      "title": "ダイシチャ",
+      "title": "ダイシチヤ",
       "original_title": "第七夜",
       "source": "item/xhtml/0001.xhtml"
     },
@@ -91,9 +91,7 @@
   "cover": "cover.jpg",
   "epub": "[夏目漱石] 夢十夜.epub",
   "tts_defaults": {
-    "speaker": 2,
-    "speed": 1.0,
-    "pitch": 0.0,
-    "intonation": 1.0
+    "pitch": -0.08,
+    "intonation": 1.25
   }
 }
