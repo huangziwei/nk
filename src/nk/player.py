@@ -2441,6 +2441,38 @@ def create_app(config: PlayerConfig) -> FastAPI:
             bookmarks = _bookmarks_payload(book_path)
         return JSONResponse(bookmarks)
 
+    @app.post("/api/books/{book_id}/bookmarks/last-played")
+    def api_update_last_played(
+        book_id: str,
+        payload: dict[str, object] = Body(...),
+    ) -> JSONResponse:
+        book_path = root / book_id
+        if not book_path.is_dir():
+            raise HTTPException(status_code=404, detail="Book not found")
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="Invalid payload.")
+        chapter_id = payload.get("chapter_id")
+        if not isinstance(chapter_id, str) or not chapter_id.strip():
+            raise HTTPException(status_code=400, detail="chapter_id is required.")
+        time_value = payload.get("time")
+        if not isinstance(time_value, (int, float)) or time_value < 0:
+            raise HTTPException(status_code=400, detail="time must be non-negative.")
+        _ensure_chapter_for_bookmark(book_path, chapter_id)
+        with bookmark_lock:
+            _update_last_played(book_path, chapter_id, float(time_value))
+            bookmarks = _bookmarks_payload(book_path)
+        return JSONResponse(bookmarks)
+
+    @app.delete("/api/books/{book_id}/bookmarks/last-played")
+    def api_clear_last_played(book_id: str) -> JSONResponse:
+        book_path = root / book_id
+        if not book_path.is_dir():
+            raise HTTPException(status_code=404, detail="Book not found")
+        with bookmark_lock:
+            _clear_last_played_entry(book_path)
+            bookmarks = _bookmarks_payload(book_path)
+        return JSONResponse(bookmarks)
+
     @app.delete("/api/books/{book_id}/bookmarks/{bookmark_id}")
     def api_delete_bookmark(book_id: str, bookmark_id: str) -> JSONResponse:
         book_path = root / book_id
@@ -2487,38 +2519,6 @@ def create_app(config: PlayerConfig) -> FastAPI:
             bookmarks = _bookmarks_payload(book_path)
         if not updated:
             raise HTTPException(status_code=404, detail="Bookmark not found.")
-        return JSONResponse(bookmarks)
-
-    @app.post("/api/books/{book_id}/bookmarks/last-played")
-    def api_update_last_played(
-        book_id: str,
-        payload: dict[str, object] = Body(...),
-    ) -> JSONResponse:
-        book_path = root / book_id
-        if not book_path.is_dir():
-            raise HTTPException(status_code=404, detail="Book not found")
-        if not isinstance(payload, dict):
-            raise HTTPException(status_code=400, detail="Invalid payload.")
-        chapter_id = payload.get("chapter_id")
-        if not isinstance(chapter_id, str) or not chapter_id.strip():
-            raise HTTPException(status_code=400, detail="chapter_id is required.")
-        time_value = payload.get("time")
-        if not isinstance(time_value, (int, float)) or time_value < 0:
-            raise HTTPException(status_code=400, detail="time must be non-negative.")
-        _ensure_chapter_for_bookmark(book_path, chapter_id)
-        with bookmark_lock:
-            _update_last_played(book_path, chapter_id, float(time_value))
-            bookmarks = _bookmarks_payload(book_path)
-        return JSONResponse(bookmarks)
-
-    @app.delete("/api/books/{book_id}/bookmarks/last-played")
-    def api_clear_last_played(book_id: str) -> JSONResponse:
-        book_path = root / book_id
-        if not book_path.is_dir():
-            raise HTTPException(status_code=404, detail="Book not found")
-        with bookmark_lock:
-            _clear_last_played_entry(book_path)
-            bookmarks = _bookmarks_payload(book_path)
         return JSONResponse(bookmarks)
 
     @app.post("/api/books/{book_id}/tts-defaults")
