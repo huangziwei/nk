@@ -837,7 +837,7 @@ INDEX_HTML = """<!DOCTYPE html>
     }
 
     function chapterPrimaryLabel(ch) {
-      return ch.mp3_exists ? 'Play' : 'Build & Play';
+      return ch.mp3_exists ? 'Play' : 'Build';
     }
 
     function updateChapterHighlight() {
@@ -918,13 +918,19 @@ INDEX_HTML = """<!DOCTYPE html>
         buttons.className = 'badges';
         const playBtn = document.createElement('button');
         playBtn.textContent = chapterPrimaryLabel(ch);
-        playBtn.onclick = () => handlePromise(playChapter(index, { restart: false }));
+        playBtn.onclick = () => {
+          if (ch.mp3_exists) {
+            handlePromise(playChapter(index));
+          } else {
+            handlePromise(buildChapter(index, { restart: false }));
+          }
+        };
         buttons.appendChild(playBtn);
 
         const restartBtn = document.createElement('button');
         restartBtn.textContent = 'Rebuild';
         restartBtn.className = 'secondary';
-        restartBtn.onclick = () => handlePromise(playChapter(index, { restart: true }));
+        restartBtn.onclick = () => handlePromise(buildChapter(index, { restart: true }));
         buttons.appendChild(restartBtn);
         footer.appendChild(buttons);
 
@@ -988,19 +994,13 @@ INDEX_HTML = """<!DOCTYPE html>
       }
     }
 
-    function triggerPrefetch(startIndex, { restart = false } = {}) {
+    async function buildChapter(index, { restart = false } = {}) {
       if (!state.currentBook) return;
-      if (startIndex == null || startIndex > state.chapters.length) return;
-      fetch(`/api/books/${encodeURIComponent(state.currentBook.id)}/prefetch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ start_index: startIndex, restart }),
-      }).catch(() => {});
-    }
-
-    async function prepareChapter(chapter, { restart = false, prefetchStartIndex = null, prefetchRestart = false } = {}) {
+      const chapter = state.chapters[index];
+      if (!chapter) return;
       const params = new URLSearchParams();
       if (restart) params.set('restart', '1');
+      statusLine.textContent = restart ? 'Rebuilding audio...' : 'Building audio...';
       const res = await fetch(
         `/api/books/${encodeURIComponent(state.currentBook.id)}/chapters/${encodeURIComponent(chapter.id)}/prepare?${params.toString()}`,
         { method: 'POST' }
@@ -1010,18 +1010,30 @@ INDEX_HTML = """<!DOCTYPE html>
         throw new Error(text || `HTTP ${res.status}`);
       }
       const result = await res.json();
-      if (result.created) {
-        chapter.mp3_exists = true;
-      }
+      chapter.mp3_exists = true;
       if (typeof result.total_chunks === 'number') {
         chapter.total_chunks = result.total_chunks;
       }
       chapter.has_cache = true;
       renderChapters(summaryForChapters());
+      statusLine.textContent = 'Build finished. Tap Play to listen.';
+    }
 
-      if (prefetchStartIndex != null) {
-        triggerPrefetch(prefetchStartIndex, { restart: prefetchRestart });
+    async function playChapter(index) {
+      if (!state.chapters.length || !state.currentBook) return;
+      const chapter = state.chapters[index];
+      if (!chapter) return;
+      if (!chapter.mp3_exists) {
+        statusLine.textContent = 'Audio not built yet.';
+        alert('Build this chapter before playing.');
+        state.autoAdvance = false;
+        return;
       }
+      state.autoAdvance = true;
+      state.currentChapterIndex = index;
+      updateChapterHighlight();
+      updatePlayerDetails(chapter);
+      statusLine.textContent = 'Loading audio...';
 
       const playUrl = `/api/books/${encodeURIComponent(state.currentBook.id)}/chapters/${encodeURIComponent(chapter.id)}/stream?ts=${Date.now()}`;
       player.pause();
@@ -1036,40 +1048,31 @@ INDEX_HTML = """<!DOCTYPE html>
       }
     }
 
-    async function playChapter(index, { restart = false } = {}) {
-      if (!state.chapters.length) return;
-      state.autoAdvance = true;
-      state.currentChapterIndex = index;
-      updateChapterHighlight();
-
-      const chapter = state.chapters[index];
-      updatePlayerDetails(chapter);
-      statusLine.textContent = 'Preparing audio...';
-
-      const nextIndex = chapter.index + 1;
-      await prepareChapter(chapter, {
-        restart,
-        prefetchStartIndex: nextIndex <= state.chapters.length ? nextIndex : null,
-        prefetchRestart: false,
-      });
-    }
-
-    function findChapterIndexForBookStart(restart) {
-      if (!state.chapters.length) return 0;
-      if (!restart) {
-        const firstPending = state.chapters.findIndex(ch => !ch.mp3_exists);
-        if (firstPending !== -1) return firstPending;
+    function findPlayableChapterIndex(restart) {
+      if (!state.chapters.length) return -1;
+      if (!restart && state.currentChapterIndex >= 0) {
+        for (let idx = state.currentChapterIndex; idx < state.chapters.length; idx++) {
+          if (state.chapters[idx]?.mp3_exists) {
+            return idx;
+          }
+        }
       }
-      return 0;
+      for (let idx = 0; idx < state.chapters.length; idx++) {
+        if (state.chapters[idx]?.mp3_exists) {
+          return idx;
+        }
+      }
+      return -1;
     }
 
     async function playBook(restart = false) {
       if (!state.chapters.length) return;
-      const index = findChapterIndexForBookStart(restart);
-      await playChapter(index, { restart });
-      if (restart) {
-        triggerPrefetch(1, { restart: true });
+      const index = findPlayableChapterIndex(restart);
+      if (index === -1) {
+        alert('Build at least one chapter before playing.');
+        return;
       }
+      await playChapter(index);
     }
 
     player.addEventListener('playing', () => {
@@ -1086,12 +1089,16 @@ INDEX_HTML = """<!DOCTYPE html>
     player.addEventListener('ended', () => {
       statusLine.textContent = 'Finished';
       renderChapters(summaryForChapters());
-      if (state.autoAdvance && state.currentChapterIndex + 1 < state.chapters.length) {
-        handlePromise(playChapter(state.currentChapterIndex + 1, { restart: false }));
-      } else {
+      if (state.autoAdvance) {
+        const nextIndex = state.currentChapterIndex + 1;
+        const nextChapter = state.chapters[nextIndex];
+        if (nextChapter && nextChapter.mp3_exists) {
+          handlePromise(playChapter(nextIndex));
+          return;
+        }
         state.autoAdvance = false;
-        if (state.currentBook) {
-          handlePromise(loadChapters(state.currentBook, { preserveSelection: false }));
+        if (nextChapter && !nextChapter.mp3_exists) {
+          statusLine.textContent = 'Next chapter not built yet.';
         }
       }
     });
@@ -1235,6 +1242,7 @@ def _fallback_cover_path(book_dir: Path) -> Path | None:
 
 def _book_media_info(
     book_dir: Path,
+    config: WebConfig,
 ) -> tuple[
     LoadedBookMetadata | None,
     str,
@@ -1251,7 +1259,7 @@ def _book_media_info(
         cover_path = metadata.cover_path
     if cover_path is None:
         cover_path = _fallback_cover_path(book_dir)
-    saved_defaults, effective_defaults = _tts_defaults_payload(metadata)
+    saved_defaults, effective_defaults = _tts_defaults_payload(metadata, config)
     return metadata, title, author, cover_path, saved_defaults, effective_defaults
 
 
@@ -1265,9 +1273,48 @@ def _cover_url(book_id: str, cover_path: Path | None) -> str | None:
     return f"/api/books/{book_id}/cover?ts={mtime}"
 
 
+def _voice_settings_for_book(
+    config: WebConfig,
+    metadata: LoadedBookMetadata | None,
+    *,
+    for_display: bool = False,
+) -> dict[str, float | int | None]:
+    defaults = metadata.tts_defaults if metadata else None
+
+    def _pick(
+        attr: str,
+        cfg_value: float | int | None,
+        fallback: float | int,
+    ) -> float | int | None:
+        if defaults:
+            value = getattr(defaults, attr, None)
+            if value is not None:
+                return value
+        if cfg_value is not None:
+            return cfg_value
+        if for_display:
+            return fallback
+        return None
+
+    speaker_value = _pick("speaker", config.speaker, DEFAULT_SPEAKER_ID)
+    if speaker_value is None:
+        speaker_value = DEFAULT_SPEAKER_ID
+    return {
+        "speaker": int(speaker_value),
+        "speed": _pick("speed", config.speed_scale, DEFAULT_SPEED_SCALE),
+        "pitch": _pick("pitch", config.pitch_scale, DEFAULT_PITCH_SCALE),
+        "intonation": _pick(
+            "intonation",
+            config.intonation_scale,
+            DEFAULT_INTONATION_SCALE,
+        ),
+    }
+
+
 def _tts_defaults_payload(
     metadata: LoadedBookMetadata | None,
-) -> tuple[dict[str, float | int], dict[str, float]]:
+    config: WebConfig,
+) -> tuple[dict[str, float | int], dict[str, float | int | None]]:
     saved: dict[str, float | int] = {}
     defaults = metadata.tts_defaults if metadata else None
     if defaults:
@@ -1279,14 +1326,7 @@ def _tts_defaults_payload(
             saved["pitch"] = defaults.pitch
         if defaults.intonation is not None:
             saved["intonation"] = defaults.intonation
-    effective: dict[str, float] = {
-        "speaker": float(saved.get("speaker", DEFAULT_SPEAKER_ID)),
-        "speed": float(saved.get("speed", DEFAULT_SPEED_SCALE)),
-        "pitch": float(saved.get("pitch", DEFAULT_PITCH_SCALE)),
-        "intonation": float(saved.get("intonation", DEFAULT_INTONATION_SCALE)),
-    }
-    # speaker should be an int, but represented as float for uniform typing; convert later where needed.
-    effective["speaker"] = int(effective["speaker"])
+    effective = _voice_settings_for_book(config, metadata, for_display=True)
     return saved, effective
 
 
@@ -1297,6 +1337,7 @@ def _synthesize_sequence(
     *,
     force_indices: frozenset[int] | None = None,
     progress_handler: Callable[[TTSTarget, dict[str, object]], None] | None = None,
+    voice_settings: dict[str, float | int | None] | None = None,
 ) -> int:
     if not targets:
         return 0
@@ -1321,14 +1362,20 @@ def _synthesize_sequence(
             extra_env=env_override,
             cpu_threads=thread_override,
         ):
+            voice = voice_settings or {}
+            speaker_value = voice.get("speaker", config.speaker)
+            if isinstance(speaker_value, float):
+                speaker_value = int(speaker_value)
+            elif not isinstance(speaker_value, int):
+                speaker_value = config.speaker
             client = VoiceVoxClient(
                 base_url=config.engine_url,
-                speaker_id=config.speaker,
+                speaker_id=speaker_value,
                 timeout=60.0,
                 post_phoneme_length=config.pause,
-                speed_scale=config.speed_scale,
-                pitch_scale=config.pitch_scale,
-                intonation_scale=config.intonation_scale,
+                speed_scale=voice.get("speed", config.speed_scale),
+                pitch_scale=voice.get("pitch", config.pitch_scale),
+                intonation_scale=voice.get("intonation", config.intonation_scale),
             )
             try:
                 total = len(work_plan)
@@ -1401,7 +1448,6 @@ def create_app(config: WebConfig) -> FastAPI:
     app.state.config = config
     app.state.root = root
     app.state.voicevox_lock = threading.Lock()
-    app.state.prefetch_tasks: dict[str, threading.Thread] = {}
 
     status_lock = threading.Lock()
     chapter_status: dict[str, dict[str, dict[str, object]]] = {}
@@ -1501,52 +1547,6 @@ def create_app(config: WebConfig) -> FastAPI:
                 error=message,
             )
 
-    def _spawn_prefetch(
-        book_id: str,
-        targets: list[TTSTarget],
-        force_indices: frozenset[int],
-    ) -> bool:
-        if not targets:
-            return False
-        pending = any(
-            (idx in force_indices) or (not target.output.exists())
-            for idx, target in enumerate(targets)
-        )
-        if not pending:
-            return False
-        tasks: dict[str, threading.Thread] = app.state.prefetch_tasks
-        existing = tasks.get(book_id)
-        if existing and existing.is_alive():
-            return False
-
-        def worker() -> None:
-            try:
-                for idx, target in enumerate(targets):
-                    force = frozenset({0}) if idx in force_indices else frozenset()
-                    try:
-                        _synthesize_sequence(
-                            config,
-                            [target],
-                            app.state.voicevox_lock,
-                            force_indices=force,
-                            progress_handler=_record_progress_event,
-                        )
-                    except Exception:
-                        break
-            except Exception:
-                pass
-            finally:
-                tasks.pop(book_id, None)
-
-        thread = threading.Thread(
-            target=worker,
-            name=f"nk-prefetch-{book_id}",
-            daemon=True,
-        )
-        tasks[book_id] = thread
-        thread.start()
-        return True
-
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
         return INDEX_HTML
@@ -1562,7 +1562,7 @@ def create_app(config: WebConfig) -> FastAPI:
                 cover_path,
                 saved_defaults,
                 effective_defaults,
-            ) = _book_media_info(book_dir)
+            ) = _book_media_info(book_dir, config)
             chapters = _list_chapters(book_dir)
             status_snapshot = _status_snapshot(book_dir.name)
             states = [
@@ -1607,7 +1607,7 @@ def create_app(config: WebConfig) -> FastAPI:
             cover_path,
             saved_defaults,
             effective_defaults,
-        ) = _book_media_info(book_path)
+        ) = _book_media_info(book_path, config)
         chapters = _list_chapters(book_path)
         status_snapshot = _status_snapshot(book_id)
         states = [
@@ -1707,7 +1707,7 @@ def create_app(config: WebConfig) -> FastAPI:
             _cover_path,
             saved_defaults,
             effective_defaults,
-        ) = _book_media_info(book_path)
+        ) = _book_media_info(book_path, config)
         return JSONResponse(
             {
                 "changed": bool(changed),
@@ -1721,7 +1721,7 @@ def create_app(config: WebConfig) -> FastAPI:
         book_path = root / book_id
         if not book_path.is_dir():
             raise HTTPException(status_code=404, detail="Book not found")
-        _, _, _, cover_path, _, _ = _book_media_info(book_path)
+        _, _, _, cover_path, _, _ = _book_media_info(book_path, config)
         if cover_path is None or not cover_path.exists():
             raise HTTPException(status_code=404, detail="Cover not found")
         return FileResponse(cover_path)
@@ -1738,6 +1738,8 @@ def create_app(config: WebConfig) -> FastAPI:
             raise HTTPException(status_code=404, detail="Chapter not found")
 
         target = TTSTarget(source=chapter_path, output=chapter_path.with_suffix(".mp3"))
+        metadata = load_book_metadata(book_path)
+        voice_overrides = _voice_settings_for_book(config, metadata, for_display=False)
         force_indices = frozenset({0}) if restart else frozenset()
 
         loop = asyncio.get_running_loop()
@@ -1749,6 +1751,7 @@ def create_app(config: WebConfig) -> FastAPI:
                 app.state.voicevox_lock,
                 force_indices=force_indices,
                 progress_handler=_record_progress_event,
+                voice_settings=voice_overrides,
             )
 
         try:
@@ -1778,76 +1781,14 @@ def create_app(config: WebConfig) -> FastAPI:
         target = TTSTarget(source=chapter_path, output=chapter_path.with_suffix(".mp3"))
 
         if not target.output.exists():
-            loop = asyncio.get_running_loop()
-
-            def work() -> int:
-                return _synthesize_sequence(
-                    config,
-                    [target],
-                    app.state.voicevox_lock,
-                    force_indices=frozenset(),
-                    progress_handler=_record_progress_event,
-                )
-
-            try:
-                await loop.run_in_executor(None, work)
-            except (VoiceVoxUnavailableError, VoiceVoxError, FFmpegError) as exc:
-                raise HTTPException(status_code=502, detail=str(exc)) from exc
-            except Exception as exc:
-                raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-        if not target.output.exists():
-            raise HTTPException(status_code=500, detail="Failed to synthesize chapter.")
+            raise HTTPException(
+                status_code=409, detail="Chapter audio not built yet."
+            )
 
         return FileResponse(
             target.output,
             media_type="audio/mpeg",
             filename=target.output.name,
-        )
-
-    @app.post("/api/books/{book_id}/prefetch")
-    def api_prefetch(
-        book_id: str,
-        payload: dict[str, object] = Body(...),
-    ) -> JSONResponse:
-        book_path = root / book_id
-        if not book_path.is_dir():
-            raise HTTPException(status_code=404, detail="Book not found")
-
-        try:
-            start_index = int(payload.get("start_index", 1))  # type: ignore[arg-type]
-        except (TypeError, ValueError):
-            raise HTTPException(
-                status_code=400, detail="start_index must be an integer"
-            )
-        restart_all = bool(payload.get("restart", False))
-
-        chapters = _list_chapters(book_path)
-        if not chapters:
-            return JSONResponse({"status": "empty", "pending": 0})
-
-        start_index = max(1, start_index)
-        if start_index > len(chapters):
-            return JSONResponse({"status": "noop", "pending": 0})
-
-        slice_chapters = chapters[start_index - 1 :]
-        targets = [
-            TTSTarget(source=chapter, output=chapter.with_suffix(".mp3"))
-            for chapter in slice_chapters
-        ]
-        force_indices = frozenset(range(len(targets))) if restart_all else frozenset()
-
-        pending = sum(
-            1
-            for idx, target in enumerate(targets)
-            if (idx in force_indices) or not target.output.exists()
-        )
-        if pending == 0:
-            return JSONResponse({"status": "noop", "pending": 0})
-
-        started = _spawn_prefetch(book_id, targets, force_indices)
-        return JSONResponse(
-            {"status": "started" if started else "running", "pending": pending}
         )
 
     return app
