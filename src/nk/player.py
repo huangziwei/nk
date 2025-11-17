@@ -1337,7 +1337,8 @@ INDEX_HTML = """<!DOCTYPE html>
         const name = document.createElement('div');
         name.className = 'name';
         const trackLabel = formatTrackNumber(ch.track_number);
-        name.textContent = trackLabel ? `${trackLabel} ${ch.title}` : ch.title;
+        const displayTitle = ch.original_title || ch.title || ch.id.replace(/_/g, ' ');
+        name.textContent = trackLabel ? `${trackLabel} ${displayTitle}` : displayTitle;
         header.appendChild(name);
         wrapper.appendChild(header);
 
@@ -1941,14 +1942,16 @@ def _chapter_state(
     if chapter_meta and chapter_meta.index is not None:
         track_number = chapter_meta.index
     title = chapter_path.stem
+    original_title = None
     if chapter_meta:
         if chapter_meta.title:
             title = chapter_meta.title
-        elif chapter_meta.original_title:
-            title = chapter_meta.original_title
+        if chapter_meta.original_title:
+            original_title = chapter_meta.original_title
     state: dict[str, object] = {
         "id": chapter_path.name,
         "title": title,
+        "original_title": original_title,
         "index": index,
         "track_number": track_number,
         "mp3_exists": target.output.exists(),
