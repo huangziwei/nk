@@ -544,6 +544,7 @@ INDEX_HTML = """<!DOCTYPE html>
       const initialHashPath = getChapterPathFromHash();
       if (initialHashPath) {
         state.selectedPath = initialHashPath;
+        expandFoldersForPath(initialHashPath);
       }
 
       function updateSidebarToggleLabel(collapsed) {
@@ -616,6 +617,25 @@ INDEX_HTML = """<!DOCTYPE html>
           return;
         }
         state.folderState[path] = Boolean(expanded);
+      }
+
+      function expandFoldersForPath(path) {
+        if (!path) {
+          return;
+        }
+        const parts = path.split('/');
+        if (parts.length <= 1) {
+          return;
+        }
+        let cursor = '';
+        for (let i = 0; i < parts.length - 1; i += 1) {
+          const part = parts[i];
+          if (!part) {
+            continue;
+          }
+          cursor = cursor ? `${cursor}/${part}` : part;
+          setFolderExpanded(cursor, true);
+        }
       }
 
       function setLineRegistry(key, lines) {
@@ -1251,6 +1271,7 @@ INDEX_HTML = """<!DOCTYPE html>
           return;
         }
         state.selectedPath = path;
+        expandFoldersForPath(path);
         if (!options.preservePayload) {
           state.chapterPayload = null;
         }
