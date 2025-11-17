@@ -347,7 +347,6 @@ INDEX_HTML = """<!DOCTYPE html>
       overflow: hidden;
     }
     .upload-card .upload-drop {
-      position: relative;
       border-radius: calc(var(--radius) - 8px);
       border: 1px dashed rgba(59,130,246,0.5);
       padding: 0.9rem;
@@ -382,7 +381,7 @@ INDEX_HTML = """<!DOCTYPE html>
       justify-content: center;
       gap: 0.5rem;
       flex-wrap: wrap;
-      margin-top: 0.2rem;
+      margin-top: 0.5rem;
     }
     .upload-card .upload-actions button {
       background: rgba(59,130,246,0.15);
@@ -1241,12 +1240,12 @@ INDEX_HTML = """<!DOCTYPE html>
       card.className = 'card upload-card';
       card.innerHTML = `
         <div class="upload-drop" data-role="upload-drop" tabindex="0" role="button" aria-label="Upload EPUB">
-          <input type="file" accept=".epub" data-role="upload-input" tabindex="-1" aria-hidden="true">
           <strong>Upload EPUB</strong>
           <p>Drop an .epub here or click to select a file. nk will chapterize it and add it to your library.</p>
-          <div class="upload-actions">
-            <button type="button" class="secondary">Select EPUB</button>
-          </div>
+        </div>
+        <div class="upload-actions">
+          <button type="button" class="secondary" data-role="upload-select">Select EPUB</button>
+          <input type="file" accept=".epub" data-role="upload-input" tabindex="-1" aria-hidden="true">
         </div>
         <div class="upload-error" data-role="upload-error"></div>
         <div class="upload-jobs" data-role="upload-jobs">
@@ -1258,7 +1257,7 @@ INDEX_HTML = """<!DOCTYPE html>
       uploadUI.input = card.querySelector('[data-role="upload-input"]');
       uploadUI.error = card.querySelector('[data-role="upload-error"]');
       uploadUI.jobsList = card.querySelector('[data-role="upload-jobs"]');
-      const selectButton = card.querySelector('.upload-actions button');
+      const selectButton = card.querySelector('[data-role="upload-select"]');
       const triggerFileDialog = () => {
         uploadUI.input?.click();
       };
