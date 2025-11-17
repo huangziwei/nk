@@ -297,6 +297,16 @@ INDEX_HTML = """<!DOCTYPE html>
       padding: 0 0.15rem;
       cursor: pointer;
     }
+    .token-chunk ruby {
+      ruby-position: over;
+      line-height: 1.2;
+    }
+    .token-chunk rt {
+      font-size: 0.65em;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
     .token-chunk.active {
       outline: 2px solid var(--token-active);
       background: rgba(249,115,22,0.25);
@@ -607,6 +617,8 @@ INDEX_HTML = """<!DOCTYPE html>
           .filter((entry) => entry.end > entry.start)
           .sort((a, b) => (a.start - b.start) || (a.index - b.index));
 
+        const isOriginalView = key === 'original';
+
         const pushTextSegment = (value) => {
           if (value) {
             segments.push({ type: 'text', text: value });
@@ -674,7 +686,20 @@ INDEX_HTML = """<!DOCTYPE html>
             span.className = 'token-chunk';
             span.dataset.tokenIndex = String(segment.index);
             span.title = `${segment.token.surface || ''} → ${segment.token.reading || ''}`;
-            span.textContent = chunk;
+            const annotation = isOriginalView ? (segment.token.reading || '') : (segment.token.surface || '');
+            const trimmedAnnotation = annotation && annotation.trim();
+            if (trimmedAnnotation) {
+              const ruby = document.createElement('ruby');
+              const rb = document.createElement('span');
+              rb.textContent = chunk;
+              ruby.appendChild(rb);
+              const rt = document.createElement('rt');
+              rt.textContent = annotation;
+              ruby.appendChild(rt);
+              span.appendChild(ruby);
+            } else {
+              span.textContent = chunk;
+            }
             attachHighlightHandlers(span, segment.index);
             currentLineNodes.push(span);
           } else {
