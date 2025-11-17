@@ -376,21 +376,6 @@ INDEX_HTML = """<!DOCTYPE html>
       opacity: 0.7;
       pointer-events: none;
     }
-    .upload-card .upload-actions {
-      display: inline-flex;
-      justify-content: center;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-      margin-top: 0.5rem;
-    }
-    .upload-card .upload-actions button {
-      background: rgba(59,130,246,0.15);
-      color: var(--accent);
-      border-radius: 999px;
-      border: 1px solid rgba(59,130,246,0.4);
-      padding: 0.25rem 0.9rem;
-      font-size: 0.85rem;
-    }
     .upload-card .upload-error {
       min-height: 1.1rem;
       font-size: 0.85rem;
@@ -1243,10 +1228,7 @@ INDEX_HTML = """<!DOCTYPE html>
           <strong>Upload EPUB</strong>
           <p>Drop an .epub here or click to select a file. nk will chapterize it and add it to your library.</p>
         </div>
-        <div class="upload-actions">
-          <button type="button" class="secondary" data-role="upload-select">Select EPUB</button>
-          <input type="file" accept=".epub" data-role="upload-input" tabindex="-1" aria-hidden="true">
-        </div>
+        <input type="file" accept=".epub" data-role="upload-input" tabindex="-1" aria-hidden="true">
         <div class="upload-error" data-role="upload-error"></div>
         <div class="upload-jobs" data-role="upload-jobs">
           <div class="upload-empty">No uploads yet.</div>
@@ -1257,7 +1239,6 @@ INDEX_HTML = """<!DOCTYPE html>
       uploadUI.input = card.querySelector('[data-role="upload-input"]');
       uploadUI.error = card.querySelector('[data-role="upload-error"]');
       uploadUI.jobsList = card.querySelector('[data-role="upload-jobs"]');
-      const selectButton = card.querySelector('[data-role="upload-select"]');
       const triggerFileDialog = () => {
         uploadUI.input?.click();
       };
@@ -1299,12 +1280,6 @@ INDEX_HTML = """<!DOCTYPE html>
       if (uploadUI.input) {
         uploadUI.input.addEventListener('change', () => {
           handleUploadFiles(uploadUI.input?.files || null);
-        });
-      }
-      if (selectButton) {
-        selectButton.addEventListener('click', (event) => {
-          event.preventDefault();
-          triggerFileDialog();
         });
       }
       renderUploadJobs();
