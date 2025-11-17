@@ -1,4 +1,4 @@
-from .core import ChapterText, epub_to_chapter_texts, epub_to_txt
+from .core import ChapterText, epub_to_chapter_texts
 from .tts import (
     FFmpegError,
     TTSTarget,
@@ -14,7 +14,6 @@ from .tts import (
 __all__ = [
     "ChapterText",
     "epub_to_chapter_texts",
-    "epub_to_txt",
     "TTSTarget",
     "resolve_text_targets",
     "synthesize_texts_to_mp3",

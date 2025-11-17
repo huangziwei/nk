@@ -2684,20 +2684,4 @@ def epub_to_chapter_texts(
         return chapters, ruby_evidence
 
 
-def epub_to_txt(
-    inp_epub: str,
-    nlp: "NLPBackend" | None = None,
-) -> str:
-    """
-    Convert an EPUB into plain text with ruby expansion.
-
-    Advanced mode verifies ruby readings with an NLP backend, keeps the ones
-    that match or dominate in-book evidence, and fills remaining kanji with
-    dictionary readings.
-    """
-    chapters, _ = epub_to_chapter_texts(inp_epub, nlp=nlp)
-    combined = "\n\n".join(chapter.text for chapter in chapters).strip()
-    return combined
-
-
-__all__ = ["ChapterText", "CoverImage", "epub_to_chapter_texts", "epub_to_txt", "get_epub_cover"]
+__all__ = ["ChapterText", "CoverImage", "epub_to_chapter_texts", "get_epub_cover"]

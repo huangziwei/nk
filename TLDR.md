@@ -74,9 +74,6 @@ nk my_book.epub
 
 # Batch chapterize an entire shelf of EPUBs
 nk shelf/
-
-# Single-file export (legacy behavior)
-nk my_book.epub --single-file -o custom_name.txt
 ```
 
 Expect katakana-only output next to the source EPUB with duplicate titles stripped and line breaks preserved. nk always runs the advanced propagation engine, which consumes `fugashi + UniDic 3.1.1 + pykakasi` to confirm rubies and fill in missing readings.
@@ -228,8 +225,8 @@ Serve your chapterized books over HTTP and stream them from a phone or tablet on
 ## 8. Command reference
 
 ```
-# EPUB → TXT (per-chapter by default)
-nk book.epub [--single-file] [-o output.txt]
+# EPUB → TXT (per-chapter bundle)
+nk book.epub
 
 # TXT → MP3 (batch)
 nk tts book.txt|directory [--speaker N]
@@ -257,7 +254,6 @@ nk deps
 
 - `nk deps` prints the detected UniDic, VoiceVox, and ffmpeg installations so you can confirm versions/paths quickly.
 - `nk dav` exposes only `.mp3` files via WebDAV using your macOS login (PAM) and mirrors new MP3s as they are added under `books/`. Point clients such as Flacbox at `http://<your-mac-ip>:PORT/` to stream your nk library without copying files.
-> Note: `-o/--output-name` is only honored when `--single-file` is provided.
 ```
 
 ---

@@ -40,7 +40,6 @@ from .core import (
     _load_corpus_reading_accumulators,
     _select_reading_mapping,
     epub_to_chapter_texts,
-    epub_to_txt,
     get_epub_cover,
 )
 from .nlp import NLPBackend, NLPBackendUnavailableError
@@ -105,16 +104,6 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "input_path",
         help="Path to input .epub or a directory containing .epub files",
-    )
-    ap.add_argument(
-        "-o",
-        "--output-name",
-        help="Optional name for the output .txt (same folder as input)",
-    )
-    ap.add_argument(
-        "--single-file",
-        action="store_true",
-        help="Emit a single combined .txt (legacy mode). Default outputs per-chapter files.",
     )
     return ap
 
@@ -1213,9 +1202,6 @@ def main(argv: list[str] | None = None) -> int:
     inp_path = Path(args.input_path)
     if not inp_path.exists():
         raise FileNotFoundError(f"Input path not found: {inp_path}")
-    emit_chapterized = not args.single_file
-    if emit_chapterized and args.output_name:
-        raise ValueError("Output name can only be used with --single-file.")
 
     try:
         backend = NLPBackend()
@@ -1223,56 +1209,34 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(str(exc)) from exc
 
     if inp_path.is_dir():
-        if args.output_name:
-            raise ValueError("Output name cannot be used when processing a directory.")
         epubs = sorted(p for p in inp_path.iterdir() if p.suffix.lower() == ".epub")
         if not epubs:
             raise FileNotFoundError(f"No .epub files found in directory: {inp_path}")
         for epub_path in epubs:
-            if emit_chapterized:
-                chapters, ruby_evidence = epub_to_chapter_texts(str(epub_path), nlp=backend)
-                output_dir = epub_path.with_suffix("")
-                cover = get_epub_cover(str(epub_path))
-                write_book_package(
-                    output_dir,
-                    chapters,
-                    source_epub=epub_path,
-                    cover_image=cover,
-                    ruby_evidence=ruby_evidence,
-                )
-            else:
-                txt = epub_to_txt(str(epub_path), nlp=backend)
-                output_path = epub_path.with_suffix(".txt")
-                output_path.write_text(txt, encoding="utf-8")
+            chapters, ruby_evidence = epub_to_chapter_texts(str(epub_path), nlp=backend)
+            output_dir = epub_path.with_suffix("")
+            cover = get_epub_cover(str(epub_path))
+            write_book_package(
+                output_dir,
+                chapters,
+                source_epub=epub_path,
+                cover_image=cover,
+                ruby_evidence=ruby_evidence,
+            )
     else:
         if inp_path.suffix.lower() != ".epub":
             raise ValueError(f"Input must be an .epub file or directory: {inp_path}")
 
-        if emit_chapterized:
-            chapters, ruby_evidence = epub_to_chapter_texts(str(inp_path), nlp=backend)
-            output_dir = inp_path.with_suffix("")
-            cover = get_epub_cover(str(inp_path))
-            write_book_package(
-                output_dir,
-                chapters,
-                source_epub=inp_path,
-                cover_image=cover,
-                ruby_evidence=ruby_evidence,
-            )
-        else:
-            if args.output_name:
-                out_name_path = Path(args.output_name)
-                if out_name_path.parent not in (Path("."), Path("")):
-                    raise ValueError(
-                        "Output name must not contain directory components; "
-                        "it is saved next to the EPUB."
-                    )
-                output_path = inp_path.with_name(out_name_path.name)
-            else:
-                output_path = inp_path.with_suffix(".txt")
-
-            txt = epub_to_txt(str(inp_path), nlp=backend)
-            output_path.write_text(txt, encoding="utf-8")
+        chapters, ruby_evidence = epub_to_chapter_texts(str(inp_path), nlp=backend)
+        output_dir = inp_path.with_suffix("")
+        cover = get_epub_cover(str(inp_path))
+        write_book_package(
+            output_dir,
+            chapters,
+            source_epub=inp_path,
+            cover_image=cover,
+            ruby_evidence=ruby_evidence,
+        )
     return 0
 
 

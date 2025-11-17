@@ -7,7 +7,7 @@ import pytest
 
 pytest.importorskip("fugashi")
 
-from nk.core import epub_to_chapter_texts, epub_to_txt
+from nk.core import epub_to_chapter_texts
 from nk.nlp import NLPBackend
 
 
@@ -94,9 +94,6 @@ def test_chapterized_output_matches_join(tmp_path: Path, backend: NLPBackend) ->
     for idx in (1, 2):
         first_line = chapters[idx].text.splitlines()[0]
         assert first_line == chapters[idx].title
-    joined = "\n\n".join(chapter.text for chapter in chapters).strip()
-    combined = epub_to_txt(str(epub_path), nlp=backend)
-    assert combined == joined
 
 
 def test_repeated_dialogue_lines_are_preserved(tmp_path: Path, backend: NLPBackend) -> None:
