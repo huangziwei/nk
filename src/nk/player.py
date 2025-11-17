@@ -230,10 +230,43 @@ INDEX_HTML = """<!DOCTYPE html>
     .collection-card {
       cursor: pointer;
       transition: transform 0.15s ease, border-color 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+      padding: 1rem 1rem 1.1rem;
     }
     .collection-card:hover {
       transform: translateY(-2px);
       border-color: rgba(59,130,246,0.35);
+    }
+    .collection-card .collection-covers {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.3rem;
+    }
+    .collection-card .collection-cover-tile {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.04);
+      background-size: cover;
+      background-position: center center;
+      box-shadow: 0 6px 12px rgba(5,6,17,0.35);
+    }
+    .collection-card .collection-cover-placeholder {
+      background: linear-gradient(135deg, rgba(59,130,246,0.18), rgba(147,51,234,0.18));
+      box-shadow: none;
+    }
+    .collection-card .collection-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .collection-card .collection-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
     .collection-card .collection-icon {
       width: 48px;
@@ -1986,19 +2019,43 @@ INDEX_HTML = """<!DOCTYPE html>
         if (collectionId) {
           card.dataset.collectionId = collectionId;
         }
+        const collage = document.createElement('div');
+        collage.className = 'collection-covers';
+        const sampleSlots = 9;
+        const samples = Array.isArray(collection.cover_samples)
+          ? collection.cover_samples.filter(item => typeof item === 'string' && item).slice(0, sampleSlots)
+          : [];
+        for (let idx = 0; idx < sampleSlots; idx += 1) {
+          const tile = document.createElement('span');
+          tile.className = 'collection-cover-tile';
+          const sample = samples[idx];
+          if (sample) {
+            tile.style.backgroundImage = `url("${sample}")`;
+          } else {
+            tile.classList.add('collection-cover-placeholder');
+          }
+          collage.appendChild(tile);
+        }
+        card.appendChild(collage);
+        const info = document.createElement('div');
+        info.className = 'collection-info';
         const icon = document.createElement('div');
         icon.className = 'collection-icon';
         icon.textContent = '📁';
-        card.appendChild(icon);
+        const header = document.createElement('div');
+        header.className = 'collection-meta-row';
+        header.appendChild(icon);
         const name = document.createElement('div');
         name.className = 'collection-name';
         name.textContent = collection.name || collection.id || collectionId || 'Collection';
-        card.appendChild(name);
+        header.appendChild(name);
+        info.appendChild(header);
         const meta = document.createElement('div');
         meta.className = 'collection-meta';
         const count = typeof collection.book_count === 'number' ? collection.book_count : 0;
         meta.textContent = count === 1 ? '1 book' : `${count} books`;
-        card.appendChild(meta);
+        info.appendChild(meta);
+        card.appendChild(info);
         card.addEventListener('click', () => {
           const targetPath = typeof collection.path === 'string' ? collection.path : (collection.id || '');
           handlePromise(loadBooks(targetPath || ''));
@@ -2010,11 +2067,18 @@ INDEX_HTML = """<!DOCTYPE html>
     function renderBooks() {
       if (!booksGrid) return;
       booksGrid.innerHTML = '';
-      const uploadCard = ensureUploadCard();
-      if (uploadCard) {
+      const showUpload = !state.collections.length;
+      const hasBooks = Array.isArray(state.books) && state.books.length > 0;
+      if (!showUpload && !hasBooks) {
+        booksGrid.classList.add('hidden');
+        return;
+      }
+      booksGrid.classList.remove('hidden');
+      const uploadCard = showUpload ? ensureUploadCard() : null;
+      if (uploadCard && showUpload) {
         booksGrid.appendChild(uploadCard);
       }
-      if (!state.books.length) {
+      if (!hasBooks) {
         const empty = document.createElement('article');
         empty.className = 'card empty-card';
         empty.textContent = 'No books in this folder yet. Choose a collection or upload a book.';
@@ -2802,8 +2866,30 @@ def _is_book_dir(path: Path) -> bool:
     return False
 
 
-def _count_descendant_books(root: Path, start: Path) -> int:
+def _cover_url_for_book_dir(root: Path, book_dir: Path) -> str | None:
+    metadata = load_book_metadata(book_dir)
+    cover_path = None
+    if metadata and metadata.cover_path and metadata.cover_path.exists():
+        cover_path = metadata.cover_path
+    if cover_path is None:
+        cover_path = _fallback_cover_path(book_dir)
+    if cover_path is None or not cover_path.exists():
+        return None
+    try:
+        book_id = _relative_library_path(root, book_dir)
+    except ValueError:
+        return None
+    return _cover_url(book_id, cover_path)
+
+
+def _scan_collection(
+    root: Path,
+    start: Path,
+    *,
+    cover_limit: int = 4,
+) -> tuple[int, list[str]]:
     count = 0
+    cover_samples: list[str] = []
     stack: list[Path] = [start]
     visited: set[Path] = set()
     while stack:
@@ -2816,7 +2902,7 @@ def _count_descendant_books(root: Path, start: Path) -> int:
             continue
         visited.add(resolved)
         try:
-            entries = list(current.iterdir())
+            entries = sorted(current.iterdir(), key=lambda p: p.name.casefold())
         except OSError:
             continue
         for entry in entries:
@@ -2828,9 +2914,13 @@ def _count_descendant_books(root: Path, start: Path) -> int:
                 continue
             if _is_book_dir(entry):
                 count += 1
+                if len(cover_samples) < cover_limit:
+                    cover_url = _cover_url_for_book_dir(root, entry)
+                    if cover_url:
+                        cover_samples.append(cover_url)
             else:
                 stack.append(entry)
-    return count
+    return count, cover_samples
 
 
 def _list_collections(root: Path, base_dir: Path) -> list[dict[str, object]]:
@@ -2848,7 +2938,7 @@ def _list_collections(root: Path, base_dir: Path) -> list[dict[str, object]]:
             relative_id = _relative_library_path(root, child)
         except ValueError:
             continue
-        book_count = _count_descendant_books(root, child)
+        book_count, cover_samples = _scan_collection(root, child, cover_limit=9)
         if book_count <= 0:
             continue
         payload = {
@@ -2856,7 +2946,7 @@ def _list_collections(root: Path, base_dir: Path) -> list[dict[str, object]]:
             "name": child.name,
             "path": relative_id,
             "book_count": book_count,
-            "cover_samples": [],
+            "cover_samples": cover_samples,
         }
         entries.append((child.name.casefold(), payload))
     entries.sort(key=lambda item: item[0])
