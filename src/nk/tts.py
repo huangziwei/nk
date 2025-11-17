@@ -83,6 +83,20 @@ class _ChunkSpan:
     start: int
     end: int
 
+def _read_original_title_from_file(chapter_path: Path) -> str | None:
+    original_path = chapter_path.with_suffix(".original.txt")
+    try:
+        with original_path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                stripped = line.strip()
+                if stripped:
+                    return stripped
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return None
+    return None
+
 
 def _book_title_from_metadata(book_dir: Path, metadata: LoadedBookMetadata | None) -> str:
     if metadata and metadata.title:
@@ -143,6 +157,11 @@ def resolve_text_targets(
         for idx, txt in enumerate(text_files):
             output = base_output / (txt.stem + ".mp3")
             chapter_meta = metadata.chapters.get(txt.name) if metadata else None
+            original_title = (
+                chapter_meta.original_title if chapter_meta and chapter_meta.original_title else None
+            )
+            if not original_title:
+                original_title = _read_original_title_from_file(txt)
             track_number = (
                 chapter_meta.index
                 if chapter_meta and chapter_meta.index is not None
@@ -157,7 +176,7 @@ def resolve_text_targets(
                     book_title=book_title,
                     book_author=book_author,
                     chapter_title=chapter_meta.title if chapter_meta else None,
-                    original_title=chapter_meta.original_title if chapter_meta else None,
+                    original_title=original_title,
                     track_number=track_number,
                     track_total=track_total,
                     cover_image=cover_path,
@@ -174,6 +193,11 @@ def resolve_text_targets(
         book_author = metadata.author if metadata else None
         cover_path = _cover_path_for_book(book_dir, metadata)
         chapter_meta = metadata.chapters.get(path.name) if metadata else None
+        original_title = (
+            chapter_meta.original_title if chapter_meta and chapter_meta.original_title else None
+        )
+        if not original_title:
+            original_title = _read_original_title_from_file(path)
         track_total = (
             len(metadata.chapters) if metadata and metadata.chapters else None
         )
@@ -191,7 +215,7 @@ def resolve_text_targets(
                 book_title=book_title,
                 book_author=book_author,
                 chapter_title=chapter_meta.title if chapter_meta else None,
-                original_title=chapter_meta.original_title if chapter_meta else None,
+                original_title=original_title,
                 track_number=track_number,
                 track_total=track_total or 1,
                 cover_image=cover_path,

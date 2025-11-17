@@ -774,6 +774,18 @@ INDEX_HTML = """<!DOCTYPE html>
       return hours ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`;
     }
 
+    function chapterDisplayTitle(chapter) {
+      if (!chapter) return '';
+      const original = typeof chapter.original_title === 'string' ? chapter.original_title.trim() : '';
+      if (original) return original;
+      const transformed = typeof chapter.title === 'string' ? chapter.title.trim() : '';
+      if (transformed) return transformed;
+      if (typeof chapter.id === 'string') {
+        return chapter.id.replace(/_/g, ' ');
+      }
+      return '';
+    }
+
     function currentChapter() {
       if (state.currentChapterIndex < 0) return null;
       return state.chapters[state.currentChapterIndex] || null;
@@ -1050,7 +1062,7 @@ INDEX_HTML = """<!DOCTYPE html>
         return;
       }
       const trackLabel = formatTrackNumber(chapter.track_number);
-      const chapterTitle = chapter.title || chapter.id;
+      const chapterTitle = chapterDisplayTitle(chapter) || chapter.id;
       nowPlaying.textContent = trackLabel ? `${trackLabel} ${chapterTitle}` : chapterTitle;
       const album =
         (state.media && state.media.album) ||
@@ -1080,7 +1092,8 @@ INDEX_HTML = """<!DOCTYPE html>
     function updateMediaSession(chapter) {
       if (!('mediaSession' in navigator) || !chapter || !state.currentBook) return;
       const trackLabel = formatTrackNumber(chapter.track_number || chapter.index);
-      const chapterLabel = trackLabel ? `${trackLabel} ${chapter.title}` : chapter.title;
+      const titleLabel = chapterDisplayTitle(chapter) || chapter.title || chapter.id;
+      const chapterLabel = trackLabel ? `${trackLabel} ${titleLabel}` : titleLabel;
       const album =
         (state.media && state.media.album) ||
         state.currentBook.title ||
@@ -1557,7 +1570,7 @@ INDEX_HTML = """<!DOCTYPE html>
         const name = document.createElement('div');
         name.className = 'name';
         const trackLabel = formatTrackNumber(ch.track_number);
-        const displayTitle = ch.original_title || ch.title || ch.id.replace(/_/g, ' ');
+        const displayTitle = chapterDisplayTitle(ch);
         name.textContent = trackLabel ? `${trackLabel} ${displayTitle}` : displayTitle;
         header.appendChild(name);
         wrapper.appendChild(header);
@@ -2169,6 +2182,21 @@ def _engine_thread_overrides(
     return env, clamped
 
 
+def _read_original_title_from_file(chapter_path: Path) -> str | None:
+    original_path = chapter_path.with_suffix(".original.txt")
+    try:
+        with original_path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                stripped = line.strip()
+                if stripped:
+                    return stripped
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return None
+    return None
+
+
 def _chapter_state(
     chapter_path: Path,
     config: PlayerConfig,
@@ -2190,6 +2218,8 @@ def _chapter_state(
             title = chapter_meta.title
         if chapter_meta.original_title:
             original_title = chapter_meta.original_title
+    if not original_title:
+        original_title = _read_original_title_from_file(chapter_path)
     state: dict[str, object] = {
         "id": chapter_path.name,
         "title": title,
