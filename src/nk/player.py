@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import shutil
 import threading
 import time
-import json
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,12 +19,6 @@ from .book_io import (
     load_book_metadata,
     update_book_tts_defaults,
 )
-from .voice_defaults import (
-    DEFAULT_INTONATION_SCALE,
-    DEFAULT_PITCH_SCALE,
-    DEFAULT_SPEAKER_ID,
-    DEFAULT_SPEED_SCALE,
-)
 from .tts import (
     FFmpegError,
     TTSTarget,
@@ -35,6 +29,12 @@ from .tts import (
     _target_cache_dir,
     discover_voicevox_runtime,
     managed_voicevox_runtime,
+)
+from .voice_defaults import (
+    DEFAULT_INTONATION_SCALE,
+    DEFAULT_PITCH_SCALE,
+    DEFAULT_SPEAKER_ID,
+    DEFAULT_SPEED_SCALE,
 )
 
 
@@ -64,7 +64,7 @@ INDEX_HTML = """<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <title>nk VoiceVox Player</title>
+  <title>nk Player</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     :root {
@@ -1784,8 +1784,12 @@ def _load_bookmark_state(book_dir: Path) -> dict[str, object]:
                     "chapter": chapter,
                     "time": float(time_value),
                     "label": label,
-                    "created_at": created_at if isinstance(created_at, (int, float)) else None,
-                    "updated_at": updated_at if isinstance(updated_at, (int, float)) else None,
+                    "created_at": created_at
+                    if isinstance(created_at, (int, float))
+                    else None,
+                    "updated_at": updated_at
+                    if isinstance(updated_at, (int, float))
+                    else None,
                 }
             )
     last_payload = None
@@ -1798,7 +1802,9 @@ def _load_bookmark_state(book_dir: Path) -> dict[str, object]:
             last_payload = {
                 "chapter": chapter,
                 "time": float(time_value),
-                "updated_at": updated_at if isinstance(updated_at, (int, float)) else None,
+                "updated_at": updated_at
+                if isinstance(updated_at, (int, float))
+                else None,
             }
     return {
         "version": BOOKMARK_STATE_VERSION,
@@ -2146,8 +2152,12 @@ def _synthesize_sequence(
                         shutil.rmtree(cache_dir, ignore_errors=True)
                     progress_callback = None
                     if progress_handler is not None:
-                        def _adapter(event: dict[str, object], current_target=target) -> None:
+
+                        def _adapter(
+                            event: dict[str, object], current_target=target
+                        ) -> None:
                             progress_handler(current_target, event)
+
                         progress_callback = _adapter
                     try:
                         _synthesize_target_with_client(
@@ -2163,7 +2173,9 @@ def _synthesize_sequence(
                         )
                     except Exception as exc:
                         if progress_handler is not None:
-                            progress_handler(target, {"event": "target_error", "error": str(exc)})
+                            progress_handler(
+                                target, {"event": "target_error", "error": str(exc)}
+                            )
                         raise
             finally:
                 client.close()
@@ -2237,7 +2249,9 @@ def create_app(config: PlayerConfig) -> FastAPI:
             book_entry = chapter_status.get(book_id)
             if not book_entry:
                 return {}
-            return {chapter_id: entry.copy() for chapter_id, entry in book_entry.items()}
+            return {
+                chapter_id: entry.copy() for chapter_id, entry in book_entry.items()
+            }
 
     def _record_progress_event(target: TTSTarget, event: dict[str, object]) -> None:
         book_id = _book_id_from_target(target)
@@ -2418,12 +2432,16 @@ def create_app(config: PlayerConfig) -> FastAPI:
         elif isinstance(label_value, str):
             label_text = label_value.strip() or None
         else:
-            raise HTTPException(status_code=400, detail="label must be a string or null.")
+            raise HTTPException(
+                status_code=400, detail="label must be a string or null."
+            )
         if label_text and len(label_text) > 200:
             label_text = label_text[:200]
         _ensure_chapter_for_bookmark(book_path, chapter_id)
         with bookmark_lock:
-            _append_manual_bookmark(book_path, chapter_id, float(time_value), label_text)
+            _append_manual_bookmark(
+                book_path, chapter_id, float(time_value), label_text
+            )
             bookmarks = _bookmarks_payload(book_path)
         return JSONResponse(bookmarks)
 
@@ -2463,7 +2481,9 @@ def create_app(config: PlayerConfig) -> FastAPI:
         elif isinstance(label_value, str):
             label_text = label_value.strip() or None
         else:
-            raise HTTPException(status_code=400, detail="label must be a string or null.")
+            raise HTTPException(
+                status_code=400, detail="label must be a string or null."
+            )
         if label_text and len(label_text) > 200:
             label_text = label_text[:200]
         with bookmark_lock:
@@ -2545,7 +2565,9 @@ def create_app(config: PlayerConfig) -> FastAPI:
                         )
                     updates[key] = speaker_value
                     continue
-                raise HTTPException(status_code=400, detail="speaker must be an integer.")
+                raise HTTPException(
+                    status_code=400, detail="speaker must be an integer."
+                )
             if not isinstance(value, (int, float)) or isinstance(value, bool):
                 raise HTTPException(
                     status_code=400, detail=f"{key} must be numeric or null."
@@ -2640,9 +2662,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
         target = TTSTarget(source=chapter_path, output=chapter_path.with_suffix(".mp3"))
 
         if not target.output.exists():
-            raise HTTPException(
-                status_code=409, detail="Chapter audio not built yet."
-            )
+            raise HTTPException(status_code=409, detail="Chapter audio not built yet.")
 
         return FileResponse(
             target.output,
