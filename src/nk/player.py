@@ -2393,9 +2393,6 @@ INDEX_HTML = """<!DOCTYPE html>
       if (ch.mp3_exists) {
         return { label: 'Ready', className: 'success' };
       }
-      if (ch.has_cache && ch.total_chunks) {
-        return { label: `Cached (${ch.total_chunks} chunks)`, className: 'muted' };
-      }
       if (ch.has_cache) {
         return { label: 'Cached', className: 'muted' };
       }
@@ -2415,15 +2412,6 @@ INDEX_HTML = """<!DOCTYPE html>
         if (statusEl) {
           statusEl.textContent = statusInfo.label;
           statusEl.className = statusInfo.className ? `badge ${statusInfo.className}` : 'badge';
-        }
-        const chunkEl = node.querySelector('[data-role="chunk-label"]');
-        if (chunkEl) {
-          if (chapter.total_chunks) {
-            chunkEl.textContent = `${chapter.total_chunks} chunks`;
-            chunkEl.classList.remove('hidden');
-          } else {
-            chunkEl.classList.add('hidden');
-          }
         }
         const primaryBtn = node.querySelector('[data-role="primary-action"]');
         if (primaryBtn) {
@@ -2590,15 +2578,6 @@ INDEX_HTML = """<!DOCTYPE html>
         statusSpan.textContent = statusInfo.label;
         statusBadges.appendChild(statusSpan);
 
-        const chunkSpan = document.createElement('span');
-        chunkSpan.dataset.role = 'chunk-label';
-        chunkSpan.className = 'badge muted';
-        if (ch.total_chunks) {
-          chunkSpan.textContent = `${ch.total_chunks} chunks`;
-        } else {
-          chunkSpan.classList.add('hidden');
-        }
-        statusBadges.appendChild(chunkSpan);
         footer.appendChild(statusBadges);
 
         const buttons = document.createElement('div');
