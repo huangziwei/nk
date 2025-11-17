@@ -19,7 +19,7 @@ from .book_io import (
     load_book_metadata,
     update_book_tts_defaults,
 )
-from .library import list_books_sorted
+from .library import BookListing, list_books_sorted
 from .tts import (
     FFmpegError,
     TTSTarget,
@@ -61,6 +61,16 @@ class PlayerConfig:
 COVER_EXTENSIONS = (".jpg", ".jpeg", ".png")
 BOOKMARKS_FILENAME = ".nk-player-bookmarks.json"
 BOOKMARK_STATE_VERSION = 1
+_SORT_MODES = {"author", "recent"}
+
+
+def _normalize_sort_mode(value: str | None) -> str:
+    if not value:
+        return "author"
+    normalized = value.strip().lower()
+    if normalized in _SORT_MODES:
+        return normalized
+    raise HTTPException(status_code=400, detail="Invalid sort mode.")
 
 
 INDEX_HTML = """<!DOCTYPE html>
@@ -133,6 +143,26 @@ INDEX_HTML = """<!DOCTYPE html>
       letter-spacing: 0.02em;
       text-transform: uppercase;
       color: var(--muted);
+    }
+    .library-controls {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 0.5rem;
+    }
+    .sort-select {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .sort-select select {
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(15,18,32,0.75);
+      color: var(--text);
+      padding: 0.35rem 0.65rem;
+      font-size: 0.85rem;
     }
     .cards {
       display: grid;
@@ -771,6 +801,14 @@ INDEX_HTML = """<!DOCTYPE html>
   <main>
     <section class="panel" id="books-panel">
       <h2>Library</h2>
+      <div class="library-controls">
+        <label class="sort-select" for="books-sort">
+          <select id="books-sort">
+            <option value="author">Author · Title</option>
+            <option value="recent">Recently Added</option>
+          </select>
+        </label>
+      </div>
       <div class="cards" id="books-grid"></div>
     </section>
 
@@ -878,6 +916,7 @@ INDEX_HTML = """<!DOCTYPE html>
     const voiceSaveBtn = document.getElementById('voice-save');
     const voiceResetBtn = document.getElementById('voice-reset');
     const voiceStatus = document.getElementById('voice-status');
+    const booksSortSelect = document.getElementById('books-sort');
 
     const DEFAULT_VOICE = {
       speaker: 2,
@@ -901,7 +940,13 @@ INDEX_HTML = """<!DOCTYPE html>
       },
       localBuilds: new Set(),
       uploadJobs: [],
+      librarySortOrder: 'author',
     };
+    const LIBRARY_SORT_KEY = 'nkPlayerSortOrder';
+    const storedLibrarySort = window.localStorage.getItem(LIBRARY_SORT_KEY);
+    if (storedLibrarySort === 'recent' || storedLibrarySort === 'author') {
+      state.librarySortOrder = storedLibrarySort;
+    }
     let statusPollHandle = null;
     let lastPlaySyncAt = 0;
     let lastPlayPending = null;
@@ -917,6 +962,22 @@ INDEX_HTML = """<!DOCTYPE html>
     let uploadPollTimer = null;
     let uploadDragDepth = 0;
     const UPLOAD_POLL_INTERVAL = 4000;
+    if (booksSortSelect) {
+      booksSortSelect.value = state.librarySortOrder;
+      booksSortSelect.addEventListener('change', () => {
+        const next = booksSortSelect.value === 'recent' ? 'recent' : 'author';
+        if (state.librarySortOrder === next) {
+          return;
+        }
+        state.librarySortOrder = next;
+        try {
+          window.localStorage.setItem(LIBRARY_SORT_KEY, next);
+        } catch (error) {
+          console.warn('Failed to persist sort order', error);
+        }
+        handlePromise(loadBooks());
+      });
+    }
 
     function formatTrackNumber(num) {
       if (typeof num !== 'number' || !Number.isFinite(num)) return '';
@@ -2144,7 +2205,9 @@ INDEX_HTML = """<!DOCTYPE html>
     }
 
     async function loadBooks() {
-      const data = await fetchJSON('/api/books');
+      const params = new URLSearchParams();
+      params.set('sort', state.librarySortOrder || 'author');
+      const data = await fetchJSON(`/api/books?${params.toString()}`);
       state.books = data.books;
       renderBooks();
     }
@@ -2494,12 +2557,12 @@ INDEX_HTML = """<!DOCTYPE html>
 """
 
 
-def _list_books(root: Path) -> list[Path]:
-    books: list[Path] = []
-    for listing in list_books_sorted(root):
+def _list_books(root: Path, sort_mode: str) -> list[BookListing]:
+    books: list[BookListing] = []
+    for listing in list_books_sorted(root, mode=sort_mode):
         path = listing.path
         if path.is_dir() and any(path.glob("*.txt")):
-            books.append(path)
+            books.append(listing)
     return books
 
 
@@ -2846,6 +2909,7 @@ def _fallback_cover_path(book_dir: Path) -> Path | None:
 def _book_media_info(
     book_dir: Path,
     config: PlayerConfig,
+    metadata: LoadedBookMetadata | None = None,
 ) -> tuple[
     LoadedBookMetadata | None,
     str,
@@ -2854,7 +2918,7 @@ def _book_media_info(
     dict[str, float | int],
     dict[str, float],
 ]:
-    metadata = load_book_metadata(book_dir)
+    metadata = metadata or load_book_metadata(book_dir)
     title = metadata.title if metadata and metadata.title else book_dir.name
     author = metadata.author if metadata else None
     cover_path = None
@@ -3173,9 +3237,13 @@ def create_app(config: PlayerConfig) -> FastAPI:
         return JSONResponse({"job": job.to_payload()})
 
     @app.get("/api/books")
-    def api_books() -> JSONResponse:
+    def api_books(
+        sort: str | None = Query(None, description="Sort order: author or recent"),
+    ) -> JSONResponse:
+        sort_mode = _normalize_sort_mode(sort)
         books_payload = []
-        for book_dir in _list_books(root):
+        for listing in _list_books(root, sort_mode):
+            book_dir = listing.path
             (
                 metadata,
                 book_title,
@@ -3183,7 +3251,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
                 cover_path,
                 saved_defaults,
                 effective_defaults,
-            ) = _book_media_info(book_dir, config)
+            ) = _book_media_info(book_dir, config, metadata=listing.metadata)
             chapters = _list_chapters(book_dir)
             status_snapshot = _status_snapshot(book_dir.name)
             states = [

@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping
 
-from fastapi import FastAPI, HTTPException, Query, UploadFile, File
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from .library import list_books_sorted
@@ -90,6 +90,21 @@ INDEX_HTML = """<!DOCTYPE html>
       padding: 0 0.9rem;
       cursor: pointer;
       font-weight: 600;
+      font-size: 0.85rem;
+    }
+    .sort-select {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .sort-select select {
+      border-radius: 10px;
+      border: 1px solid var(--outline);
+      background: rgba(0,0,0,0.2);
+      color: var(--text);
+      padding: 0.35rem 0.6rem;
       font-size: 0.85rem;
     }
     .upload-panel {
@@ -581,6 +596,12 @@ INDEX_HTML = """<!DOCTYPE html>
         <input type="search" placeholder="Filter chapters…" id="chapter-filter">
         <button id="refresh">↻</button>
       </div>
+      <label class="sort-select" for="sort-order">
+        <select id="sort-order">
+          <option value="author">Author · Title</option>
+          <option value="recent">Recently Added</option>
+        </select>
+      </label>
       <ul class="chapter-list" id="chapter-list"></ul>
     </aside>
     <main id="details">
@@ -632,6 +653,7 @@ INDEX_HTML = """<!DOCTYPE html>
         chapterPayload: null,
         folderState: {},
         uploadJobs: [],
+        sortOrder: 'author',
       };
       const baseTitle = document.title || 'nk Reader';
       const CHAPTER_HASH_PREFIX = '#chapter=';
@@ -672,6 +694,7 @@ INDEX_HTML = """<!DOCTYPE html>
       const listEl = document.getElementById('chapter-list');
       const filterEl = document.getElementById('chapter-filter');
       const refreshBtn = document.getElementById('refresh');
+      const sortSelect = document.getElementById('sort-order');
       const statusEl = document.getElementById('status');
       const metaPanel = document.getElementById('meta-panel');
       const textGrid = document.getElementById('text-grid');
@@ -696,6 +719,11 @@ INDEX_HTML = """<!DOCTYPE html>
         original: [],
       };
       let alignFrame = null;
+      const SORT_STORAGE_KEY = 'nkReaderSortOrder';
+      const storedSort = window.localStorage.getItem(SORT_STORAGE_KEY);
+      if (storedSort === 'recent' || storedSort === 'author') {
+        state.sortOrder = storedSort;
+      }
       let uploadPollTimer = null;
       let uploadDragDepth = 0;
       const UPLOAD_POLL_INTERVAL = 4000;
@@ -703,6 +731,22 @@ INDEX_HTML = """<!DOCTYPE html>
       if (initialHashPath) {
         state.selectedPath = initialHashPath;
         expandFoldersForPath(initialHashPath);
+      }
+      if (sortSelect) {
+        sortSelect.value = state.sortOrder;
+        sortSelect.addEventListener('change', () => {
+          const next = sortSelect.value === 'recent' ? 'recent' : 'author';
+          if (state.sortOrder === next) {
+            return;
+          }
+          state.sortOrder = next;
+          try {
+            window.localStorage.setItem(SORT_STORAGE_KEY, next);
+          } catch (error) {
+            console.warn('Failed to persist sort order', error);
+          }
+          loadChapters();
+        });
       }
 
       function updateSidebarToggleLabel(collapsed) {
@@ -1722,7 +1766,9 @@ INDEX_HTML = """<!DOCTYPE html>
 
       function loadChapters() {
         renderStatus('Loading chapters…');
-        fetchJSON('/api/chapters')
+        const params = new URLSearchParams();
+        params.set('sort', state.sortOrder || 'author');
+        fetchJSON(`/api/chapters?${params.toString()}`)
           .then((data) => {
             state.chapters = data.chapters || [];
             if (!state.chapters.some((chapter) => chapter.path === state.selectedPath)) {
@@ -1809,8 +1855,20 @@ INDEX_HTML = """<!DOCTYPE html>
 """
 
 
-def _iter_chapter_files(root: Path) -> Iterable[Path]:
-    for book in list_books_sorted(root):
+_SORT_MODES = {"author", "recent"}
+
+
+def _normalize_sort_mode(value: str | None) -> str:
+    if not value:
+        return "author"
+    normalized = value.strip().lower()
+    if normalized in _SORT_MODES:
+        return normalized
+    raise HTTPException(status_code=400, detail="Invalid sort mode.")
+
+
+def _iter_chapter_files(root: Path, sort_mode: str) -> Iterable[Path]:
+    for book in list_books_sorted(root, mode=sort_mode):
         book_path = book.path
         for path in sorted(book_path.rglob("*.txt")):
             if not path.is_file():
@@ -1850,8 +1908,8 @@ def _chapter_entry(root: Path, path: Path) -> dict[str, object]:
     return entry
 
 
-def _list_chapters(root: Path) -> list[dict[str, object]]:
-    return [_chapter_entry(root, path) for path in _iter_chapter_files(root)]
+def _list_chapters(root: Path, sort_mode: str) -> list[dict[str, object]]:
+    return [_chapter_entry(root, path) for path in _iter_chapter_files(root, sort_mode)]
 
 
 def _safe_read_text(path: Path) -> str | None:
@@ -1887,7 +1945,9 @@ def _convert_token_entry(entry: Mapping[str, object]) -> dict[str, object]:
     if isinstance(start_original, Mapping):
         start_original_value = start_original.get("original")
     else:
-        start_original_value = start_original if isinstance(start_original, int) else None
+        start_original_value = (
+            start_original if isinstance(start_original, int) else None
+        )
     end_original = entry.get("end")
     if isinstance(end_original, Mapping):
         end_original_value = end_original.get("original")
@@ -1902,7 +1962,9 @@ def _convert_token_entry(entry: Mapping[str, object]) -> dict[str, object]:
     sources = entry.get("sources")
     normalized_sources: list[str] = []
     if isinstance(sources, list):
-        normalized_sources = [str(source) for source in sources if isinstance(source, str) and source]
+        normalized_sources = [
+            str(source) for source in sources if isinstance(source, str) and source
+        ]
     else:
         reading_source = entry.get("reading_source")
         if isinstance(reading_source, str) and reading_source:
@@ -1916,16 +1978,22 @@ def _convert_token_entry(entry: Mapping[str, object]) -> dict[str, object]:
         "sources": normalized_sources,
         "start": {
             "original": start_original_value,
-            "transformed": transformed_start if isinstance(transformed_start, int) else None,
+            "transformed": transformed_start
+            if isinstance(transformed_start, int)
+            else None,
         },
         "end": {
             "original": end_original_value,
-            "transformed": transformed_end if isinstance(transformed_end, int) else None,
+            "transformed": transformed_end
+            if isinstance(transformed_end, int)
+            else None,
         },
     }
 
 
-def _load_token_payload(path: Path) -> tuple[list[dict[str, object]], dict[str, object] | None, str | None]:
+def _load_token_payload(
+    path: Path,
+) -> tuple[list[dict[str, object]], dict[str, object] | None, str | None]:
     if not path.exists():
         return [], None, None
     try:
@@ -1958,8 +2026,11 @@ def create_reader_app(root: Path) -> FastAPI:
         return HTMLResponse(INDEX_HTML)
 
     @app.get("/api/chapters")
-    def api_chapters() -> JSONResponse:
-        chapters = _list_chapters(resolved_root)
+    def api_chapters(
+        sort: str | None = Query(None, description="Sort order: author or recent"),
+    ) -> JSONResponse:
+        sort_mode = _normalize_sort_mode(sort)
+        chapters = _list_chapters(resolved_root, sort_mode)
         return JSONResponse({"root": resolved_root.as_posix(), "chapters": chapters})
 
     @app.get("/api/uploads")
@@ -1972,7 +2043,9 @@ def create_reader_app(root: Path) -> FastAPI:
         filename = file.filename or "upload.epub"
         suffix = Path(filename).suffix.lower()
         if suffix != ".epub":
-            raise HTTPException(status_code=400, detail="Only .epub files are supported.")
+            raise HTTPException(
+                status_code=400, detail="Only .epub files are supported."
+            )
         job = UploadJob(resolved_root, filename)
         try:
             with job.temp_path.open("wb") as destination:
@@ -1983,7 +2056,9 @@ def create_reader_app(root: Path) -> FastAPI:
                     destination.write(chunk)
         except Exception as exc:
             job.cleanup()
-            raise HTTPException(status_code=500, detail=f"Failed to save upload: {exc}") from exc
+            raise HTTPException(
+                status_code=500, detail=f"Failed to save upload: {exc}"
+            ) from exc
         finally:
             await file.close()
         upload_manager.enqueue(job)
@@ -2001,12 +2076,16 @@ def create_reader_app(root: Path) -> FastAPI:
             raise HTTPException(status_code=400, detail="Path is required")
         rel_path = Path(path)
         if rel_path.is_absolute():
-            raise HTTPException(status_code=400, detail="Path must be relative to the root")
+            raise HTTPException(
+                status_code=400, detail="Path must be relative to the root"
+            )
         chapter_path = (resolved_root / rel_path).resolve()
         try:
             chapter_path.relative_to(resolved_root)
         except ValueError:
-            raise HTTPException(status_code=400, detail="Path escapes the root directory")
+            raise HTTPException(
+                status_code=400, detail="Path escapes the root directory"
+            )
         if not chapter_path.exists() or not chapter_path.is_file():
             raise HTTPException(status_code=404, detail="Chapter not found")
         if chapter_path.suffix.lower() != ".txt":
@@ -2030,11 +2109,19 @@ def create_reader_app(root: Path) -> FastAPI:
             "original_text": original_text,
             "original_length": original_length,
             "tokens": tokens_list,
-            "token_version": token_payload.get("version") if isinstance(token_payload, Mapping) else None,
-            "token_sha1": token_payload.get("text_sha1") if isinstance(token_payload, Mapping) else None,
-            "token_path": _relative_to_root(resolved_root, token_path).as_posix() if token_path.exists() else None,
+            "token_version": token_payload.get("version")
+            if isinstance(token_payload, Mapping)
+            else None,
+            "token_sha1": token_payload.get("text_sha1")
+            if isinstance(token_payload, Mapping)
+            else None,
+            "token_path": _relative_to_root(resolved_root, token_path).as_posix()
+            if token_path.exists()
+            else None,
             "token_error": token_error,
-            "original_path": _relative_to_root(resolved_root, original_path).as_posix() if original_path.exists() else None,
+            "original_path": _relative_to_root(resolved_root, original_path).as_posix()
+            if original_path.exists()
+            else None,
         }
         return JSONResponse(response)
 
