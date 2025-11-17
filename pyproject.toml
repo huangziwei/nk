@@ -25,6 +25,7 @@ dependencies = [
     "six>=1.17.0",
     "watchdog>=6.0.0",
     "pillow>=12.0.0",
+    "python-multipart>=0.0.20",
 ]
 
 [project.scripts]

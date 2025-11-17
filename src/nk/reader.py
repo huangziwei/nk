@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 import json
+import shutil
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
+import threading
 from typing import Iterable, Mapping
+from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse
+
+from .book_io import write_book_package
+from .core import epub_to_chapter_texts, get_epub_cover
+from .nlp import NLPBackend, NLPBackendUnavailableError
 
 INDEX_HTML = """<!DOCTYPE html>
 <html lang="ja">
@@ -88,6 +97,139 @@ INDEX_HTML = """<!DOCTYPE html>
       cursor: pointer;
       font-weight: 600;
       font-size: 0.85rem;
+    }
+    .upload-panel {
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(0,0,0,0.15);
+      padding: 0.9rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+    .upload-drop {
+      border: 1px dashed rgba(56,189,248,0.4);
+      border-radius: 16px;
+      padding: 0.85rem;
+      text-align: center;
+      cursor: pointer;
+      background: rgba(56,189,248,0.06);
+      transition: border-color 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      outline: none;
+    }
+    .upload-drop strong {
+      font-size: 0.95rem;
+    }
+    .upload-drop p {
+      margin: 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .upload-drop:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+    .upload-drop.dragging {
+      border-color: var(--accent);
+      background: rgba(56,189,248,0.15);
+    }
+    .upload-drop.upload-busy {
+      opacity: 0.65;
+      pointer-events: none;
+    }
+    .upload-actions {
+      display: inline-flex;
+      justify-content: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      margin-top: 0.35rem;
+    }
+    .upload-actions button {
+      background: var(--accent-soft);
+      border: 1px solid rgba(56,189,248,0.4);
+      border-radius: 999px;
+      color: var(--accent);
+      padding: 0.2rem 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .upload-error {
+      min-height: 1.1rem;
+      color: var(--danger);
+      font-size: 0.8rem;
+    }
+    .upload-jobs {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-height: 35vh;
+      overflow-y: auto;
+    }
+    .upload-empty {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .upload-job {
+      border: 1px solid var(--outline);
+      border-radius: 12px;
+      padding: 0.6rem 0.75rem;
+      background: rgba(0,0,0,0.12);
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .upload-job-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      align-items: center;
+    }
+    .upload-job-title {
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .upload-job-status {
+      font-size: 0.78rem;
+      border-radius: 999px;
+      padding: 0.1rem 0.6rem;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .upload-job[data-status="success"] .upload-job-status {
+      color: #86efac;
+      border-color: rgba(134,239,172,0.5);
+    }
+    .upload-job[data-status="error"] .upload-job-status {
+      color: var(--danger);
+      border-color: rgba(248,113,113,0.5);
+    }
+    .upload-job-message {
+      font-size: 0.8rem;
+      color: var(--muted);
+      min-height: 1rem;
+      word-break: break-word;
+    }
+    .upload-target {
+      font-size: 0.8rem;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .upload-progress {
+      height: 6px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .upload-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.2s ease;
     }
     .chapter-list {
       list-style: none;
@@ -427,6 +569,20 @@ INDEX_HTML = """<!DOCTYPE html>
           Select a chapter and hover tokens to compare transformed vs original offsets.
         </p>
       </div>
+      <section class="upload-panel">
+        <div class="upload-drop" id="upload-drop" role="button" tabindex="0" aria-label="Upload EPUB">
+          <input type="file" accept=".epub" id="upload-input" hidden>
+          <strong>Upload EPUB</strong>
+          <p>Drag & drop an .epub here or click to select a file. nk will chapterize it automatically.</p>
+          <div class="upload-actions">
+            <button type="button">Select EPUB</button>
+          </div>
+        </div>
+        <div class="upload-error" id="upload-error"></div>
+        <div class="upload-jobs" id="upload-jobs">
+          <div class="upload-empty">No uploads yet.</div>
+        </div>
+      </section>
       <div class="filter">
         <input type="search" placeholder="Filter chapters…" id="chapter-filter">
         <button id="refresh">↻</button>
@@ -481,6 +637,7 @@ INDEX_HTML = """<!DOCTYPE html>
         activeToken: null,
         chapterPayload: null,
         folderState: {},
+        uploadJobs: [],
       };
       const baseTitle = document.title || 'nk Reader';
       const CHAPTER_HASH_PREFIX = '#chapter=';
@@ -536,11 +693,18 @@ INDEX_HTML = """<!DOCTYPE html>
       const sidebarToggle = document.getElementById('sidebar-toggle');
       const mobileQuery = window.matchMedia('(max-width: 900px)');
       const bodyEl = document.body;
+      const uploadDrop = document.getElementById('upload-drop');
+      const uploadInput = document.getElementById('upload-input');
+      const uploadErrorEl = document.getElementById('upload-error');
+      const uploadJobsEl = document.getElementById('upload-jobs');
       const lineRegistry = {
         transformed: [],
         original: [],
       };
       let alignFrame = null;
+      let uploadPollTimer = null;
+      let uploadDragDepth = 0;
+      const UPLOAD_POLL_INTERVAL = 4000;
       const initialHashPath = getChapterPathFromHash();
       if (initialHashPath) {
         state.selectedPath = initialHashPath;
@@ -1184,6 +1348,197 @@ INDEX_HTML = """<!DOCTYPE html>
         listEl.appendChild(fragment);
       }
 
+      function formatUploadStatus(status) {
+        if (!status) return 'Pending';
+        const label = String(status);
+        return label.charAt(0).toUpperCase() + label.slice(1);
+      }
+
+      function setUploadError(message) {
+        if (!uploadErrorEl) return;
+        uploadErrorEl.textContent = message || '';
+      }
+
+      function renderUploadJobs() {
+        if (!uploadJobsEl) return;
+        uploadJobsEl.innerHTML = '';
+        if (!state.uploadJobs.length) {
+          const empty = document.createElement('div');
+          empty.className = 'upload-empty';
+          empty.textContent = 'No uploads yet.';
+          uploadJobsEl.appendChild(empty);
+          return;
+        }
+        state.uploadJobs.forEach((job) => {
+          const item = document.createElement('div');
+          item.className = 'upload-job';
+          if (job.status) {
+            item.dataset.status = job.status;
+          }
+          const header = document.createElement('div');
+          header.className = 'upload-job-header';
+          const title = document.createElement('div');
+          title.className = 'upload-job-title';
+          title.textContent = job.filename || 'Upload';
+          const statusLabel = document.createElement('span');
+          statusLabel.className = 'upload-job-status';
+          statusLabel.textContent = formatUploadStatus(job.status);
+          header.appendChild(title);
+          header.appendChild(statusLabel);
+          item.appendChild(header);
+          const message = document.createElement('div');
+          message.className = 'upload-job-message';
+          const progressLabel = job.progress && job.progress.label ? job.progress.label : null;
+          const errorMessage = job.error || null;
+          message.textContent = errorMessage || job.message || progressLabel || 'Pending…';
+          item.appendChild(message);
+          const targetText = job.book_dir || job.target_name;
+          if (targetText) {
+            const target = document.createElement('div');
+            target.className = 'upload-target';
+            target.textContent = `→ ${targetText}`;
+            item.appendChild(target);
+          }
+          const progress = job.progress;
+          if (
+            progress
+            && typeof progress.index === 'number'
+            && typeof progress.total === 'number'
+            && progress.total > 0
+          ) {
+            const percent = Math.max(0, Math.min(100, (progress.index / progress.total) * 100));
+            const barWrap = document.createElement('div');
+            barWrap.className = 'upload-progress';
+            const bar = document.createElement('div');
+            bar.className = 'upload-progress-bar';
+            bar.style.width = `${percent}%`;
+            barWrap.appendChild(bar);
+            item.appendChild(barWrap);
+          }
+          uploadJobsEl.appendChild(item);
+        });
+      }
+
+      function applyUploadJobs(jobs) {
+        if (!Array.isArray(jobs)) {
+          if (!state.uploadJobs.length) {
+            renderUploadJobs();
+          }
+          return;
+        }
+        const prevStatuses = new Map(state.uploadJobs.map((job) => [job.id, job.status]));
+        const normalized = jobs
+          .filter((job) => job && typeof job === 'object')
+          .map((job) => job);
+        normalized.sort((a, b) => {
+          const aTime = new Date(a.updated || a.created || 0).getTime();
+          const bTime = new Date(b.updated || b.created || 0).getTime();
+          return bTime - aTime;
+        });
+        state.uploadJobs = normalized;
+        renderUploadJobs();
+        let shouldReload = false;
+        normalized.forEach((job) => {
+          if (job.status === 'success' && prevStatuses.get(job.id) !== 'success') {
+            shouldReload = true;
+          }
+        });
+        if (shouldReload) {
+          loadChapters();
+        }
+      }
+
+      function loadUploads() {
+        fetchJSON('/api/uploads')
+          .then((payload) => {
+            if (payload && Array.isArray(payload.jobs)) {
+              applyUploadJobs(payload.jobs);
+            } else if (!state.uploadJobs.length) {
+              renderUploadJobs();
+            }
+          })
+          .catch((err) => {
+            console.warn('Failed to load uploads', err);
+          });
+      }
+
+      function startUploadPolling() {
+        if (uploadPollTimer !== null) {
+          return;
+        }
+        uploadPollTimer = window.setInterval(() => {
+          loadUploads();
+        }, UPLOAD_POLL_INTERVAL);
+      }
+
+      function handleUploadFiles(fileList) {
+        const files = [];
+        if (!fileList) {
+          // no-op
+        } else if (typeof fileList.length === 'number') {
+          for (let i = 0; i < fileList.length; i += 1) {
+            const entry = fileList[i];
+            if (entry) {
+              files.push(entry);
+            }
+          }
+        } else if (fileList && fileList.name) {
+          files.push(fileList);
+        }
+        const file = files.find((candidate) => {
+          if (!candidate || !candidate.name) {
+            return false;
+          }
+          return candidate.name.toLowerCase().endsWith('.epub');
+        });
+        if (!file) {
+          setUploadError('Please choose an .epub file.');
+          return;
+        }
+        setUploadError('');
+        if (uploadDrop) {
+          uploadDrop.classList.remove('dragging');
+          uploadDrop.classList.add('upload-busy');
+        }
+        const formData = new FormData();
+        formData.append('file', file, file.name);
+        fetch('/api/uploads', {
+          method: 'POST',
+          body: formData,
+        })
+          .then(async (res) => {
+            let payload = null;
+            try {
+              payload = await res.json();
+            } catch (error) {
+              payload = null;
+            }
+            if (!res.ok) {
+              const detail = payload && payload.detail;
+              throw new Error(detail || `Upload failed (${res.status})`);
+            }
+            return payload;
+          })
+          .then(() => {
+            loadUploads();
+            startUploadPolling();
+          })
+          .catch((err) => {
+            console.error(err);
+            setUploadError(err.message || 'Upload failed.');
+          })
+          .finally(() => {
+            if (uploadInput) {
+              uploadInput.value = '';
+            }
+            if (uploadDrop) {
+              uploadDrop.classList.remove('upload-busy');
+              uploadDrop.classList.remove('dragging');
+            }
+            uploadDragDepth = 0;
+          });
+      }
+
       function clearSelection() {
         metaPanel.hidden = true;
         transformedMeta.textContent = '—';
@@ -1378,6 +1733,54 @@ INDEX_HTML = """<!DOCTYPE html>
           });
       }
 
+      if (uploadDrop) {
+        uploadDrop.addEventListener('click', (event) => {
+          event.preventDefault();
+          if (uploadInput) {
+            uploadInput.click();
+          }
+        });
+        uploadDrop.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            if (uploadInput) {
+              uploadInput.click();
+            }
+          }
+        });
+        uploadDrop.addEventListener('dragenter', (event) => {
+          event.preventDefault();
+          uploadDragDepth += 1;
+          uploadDrop.classList.add('dragging');
+        });
+        uploadDrop.addEventListener('dragover', (event) => {
+          event.preventDefault();
+        });
+        uploadDrop.addEventListener('dragleave', (event) => {
+          event.preventDefault();
+          uploadDragDepth = Math.max(0, uploadDragDepth - 1);
+          if (uploadDragDepth === 0) {
+            uploadDrop.classList.remove('dragging');
+          }
+        });
+        uploadDrop.addEventListener('drop', (event) => {
+          event.preventDefault();
+          const files = event.dataTransfer ? event.dataTransfer.files : null;
+          uploadDragDepth = 0;
+          uploadDrop.classList.remove('dragging');
+          handleUploadFiles(files);
+        });
+      }
+      if (uploadInput) {
+        uploadInput.addEventListener('change', () => {
+          handleUploadFiles(uploadInput.files);
+        });
+      }
+
+      renderUploadJobs();
+      loadUploads();
+      startUploadPolling();
+
       filterEl.addEventListener('input', (event) => {
         state.filterValue = event.target.value;
         applyFilter();
@@ -1527,6 +1930,250 @@ def _load_token_payload(path: Path) -> tuple[list[dict[str, object]], dict[str, 
     return converted, raw_payload, None
 
 
+_INVALID_BOOK_CHARS = set('<>:"/\\|?*')
+
+
+def _normalize_upload_filename(filename: str | None) -> str:
+    if isinstance(filename, str):
+        candidate = Path(filename).name.strip()
+    else:
+        candidate = ""
+    if not candidate:
+        candidate = "upload.epub"
+    if not candidate.lower().endswith(".epub"):
+        candidate = f"{candidate}.epub"
+    return candidate
+
+
+def _derive_book_dir_name(filename: str) -> str:
+    base = Path(filename or "book").name
+    stem = Path(base).with_suffix("").name or "book"
+    normalized = stem.strip()
+    if not normalized:
+        normalized = "book"
+    cleaned_chars: list[str] = []
+    for ch in normalized:
+        if ch in _INVALID_BOOK_CHARS:
+            cleaned_chars.append("_")
+        elif ord(ch) < 32:
+            continue
+        else:
+            cleaned_chars.append(ch)
+    cleaned = "".join(cleaned_chars).strip(" .")
+    if not cleaned:
+        cleaned = "book"
+    return cleaned[:120]
+
+
+def _relative_path_or_name(root: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(root).as_posix()
+    except ValueError:
+        return path.name or path.as_posix()
+
+
+def _format_chapter_progress_label(
+    book_label: str,
+    index: int | None,
+    total: int | None,
+    title: str | None,
+) -> str:
+    parts: list[str] = [book_label]
+    if isinstance(index, int) and index > 0:
+        if isinstance(total, int) and total > 0:
+            parts.append(f"{index}/{total}")
+        else:
+            parts.append(str(index))
+    if title:
+        clean = str(title).strip()
+        if clean:
+            parts.append(clean)
+    return " · ".join(parts)
+
+
+class UploadJob:
+    def __init__(self, root: Path, filename: str | None) -> None:
+        self.root = root
+        self.id = uuid4().hex
+        self.filename = _normalize_upload_filename(filename)
+        self.book_label = self.filename
+        self.output_dir = root / _derive_book_dir_name(self.filename)
+        self.target_rel = _relative_path_or_name(root, self.output_dir)
+        self.status = "pending"
+        self.message: str | None = "Waiting to start"
+        self.error: str | None = None
+        self.progress_index: int | None = None
+        self.progress_total: int | None = None
+        self.progress_label: str | None = None
+        self.progress_event: str | None = None
+        self.book_dir_rel: str | None = None
+        self.created_at = datetime.now(timezone.utc)
+        self.updated_at = self.created_at
+        self.temp_dir = Path(tempfile.mkdtemp(prefix="nk-upload-"))
+        self.temp_path = self.temp_dir / self.filename
+        self.lock = threading.Lock()
+
+    def _touch(self) -> None:
+        self.updated_at = datetime.now(timezone.utc)
+
+    def set_status(self, status: str, message: str | None = None) -> None:
+        with self.lock:
+            self.status = status
+            if message is not None:
+                self.message = message
+            self._touch()
+
+    def set_error(self, message: str) -> None:
+        with self.lock:
+            self.status = "error"
+            self.error = message
+            self.message = message
+            self._touch()
+
+    def update_progress(
+        self,
+        index: int | None,
+        total: int | None,
+        label: str | None,
+        event: str | None,
+    ) -> None:
+        with self.lock:
+            self.progress_index = index
+            self.progress_total = total
+            self.progress_label = label
+            self.progress_event = event
+            if label:
+                self.message = label
+            self._touch()
+
+    def mark_success(self) -> None:
+        with self.lock:
+            self.status = "success"
+            self.book_dir_rel = _relative_path_or_name(self.root, self.output_dir)
+            if self.book_dir_rel:
+                self.message = f"Ready: {self.book_dir_rel}"
+            else:
+                self.message = "Upload complete"
+            self.progress_event = "complete"
+            self.progress_label = None
+            self._touch()
+
+    def to_payload(self) -> dict[str, object]:
+        with self.lock:
+            progress_payload: dict[str, object] | None = None
+            if any(
+                value is not None
+                for value in (
+                    self.progress_index,
+                    self.progress_total,
+                    self.progress_label,
+                    self.progress_event,
+                )
+            ):
+                progress_payload = {
+                    "index": self.progress_index,
+                    "total": self.progress_total,
+                    "label": self.progress_label,
+                    "event": self.progress_event,
+                }
+            return {
+                "id": self.id,
+                "filename": self.filename,
+                "status": self.status,
+                "message": self.message,
+                "error": self.error,
+                "progress": progress_payload,
+                "book_dir": self.book_dir_rel,
+                "target_name": self.target_rel,
+                "created": self.created_at.isoformat(),
+                "updated": self.updated_at.isoformat(),
+            }
+
+    def cleanup(self) -> None:
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+
+class UploadManager:
+    def __init__(self, root: Path, max_workers: int = 1) -> None:
+        self.root = root
+        self.lock = threading.Lock()
+        self.executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="nk-reader-upload")
+        self.jobs: dict[str, UploadJob] = {}
+
+    def enqueue(self, job: UploadJob) -> UploadJob:
+        with self.lock:
+            self.jobs[job.id] = job
+        self.executor.submit(self._run_job, job)
+        return job
+
+    def list_jobs(self) -> list[dict[str, object]]:
+        with self.lock:
+            snapshot = list(self.jobs.values())
+        snapshot.sort(key=lambda job: job.updated_at, reverse=True)
+        return [job.to_payload() for job in snapshot]
+
+    def shutdown(self) -> None:
+        self.executor.shutdown(wait=False, cancel_futures=False)
+
+    def _run_job(self, job: UploadJob) -> None:
+        job.set_status("running", "Preparing upload…")
+        try:
+            backend = NLPBackend()
+        except NLPBackendUnavailableError as exc:
+            job.set_error(str(exc))
+            job.cleanup()
+            return
+
+        def _progress_callback(event: Mapping[str, object]) -> None:
+            try:
+                total = event.get("total")
+                if not isinstance(total, int) or total <= 0:
+                    total = None
+                index = event.get("index")
+                if not isinstance(index, int):
+                    index = None
+                title_value = event.get("title") or event.get("title_hint")
+                if not isinstance(title_value, str) or not title_value.strip():
+                    source = event.get("source")
+                    if isinstance(source, Path):
+                        title_value = source.stem
+                    elif isinstance(source, str):
+                        title_value = Path(source).stem
+                    else:
+                        title_value = ""
+                description = _format_chapter_progress_label(
+                    job.book_label,
+                    index,
+                    total,
+                    title_value,
+                )
+                event_type = event.get("event")
+                event_label = event_type if isinstance(event_type, str) else None
+                job.update_progress(index, total, description, event_label)
+            except Exception:
+                return
+
+        try:
+            job.set_status("running", "Chapterizing…")
+            chapters, ruby_evidence = epub_to_chapter_texts(
+                str(job.temp_path),
+                nlp=backend,
+                progress=_progress_callback,
+            )
+            job.set_status("running", "Writing chapters…")
+            cover = get_epub_cover(str(job.temp_path))
+            write_book_package(
+                job.output_dir,
+                chapters,
+                source_epub=job.temp_path,
+                cover_image=cover,
+                ruby_evidence=ruby_evidence,
+            )
+            job.mark_success()
+        except Exception as exc:
+            job.set_error(f"{exc.__class__.__name__}: {exc}")
+        finally:
+            job.cleanup()
 def create_reader_app(root: Path) -> FastAPI:
     resolved_root = root.expanduser().resolve()
     if not resolved_root.exists() or not resolved_root.is_dir():
@@ -1534,6 +2181,9 @@ def create_reader_app(root: Path) -> FastAPI:
 
     app = FastAPI(title="nk Reader")
     app.state.root = resolved_root
+    upload_manager = UploadManager(resolved_root)
+    app.state.upload_manager = upload_manager
+    app.add_event_handler("shutdown", upload_manager.shutdown)
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> HTMLResponse:
@@ -1543,6 +2193,33 @@ def create_reader_app(root: Path) -> FastAPI:
     def api_chapters() -> JSONResponse:
         chapters = _list_chapters(resolved_root)
         return JSONResponse({"root": resolved_root.as_posix(), "chapters": chapters})
+
+    @app.get("/api/uploads")
+    def api_uploads() -> JSONResponse:
+        jobs = upload_manager.list_jobs()
+        return JSONResponse({"jobs": jobs})
+
+    @app.post("/api/uploads")
+    async def api_upload_epub(file: UploadFile = File(...)) -> JSONResponse:
+        filename = file.filename or "upload.epub"
+        suffix = Path(filename).suffix.lower()
+        if suffix != ".epub":
+            raise HTTPException(status_code=400, detail="Only .epub files are supported.")
+        job = UploadJob(resolved_root, filename)
+        try:
+            with job.temp_path.open("wb") as destination:
+                while True:
+                    chunk = await file.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    destination.write(chunk)
+        except Exception as exc:
+            job.cleanup()
+            raise HTTPException(status_code=500, detail=f"Failed to save upload: {exc}") from exc
+        finally:
+            await file.close()
+        upload_manager.enqueue(job)
+        return JSONResponse({"job": job.to_payload()})
 
     @app.get("/api/chapter")
     def api_chapter(
