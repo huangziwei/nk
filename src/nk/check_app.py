@@ -301,32 +301,6 @@ INDEX_HTML = """<!DOCTYPE html>
       outline: 2px solid var(--token-active);
       background: rgba(249,115,22,0.25);
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.85rem;
-    }
-    th, td {
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      padding: 0.4rem 0.35rem;
-      text-align: left;
-    }
-    th {
-      font-size: 0.75rem;
-      color: var(--muted);
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-    }
-    tbody tr:hover {
-      background: rgba(56,189,248,0.08);
-    }
-    tbody tr.active {
-      background: rgba(56,189,248,0.18);
-    }
-    .table-wrapper {
-      max-height: 320px;
-      overflow: auto;
-    }
     .pill {
       display: inline-flex;
       align-items: center;
@@ -366,28 +340,6 @@ INDEX_HTML = """<!DOCTYPE html>
     </aside>
     <main id="details">
       <div class="status" id="status">Loading chapters…</div>
-      <section class="panel" id="token-panel">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <h3>pitch tokens</h3>
-          <span id="token-count" class="pill">—</span>
-        </div>
-        <div class="table-wrapper">
-          <table id="token-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Surface</th>
-                <th>Reading</th>
-                <th>Transformed span</th>
-                <th>Original span</th>
-                <th>Accent</th>
-                <th>Origin</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
       <section class="panel text-grid" id="text-grid">
         <div class="text-controls">
           <label class="toggle">
@@ -447,8 +399,6 @@ INDEX_HTML = """<!DOCTYPE html>
       const originalPanel = document.getElementById('original-panel');
       const toggleTransformed = document.getElementById('toggle-transformed');
       const toggleOriginal = document.getElementById('toggle-original');
-      const tokenCountEl = document.getElementById('token-count');
-      const tokenTableBody = document.querySelector('#token-table tbody');
       const lineRegistry = {
         transformed: [],
         original: [],
@@ -489,16 +439,6 @@ INDEX_HTML = """<!DOCTYPE html>
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) return value;
         return date.toLocaleString();
-      }
-
-      function setTokenCount(count) {
-        if (!Number.isFinite(count)) {
-          tokenCountEl.textContent = '—';
-          tokenCountEl.className = 'pill';
-          return;
-        }
-        tokenCountEl.textContent = `${count} token${count === 1 ? '' : 's'}`;
-        tokenCountEl.className = 'pill' + (count ? ' ok' : ' missing');
       }
 
       function setLineRegistry(key, lines) {
@@ -766,48 +706,6 @@ INDEX_HTML = """<!DOCTYPE html>
         return lines;
       }
 
-      function renderTokensTable(tokens) {
-        tokenTableBody.innerHTML = '';
-        if (!tokens.length) {
-          const row = document.createElement('tr');
-          const cell = document.createElement('td');
-          cell.colSpan = 7;
-          cell.style.textAlign = 'center';
-          cell.style.color = 'var(--muted)';
-          cell.textContent = 'No tokens.';
-          row.appendChild(cell);
-          tokenTableBody.appendChild(row);
-          return;
-        }
-        tokens.forEach((token, index) => {
-          const row = document.createElement('tr');
-          row.dataset.tokenIndex = String(index);
-          attachHighlightHandlers(row, index);
-          const originParts = [];
-          if (token.pos) {
-            originParts.push(token.pos);
-          }
-          if (Array.isArray(token.sources) && token.sources.length) {
-            originParts.push(token.sources.join(', '));
-          }
-          const cells = [
-            String(index + 1),
-            token.surface || '—',
-            token.reading || '—',
-            describeSpan(token, 'transformed'),
-            describeSpan(token, 'original'),
-            token.accent === null || token.accent === undefined ? '—' : String(token.accent),
-            originParts.length ? originParts.join(' · ') : '—',
-          ];
-          cells.forEach((value) => {
-            const cell = document.createElement('td');
-            cell.textContent = value;
-            row.appendChild(cell);
-          });
-          tokenTableBody.appendChild(row);
-        });
-      }
-
       function updateTextMeta(element, textValue, hasFile) {
         if (!textValue) {
           element.textContent = hasFile ? 'Empty text' : 'Missing';
@@ -910,8 +808,6 @@ INDEX_HTML = """<!DOCTYPE html>
         setLineRegistry('transformed', []);
         setLineRegistry('original', []);
         scheduleAlignLines();
-        tokenTableBody.innerHTML = '';
-        setTokenCount(null);
         setDocumentTitle(null);
         state.tokens = [];
         setHighlighted(null);
@@ -941,8 +837,6 @@ INDEX_HTML = """<!DOCTYPE html>
             setLineRegistry('original', originalLines);
             scheduleAlignLines();
             resetScrollPositions();
-            setTokenCount(tokens.length);
-            renderTokensTable(tokens);
           })
           .catch((err) => {
             console.error(err);
