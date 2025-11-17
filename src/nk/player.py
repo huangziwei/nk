@@ -913,9 +913,6 @@ INDEX_HTML = """<!DOCTYPE html>
       .cards {
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       }
-      .upload-card {
-        display: none;
-      }
       .action-bar {
         flex-direction: column;
         align-items: flex-start;
