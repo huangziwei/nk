@@ -357,7 +357,7 @@ INDEX_HTML = """<!DOCTYPE html>
             <span>Original text</span>
           </label>
           <label class="toggle">
-            <input type="checkbox" id="toggle-transformed" checked>
+            <input type="checkbox" id="toggle-transformed">
             <span>Transformed text</span>
           </label>
         </div>
@@ -391,6 +391,7 @@ INDEX_HTML = """<!DOCTYPE html>
         tokens: [],
         filterValue: '',
         activeToken: null,
+        chapterPayload: null,
       };
       const baseTitle = document.title || 'nk Token Inspector';
 
@@ -514,15 +515,39 @@ INDEX_HTML = """<!DOCTYPE html>
         textGrid.classList.toggle('single-column', visiblePanels <= 1);
       }
 
-      function bindPanelToggle(panel, toggle) {
+      function bindPanelToggle(panel, toggle, onEnable) {
         if (!panel || !toggle) return;
         updatePanelVisibility(panel, toggle);
-        toggle.addEventListener('change', () => updatePanelVisibility(panel, toggle));
+        toggle.addEventListener('change', () => {
+          updatePanelVisibility(panel, toggle);
+          if (toggle.checked && typeof onEnable === 'function') {
+            onEnable();
+          }
+        });
       }
 
       function resetScrollPositions() {
         if (transformedText) transformedText.scrollTop = 0;
         if (originalText) originalText.scrollTop = 0;
+      }
+
+      function snapshotScrollPositions() {
+        return {
+          transformed: transformedText ? transformedText.scrollTop : 0,
+          original: originalText ? originalText.scrollTop : 0,
+        };
+      }
+
+      function restoreScrollPositions(snapshot) {
+        if (!snapshot) {
+          return;
+        }
+        if (originalText && typeof snapshot.original === 'number') {
+          originalText.scrollTop = snapshot.original;
+        }
+        if (transformedText && typeof snapshot.transformed === 'number') {
+          transformedText.scrollTop = snapshot.transformed;
+        }
       }
 
       let scrollSyncLock = false;
@@ -534,7 +559,9 @@ INDEX_HTML = """<!DOCTYPE html>
         scrollSyncLock = false;
       }
 
-      bindPanelToggle(transformedPanel, toggleTransformed);
+      bindPanelToggle(transformedPanel, toggleTransformed, () => {
+        requestTransformedLoad();
+      });
       bindPanelToggle(originalPanel, toggleOriginal);
 
       if (transformedText && originalText) {
@@ -579,15 +606,6 @@ INDEX_HTML = """<!DOCTYPE html>
           }
         }
         return null;
-      }
-
-      function describeSpan(token, key) {
-        const start = offsetValue(token.start, key);
-        const end = offsetValue(token.end, key);
-        if (!Number.isFinite(start) || !Number.isFinite(end)) {
-          return '—';
-        }
-        return `${start} – ${end}`;
       }
 
       function renderTextView(container, text, tokens, key) {
@@ -731,10 +749,20 @@ INDEX_HTML = """<!DOCTYPE html>
         return lines;
       }
 
-      function updateTextMeta(element, textValue, hasFile) {
+      function updateTextMeta(element, textValue, hasFile, loaded = true) {
+        if (!hasFile) {
+          element.textContent = 'Missing';
+          element.className = 'pill missing';
+          return;
+        }
+        if (!loaded) {
+          element.textContent = 'Not loaded';
+          element.className = 'pill';
+          return;
+        }
         if (!textValue) {
-          element.textContent = hasFile ? 'Empty text' : 'Missing';
-          element.className = hasFile ? 'pill warn' : 'pill missing';
+          element.textContent = 'Empty text';
+          element.className = 'pill warn';
           return;
         }
         element.textContent = `${textValue.length.toLocaleString()} chars`;
@@ -744,8 +772,14 @@ INDEX_HTML = """<!DOCTYPE html>
       function updateMetaPanel(payload) {
         const chapter = payload.chapter || {};
         const tokenVersion = payload.token_version ?? '—';
-        const textLength = typeof payload.text_length === 'number' ? payload.text_length : (payload.text ? payload.text.length : 0);
-        const originalLength = typeof payload.original_length === 'number' ? payload.original_length : (payload.original_text ? payload.original_text.length : 0);
+        const textLength =
+          typeof payload.text_length === 'number'
+            ? payload.text_length
+            : (typeof payload.text === 'string' ? payload.text.length : null);
+        const originalLength =
+          typeof payload.original_length === 'number'
+            ? payload.original_length
+            : (typeof payload.original_text === 'string' ? payload.original_text.length : null);
         const fields = [
           ['Path', chapter.path || '—'],
           ['Book', chapter.book || '—'],
@@ -834,42 +868,141 @@ INDEX_HTML = """<!DOCTYPE html>
         setLineRegistry('original', []);
         scheduleAlignLines();
         setDocumentTitle(null);
+        state.chapterPayload = null;
         state.tokens = [];
         setHighlighted(null);
       }
 
-      function openChapter(path) {
+      function buildChapterUrl(path, includeTransformed) {
+        const params = new URLSearchParams({ path });
+        if (includeTransformed) {
+          params.set('include_transformed', '1');
+        }
+        return `/api/chapter?${params.toString()}`;
+      }
+
+      function renderOriginalText(payload, tokens) {
+        const hasOriginalFile = Boolean(payload.original_path);
+        const originalLoaded = typeof payload.original_text === 'string';
+        updateTextMeta(originalMeta, payload.original_text, hasOriginalFile, originalLoaded);
+        if (originalLoaded) {
+          const originalLines = renderTextView(originalText, payload.original_text, tokens, 'original');
+          setLineRegistry('original', originalLines);
+          return;
+        }
+        originalText.classList.add('empty');
+        originalText.textContent = hasOriginalFile
+          ? 'Original text unavailable.'
+          : 'Missing original text.';
+        setLineRegistry('original', []);
+      }
+
+      function renderTransformedText(payload, tokens) {
+        const textLoaded = typeof payload.text === 'string';
+        updateTextMeta(transformedMeta, payload.text, true, textLoaded);
+        if (textLoaded) {
+          const transformedLines = renderTextView(transformedText, payload.text, tokens, 'transformed');
+          setLineRegistry('transformed', transformedLines);
+          return;
+        }
+        transformedText.classList.add('empty');
+        transformedText.textContent = toggleTransformed && toggleTransformed.checked
+          ? 'Loading transformed text…'
+          : 'Enable transformed text to load.';
+        setLineRegistry('transformed', []);
+      }
+
+      function applyChapterPayload(payload, options = {}) {
+        const tokens = Array.isArray(payload.tokens) ? payload.tokens : [];
+        state.tokens = tokens;
+        state.chapterPayload = payload;
+        if (!options.preserveHighlight) {
+          setHighlighted(null);
+        }
+        const chapter = payload.chapter || {};
+        const chapterName = chapter.name || null;
+        const displayName = payload.name || chapterName || state.selectedPath || '';
+        renderStatus(`Loaded ${displayName} (${tokens.length} tokens)`);
+        setDocumentTitle(displayName);
+        updateMetaPanel(payload);
+        renderOriginalText(payload, tokens);
+        renderTransformedText(payload, tokens);
+        scheduleAlignLines();
+        if (options.preserveScroll && options.scrollSnapshot) {
+          restoreScrollPositions(options.scrollSnapshot);
+        } else {
+          resetScrollPositions();
+        }
+      }
+
+      function openChapter(path, options = {}) {
+        if (!path) {
+          return;
+        }
         state.selectedPath = path;
+        if (!options.preservePayload) {
+          state.chapterPayload = null;
+        }
         renderChapterList();
+        const includeTransformed =
+          options.includeTransformed ?? Boolean(toggleTransformed && toggleTransformed.checked);
+        const preserveScroll = Boolean(options.preserveScroll);
+        const scrollSnapshot = preserveScroll ? snapshotScrollPositions() : null;
         renderStatus(`Loading ${path}…`);
-        fetchJSON(`/api/chapter?path=${encodeURIComponent(path)}`)
+        fetchJSON(buildChapterUrl(path, includeTransformed))
           .then((payload) => {
-            const tokens = Array.isArray(payload.tokens) ? payload.tokens : [];
-            state.tokens = tokens;
-            setHighlighted(null);
-            const chapter = payload.chapter || {};
-            const chapterName = chapter.name || null;
-            const displayName = payload.name || chapterName || path;
-            renderStatus(`Loaded ${displayName} (${tokens.length} tokens)`);
-            setDocumentTitle(displayName);
-            updateMetaPanel(payload);
-            updateTextMeta(transformedMeta, payload.text, true);
-            const transformedLines = renderTextView(transformedText, payload.text, tokens, 'transformed');
-            const hasOriginalFile = Boolean(payload.original_path);
-            updateTextMeta(originalMeta, payload.original_text, hasOriginalFile);
-            const originalLines = renderTextView(originalText, payload.original_text, tokens, 'original');
-            setLineRegistry('transformed', transformedLines);
-            setLineRegistry('original', originalLines);
-            scheduleAlignLines();
-            resetScrollPositions();
+            if (state.selectedPath !== path) {
+              return;
+            }
+            applyChapterPayload(payload, {
+              includeTransformed,
+              preserveScroll,
+              scrollSnapshot,
+              preserveHighlight: Boolean(options.preserveHighlight),
+            });
           })
           .catch((err) => {
+            if (state.selectedPath !== path) {
+              return;
+            }
             console.error(err);
-            state.selectedPath = null;
-            renderChapterList();
             renderStatus(`Failed to load ${path}: ${err.message}`);
-            clearSelection();
+            if (!options.keepStateOnError) {
+              state.selectedPath = null;
+              renderChapterList();
+              clearSelection();
+            } else if (toggleTransformed && toggleTransformed.checked) {
+              transformedText.classList.add('empty');
+              transformedText.textContent = 'Failed to load transformed text.';
+              setLineRegistry('transformed', []);
+              scheduleAlignLines();
+            }
           });
+      }
+
+      function requestTransformedLoad() {
+        if (!toggleTransformed || !toggleTransformed.checked) {
+          return;
+        }
+        if (!state.selectedPath) {
+          return;
+        }
+        if (state.chapterPayload && typeof state.chapterPayload.text === 'string') {
+          renderTransformedText(state.chapterPayload, state.tokens);
+          scheduleAlignLines();
+          return;
+        }
+        transformedText.classList.add('empty');
+        transformedText.textContent = 'Loading transformed text…';
+        setLineRegistry('transformed', []);
+        scheduleAlignLines();
+        openChapter(state.selectedPath, {
+          includeTransformed: true,
+          preserveScroll: true,
+          preserveHighlight: true,
+          preservePayload: true,
+          keepStateOnError: true,
+        });
       }
 
       function loadChapters() {
@@ -1052,7 +1185,13 @@ def create_check_app(root: Path) -> FastAPI:
         return JSONResponse({"root": resolved_root.as_posix(), "chapters": chapters})
 
     @app.get("/api/chapter")
-    def api_chapter(path: str = Query(..., description="Relative path to a .txt file")) -> JSONResponse:
+    def api_chapter(
+        path: str = Query(..., description="Relative path to a .txt file"),
+        include_transformed: bool = Query(
+            False,
+            description="Include transformed text in the response (default: false).",
+        ),
+    ) -> JSONResponse:
         if not path:
             raise HTTPException(status_code=400, detail="Path is required")
         rel_path = Path(path)
@@ -1068,9 +1207,11 @@ def create_check_app(root: Path) -> FastAPI:
         if chapter_path.suffix.lower() != ".txt":
             raise HTTPException(status_code=400, detail="Only .txt files are supported")
 
-        text = _safe_read_text(chapter_path)
+        text = _safe_read_text(chapter_path) if include_transformed else None
+        text_length = len(text) if text is not None else None
         original_path = chapter_path.with_name(f"{chapter_path.stem}.original.txt")
         original_text = _safe_read_text(original_path)
+        original_length = len(original_text) if original_text is not None else None
 
         token_path = chapter_path.with_name(chapter_path.name + ".token.json")
         tokens_list, token_payload, token_error = _load_token_payload(token_path)
@@ -1080,9 +1221,9 @@ def create_check_app(root: Path) -> FastAPI:
             "chapter": chapter_entry,
             "name": chapter_path.name,
             "text": text,
-            "text_length": len(text) if text else 0,
+            "text_length": text_length,
             "original_text": original_text,
-            "original_length": len(original_text) if original_text else 0,
+            "original_length": original_length,
             "tokens": tokens_list,
             "token_version": token_payload.get("version") if isinstance(token_payload, Mapping) else None,
             "token_sha1": token_payload.get("text_sha1") if isinstance(token_payload, Mapping) else None,
