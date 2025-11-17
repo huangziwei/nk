@@ -526,7 +526,6 @@ INDEX_HTML = """<!DOCTYPE html>
       <div class="player-actions">
         <div class="bookmark-row">
           <button id="bookmark-add" class="secondary" disabled>Add bookmark</button>
-          <span class="bookmark-status">Manual bookmarks</span>
         </div>
         <span class="bookmark-status" id="last-play-status">No last play saved.</span>
       </div>
@@ -670,6 +669,20 @@ INDEX_HTML = """<!DOCTYPE html>
           handlePromise(playBookmark(entry));
         };
         actions.appendChild(playBtn);
+        const renameBtn = document.createElement('button');
+        renameBtn.textContent = 'Notes';
+        renameBtn.className = 'secondary';
+        renameBtn.onclick = () => {
+          const fallback = `@ ${formatTimecode(entry.time || 0)}`;
+          const currentLabel = entry.label && entry.label.trim().length ? entry.label.trim() : fallback;
+          const nextLabel = window.prompt('Bookmark notes (leave empty to clear).', currentLabel);
+          if (nextLabel === null) {
+            return;
+          }
+          handlePromise(renameBookmark(entry.id, nextLabel.trim()));
+        };
+        actions.appendChild(renameBtn);
+
         const deleteBtn = document.createElement('button');
         deleteBtn.textContent = 'Delete';
         deleteBtn.className = 'secondary';
@@ -779,7 +792,7 @@ INDEX_HTML = """<!DOCTYPE html>
       const payload = {
         chapter_id: chapter.id,
         time,
-        label: label && label.trim().length ? label.trim() : null,
+        label: label && label.length ? label : null,
       };
       const data = await fetchJSON(
         `/api/books/${encodeURIComponent(state.currentBook.id)}/bookmarks`,
@@ -791,6 +804,21 @@ INDEX_HTML = """<!DOCTYPE html>
       );
       setBookmarks(data || {});
       statusLine.textContent = 'Bookmark saved.';
+    }
+
+    async function renameBookmark(bookmarkId, label) {
+      if (!state.currentBook || !bookmarkId) return;
+      const payload = { label: label && label.length ? label : null };
+      const data = await fetchJSON(
+        `/api/books/${encodeURIComponent(state.currentBook.id)}/bookmarks/${encodeURIComponent(bookmarkId)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
+      setBookmarks(data || {});
+      statusLine.textContent = 'Bookmark updated.';
     }
 
     async function persistLastPlayed(chapterId, time) {
@@ -1526,13 +1554,7 @@ INDEX_HTML = """<!DOCTYPE html>
           alert('Play the audio to the desired position before bookmarking.');
           return;
         }
-        const defaultLabel = `@ ${formatTimecode(player.currentTime)}`;
-        const label = window.prompt('Bookmark label (optional):', defaultLabel);
-        if (label === null) {
-          return;
-        }
-        const finalLabel = label.trim() || defaultLabel;
-        handlePromise(createBookmarkForCurrent(player.currentTime, finalLabel));
+        handlePromise(createBookmarkForCurrent(player.currentTime, null));
       };
     }
 
@@ -1719,6 +1741,28 @@ def _remove_manual_bookmark(book_dir: Path, bookmark_id: str) -> bool:
     state["manual"] = filtered
     _save_bookmark_state(book_dir, state)
     return True
+
+
+def _update_manual_bookmark_label(
+    book_dir: Path,
+    bookmark_id: str,
+    label: str | None,
+) -> bool:
+    state = _load_bookmark_state(book_dir)
+    manual_entries = state.get("manual")
+    if not isinstance(manual_entries, list):
+        return False
+    updated = False
+    now = time.time()
+    for entry in manual_entries:
+        if entry.get("id") == bookmark_id:
+            entry["label"] = label
+            entry["updated_at"] = now
+            updated = True
+            break
+    if updated:
+        _save_bookmark_state(book_dir, state)
+    return updated
 
 
 def _update_last_played(book_dir: Path, chapter_id: str, time_value: float) -> None:
@@ -2244,6 +2288,38 @@ def create_app(config: WebConfig) -> FastAPI:
             removed = _remove_manual_bookmark(book_path, bookmark_id)
             bookmarks = _bookmarks_payload(book_path)
         if not removed:
+            raise HTTPException(status_code=404, detail="Bookmark not found.")
+        return JSONResponse(bookmarks)
+
+    @app.patch("/api/books/{book_id}/bookmarks/{bookmark_id}")
+    def api_update_bookmark(
+        book_id: str,
+        bookmark_id: str,
+        payload: dict[str, object] = Body(...),
+    ) -> JSONResponse:
+        book_path = root / book_id
+        if not book_path.is_dir():
+            raise HTTPException(status_code=404, detail="Book not found")
+        if not bookmark_id:
+            raise HTTPException(status_code=400, detail="bookmark_id is required.")
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="Invalid payload.")
+        if "label" not in payload:
+            raise HTTPException(status_code=400, detail="label is required.")
+        label_value = payload.get("label")
+        label_text: str | None
+        if label_value is None:
+            label_text = None
+        elif isinstance(label_value, str):
+            label_text = label_value.strip() or None
+        else:
+            raise HTTPException(status_code=400, detail="label must be a string or null.")
+        if label_text and len(label_text) > 200:
+            label_text = label_text[:200]
+        with bookmark_lock:
+            updated = _update_manual_bookmark_label(book_path, bookmark_id, label_text)
+            bookmarks = _bookmarks_payload(book_path)
+        if not updated:
             raise HTTPException(status_code=404, detail="Bookmark not found.")
         return JSONResponse(bookmarks)
 
