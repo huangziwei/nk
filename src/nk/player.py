@@ -9,6 +9,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
+from urllib.parse import quote
 
 from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -144,10 +145,48 @@ INDEX_HTML = """<!DOCTYPE html>
       text-transform: uppercase;
       color: var(--muted);
     }
-    .library-controls {
+    .library-toolbar {
       display: flex;
-      justify-content: flex-end;
-      margin-bottom: 0.5rem;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .library-breadcrumbs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      align-items: center;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .library-breadcrumbs .breadcrumb {
+      background: none;
+      border: none;
+      padding: 0;
+      margin: 0;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+    }
+    .library-breadcrumbs .breadcrumb.current {
+      font-weight: 600;
+      color: var(--text);
+      cursor: default;
+    }
+    .library-breadcrumbs .breadcrumb:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+    .library-breadcrumbs .breadcrumb-divider {
+      opacity: 0.6;
+    }
+    .library-actions {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      align-items: center;
     }
     .sort-select {
       display: inline-flex;
@@ -187,6 +226,33 @@ INDEX_HTML = """<!DOCTYPE html>
       text-align: center;
       color: var(--muted);
       border: 1px dashed rgba(255,255,255,0.08);
+    }
+    .collection-card {
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    .collection-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(59,130,246,0.35);
+    }
+    .collection-card .collection-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: rgba(59,130,246,0.12);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+    }
+    .collection-card .collection-name {
+      font-weight: 600;
+      font-size: 1rem;
+    }
+    .collection-card .collection-meta {
+      font-size: 0.85rem;
+      color: var(--muted);
     }
     .upload-card {
       background: rgba(27, 31, 50, 0.9);
@@ -749,6 +815,14 @@ INDEX_HTML = """<!DOCTYPE html>
       main {
         padding: 0 1.1rem 1.6rem;
       }
+      .library-toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .library-actions {
+        width: 100%;
+        justify-content: space-between;
+      }
       .cards {
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       }
@@ -801,14 +875,19 @@ INDEX_HTML = """<!DOCTYPE html>
   <main>
     <section class="panel" id="books-panel">
       <h2>Library</h2>
-      <div class="library-controls">
-        <label class="sort-select" for="books-sort">
-          <select id="books-sort">
-            <option value="author">Author · Title</option>
-            <option value="recent">Recently Added</option>
-          </select>
-        </label>
+      <div class="library-toolbar">
+        <div class="library-breadcrumbs" id="library-breadcrumb"></div>
+        <div class="library-actions">
+          <button id="library-back" class="secondary hidden" type="button">◀ Up one level</button>
+          <label class="sort-select" for="books-sort">
+            <select id="books-sort">
+              <option value="author">Author · Title</option>
+              <option value="recent">Recently Added</option>
+            </select>
+          </label>
+        </div>
       </div>
+      <div class="cards collection-cards hidden" id="collections-grid"></div>
       <div class="cards" id="books-grid"></div>
     </section>
 
@@ -887,6 +966,9 @@ INDEX_HTML = """<!DOCTYPE html>
 
   <script>
     const booksGrid = document.getElementById('books-grid');
+    const collectionsGrid = document.getElementById('collections-grid');
+    const libraryBreadcrumb = document.getElementById('library-breadcrumb');
+    const libraryBackButton = document.getElementById('library-back');
     const chaptersPanel = document.getElementById('chapters-panel');
     const chaptersList = document.getElementById('chapters-list');
     const chaptersTitle = document.getElementById('chapters-title');
@@ -927,6 +1009,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
     const state = {
       books: [],
+      collections: [],
       chapters: [],
       currentBook: null,
       currentChapterIndex: -1,
@@ -941,6 +1024,8 @@ INDEX_HTML = """<!DOCTYPE html>
       localBuilds: new Set(),
       uploadJobs: [],
       librarySortOrder: 'author',
+      libraryPrefix: '',
+      parentPrefix: '',
     };
     const LIBRARY_SORT_KEY = 'nkPlayerSortOrder';
     const storedLibrarySort = window.localStorage.getItem(LIBRARY_SORT_KEY);
@@ -976,6 +1061,12 @@ INDEX_HTML = """<!DOCTYPE html>
           console.warn('Failed to persist sort order', error);
         }
         handlePromise(loadBooks());
+      });
+    }
+    if (libraryBackButton) {
+      libraryBackButton.addEventListener('click', () => {
+        if (!state.libraryPrefix) return;
+        handlePromise(loadBooks(state.parentPrefix || ''));
       });
     }
 
@@ -1827,11 +1918,93 @@ INDEX_HTML = """<!DOCTYPE html>
     applyVoiceDefaults(DEFAULT_VOICE, {});
 
     function scrollToLastBook() {
-      if (!lastOpenedBookId) return;
-      const anchor = booksGrid.querySelector(`[data-book-id="${lastOpenedBookId}"]`);
-      if (anchor) {
-        anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (!lastOpenedBookId || !booksGrid) return;
+      const nodes = booksGrid.querySelectorAll('[data-book-id]');
+      for (const node of nodes) {
+        if (node.dataset.bookId === lastOpenedBookId) {
+          node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          break;
+        }
       }
+    }
+
+    function renderLibraryNav() {
+      if (libraryBreadcrumb) {
+        libraryBreadcrumb.innerHTML = '';
+        const crumbs = [{ label: 'Library', path: '' }];
+        const prefixValue = typeof state.libraryPrefix === 'string' ? state.libraryPrefix : '';
+        const segments = prefixValue ? prefixValue.split('/').filter(Boolean) : [];
+        let running = '';
+        segments.forEach(segment => {
+          running = running ? `${running}/${segment}` : segment;
+          crumbs.push({ label: segment, path: running });
+        });
+        crumbs.forEach((crumb, index) => {
+          const isLast = index === crumbs.length - 1;
+          const node = document.createElement(isLast ? 'span' : 'button');
+          node.className = isLast ? 'breadcrumb current' : 'breadcrumb';
+          node.textContent = crumb.label || 'Library';
+          if (!isLast) {
+            node.type = 'button';
+            node.addEventListener('click', () => {
+              handlePromise(loadBooks(crumb.path));
+            });
+          }
+          libraryBreadcrumb.appendChild(node);
+          if (index < crumbs.length - 1) {
+            const divider = document.createElement('span');
+            divider.className = 'breadcrumb-divider';
+            divider.textContent = '/';
+            libraryBreadcrumb.appendChild(divider);
+          }
+        });
+      }
+      if (libraryBackButton) {
+        const hasParent = Boolean(state.libraryPrefix);
+        libraryBackButton.classList.toggle('hidden', !hasParent);
+        libraryBackButton.disabled = !hasParent;
+      }
+    }
+
+    function renderCollections() {
+      if (!collectionsGrid) return;
+      collectionsGrid.innerHTML = '';
+      if (!state.collections.length) {
+        collectionsGrid.classList.add('hidden');
+        return;
+      }
+      collectionsGrid.classList.remove('hidden');
+      state.collections.forEach(collection => {
+        if (!collection || typeof collection !== 'object') {
+          return;
+        }
+        const card = document.createElement('article');
+        card.className = 'card collection-card';
+        const collectionId = typeof collection.path === 'string' && collection.path
+          ? collection.path
+          : (collection.id || '');
+        if (collectionId) {
+          card.dataset.collectionId = collectionId;
+        }
+        const icon = document.createElement('div');
+        icon.className = 'collection-icon';
+        icon.textContent = '📁';
+        card.appendChild(icon);
+        const name = document.createElement('div');
+        name.className = 'collection-name';
+        name.textContent = collection.name || collection.id || collectionId || 'Collection';
+        card.appendChild(name);
+        const meta = document.createElement('div');
+        meta.className = 'collection-meta';
+        const count = typeof collection.book_count === 'number' ? collection.book_count : 0;
+        meta.textContent = count === 1 ? '1 book' : `${count} books`;
+        card.appendChild(meta);
+        card.addEventListener('click', () => {
+          const targetPath = typeof collection.path === 'string' ? collection.path : (collection.id || '');
+          handlePromise(loadBooks(targetPath || ''));
+        });
+        collectionsGrid.appendChild(card);
+      });
     }
 
     function renderBooks() {
@@ -1844,14 +2017,17 @@ INDEX_HTML = """<!DOCTYPE html>
       if (!state.books.length) {
         const empty = document.createElement('article');
         empty.className = 'card empty-card';
-        empty.textContent = 'No books discovered under this library root.';
+        empty.textContent = 'No books in this folder yet. Choose a collection or upload a book.';
         booksGrid.appendChild(empty);
         return;
       }
       state.books.forEach(book => {
         const card = document.createElement('article');
         card.className = 'card';
-        card.dataset.bookId = book.id;
+        const bookId = typeof book.path === 'string' && book.path ? book.path : book.id;
+        if (bookId) {
+          card.dataset.bookId = bookId;
+        }
 
         if (book.cover_url) {
           const coverWrapper = document.createElement('div');
@@ -2204,11 +2380,25 @@ INDEX_HTML = """<!DOCTYPE html>
       };
     }
 
-    async function loadBooks() {
+    async function loadBooks(nextPrefix = undefined) {
       const params = new URLSearchParams();
       params.set('sort', state.librarySortOrder || 'author');
+      let targetPrefix = '';
+      if (typeof nextPrefix === 'string') {
+        targetPrefix = nextPrefix;
+      } else if (typeof state.libraryPrefix === 'string') {
+        targetPrefix = state.libraryPrefix;
+      }
+      if (targetPrefix) {
+        params.set('prefix', targetPrefix);
+      }
       const data = await fetchJSON(`/api/books?${params.toString()}`);
-      state.books = data.books;
+      state.libraryPrefix = typeof data.prefix === 'string' ? data.prefix : '';
+      state.parentPrefix = typeof data.parent_prefix === 'string' ? data.parent_prefix : '';
+      state.collections = Array.isArray(data.collections) ? data.collections : [];
+      state.books = Array.isArray(data.books) ? data.books : [];
+      renderLibraryNav();
+      renderCollections();
       renderBooks();
     }
 
@@ -2548,6 +2738,9 @@ INDEX_HTML = """<!DOCTYPE html>
 
     setBookmarks({ manual: [], last_played: null });
 
+    renderLibraryNav();
+    renderCollections();
+
     loadBooks().catch(err => {
       booksGrid.innerHTML = `<div style="color:var(--danger)">Failed to load books: ${err.message}</div>`;
     });
@@ -2557,11 +2750,124 @@ INDEX_HTML = """<!DOCTYPE html>
 """
 
 
-def _list_books(root: Path, sort_mode: str) -> list[BookListing]:
+def _normalize_library_path(value: str | None) -> str:
+    if not value:
+        return ""
+    cleaned = str(value).replace("\\", "/").strip()
+    if not cleaned:
+        return ""
+    cleaned = cleaned.strip("/")
+    if not cleaned:
+        return ""
+    parts: list[str] = []
+    for part in cleaned.split("/"):
+        stripped = part.strip()
+        if not stripped or stripped in {".", ".."}:
+            continue
+        parts.append(stripped)
+    return "/".join(parts)
+
+
+def _relative_library_path(
+    root: Path,
+    path: Path,
+    *,
+    allow_root: bool = False,
+) -> str:
+    resolved = path.expanduser().resolve()
+    try:
+        relative = resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("Path escapes the library root.") from exc
+    if not relative.parts:
+        if allow_root:
+            return ""
+        raise ValueError("Path resolves to the library root.")
+    return relative.as_posix()
+
+
+def _is_book_dir(path: Path) -> bool:
+    if not path.is_dir():
+        return False
+    try:
+        for entry in path.iterdir():
+            if (
+                entry.is_file()
+                and entry.suffix == ".txt"
+                and not entry.name.endswith(".original.txt")
+            ):
+                return True
+    except OSError:
+        return False
+    return False
+
+
+def _count_descendant_books(root: Path, start: Path) -> int:
+    count = 0
+    stack: list[Path] = [start]
+    visited: set[Path] = set()
+    while stack:
+        current = stack.pop()
+        try:
+            resolved = current.resolve()
+        except OSError:
+            continue
+        if resolved in visited:
+            continue
+        visited.add(resolved)
+        try:
+            entries = list(current.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            if not entry.is_dir():
+                continue
+            try:
+                entry.resolve().relative_to(root)
+            except ValueError:
+                continue
+            if _is_book_dir(entry):
+                count += 1
+            else:
+                stack.append(entry)
+    return count
+
+
+def _list_collections(root: Path, base_dir: Path) -> list[dict[str, object]]:
+    try:
+        children = list(base_dir.iterdir())
+    except OSError:
+        return []
+    entries: list[tuple[str, dict[str, object]]] = []
+    for child in children:
+        if not child.is_dir():
+            continue
+        if _is_book_dir(child):
+            continue
+        try:
+            relative_id = _relative_library_path(root, child)
+        except ValueError:
+            continue
+        book_count = _count_descendant_books(root, child)
+        if book_count <= 0:
+            continue
+        payload = {
+            "id": child.name,
+            "name": child.name,
+            "path": relative_id,
+            "book_count": book_count,
+            "cover_samples": [],
+        }
+        entries.append((child.name.casefold(), payload))
+    entries.sort(key=lambda item: item[0])
+    return [payload for _, payload in entries]
+
+
+def _list_books(base_dir: Path, sort_mode: str) -> list[BookListing]:
     books: list[BookListing] = []
-    for listing in list_books_sorted(root, mode=sort_mode):
+    for listing in list_books_sorted(base_dir, mode=sort_mode):
         path = listing.path
-        if path.is_dir() and any(path.glob("*.txt")):
+        if path.is_dir() and _is_book_dir(path):
             books.append(listing)
     return books
 
@@ -2937,7 +3243,8 @@ def _cover_url(book_id: str, cover_path: Path | None) -> str | None:
         mtime = int(cover_path.stat().st_mtime)
     except OSError:
         mtime = 0
-    return f"/api/books/{book_id}/cover?ts={mtime}"
+    encoded_id = quote(book_id, safe="/")
+    return f"/api/books/{encoded_id}/cover?ts={mtime}"
 
 
 def _voice_settings_for_book(
@@ -3105,14 +3412,35 @@ def create_app(config: PlayerConfig) -> FastAPI:
     build_lock = threading.Lock()
     active_build_jobs: dict[tuple[str, str], dict[str, object]] = {}
 
+    def _resolve_prefix(prefix: str | None) -> tuple[str, Path]:
+        normalized = _normalize_library_path(prefix)
+        candidate = (root if not normalized else root / normalized).resolve()
+        try:
+            canonical = _relative_library_path(root, candidate, allow_root=True)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="Folder not found") from exc
+        if not candidate.exists() or not candidate.is_dir():
+            raise HTTPException(status_code=404, detail="Folder not found")
+        return canonical, candidate
+
+    def _resolve_book(book_id: str) -> tuple[str, Path]:
+        normalized = _normalize_library_path(book_id)
+        if not normalized:
+            raise HTTPException(status_code=404, detail="Book not found")
+        candidate = (root / normalized).resolve()
+        try:
+            canonical = _relative_library_path(root, candidate)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="Book not found") from exc
+        if not candidate.exists() or not candidate.is_dir() or not _is_book_dir(candidate):
+            raise HTTPException(status_code=404, detail="Book not found")
+        return canonical, candidate
+
     def _book_id_from_target(target: TTSTarget) -> str:
         try:
-            rel = target.source.parent.resolve().relative_to(root)
-            if rel.parts:
-                return rel.parts[0]
-        except Exception:
-            pass
-        return target.source.parent.name
+            return _relative_library_path(root, target.source.parent)
+        except ValueError:
+            return target.source.parent.name
 
     def _set_chapter_status(
         book_id: str,
@@ -3238,12 +3566,26 @@ def create_app(config: PlayerConfig) -> FastAPI:
 
     @app.get("/api/books")
     def api_books(
+        prefix: str | None = Query(
+            None, description="Relative folder under the library root."
+        ),
         sort: str | None = Query(None, description="Sort order: author or recent"),
     ) -> JSONResponse:
         sort_mode = _normalize_sort_mode(sort)
+        prefix_value, prefix_path = _resolve_prefix(prefix)
+        parent_prefix = ""
+        if prefix_value:
+            parent_prefix = (
+                prefix_value.rsplit("/", 1)[0] if "/" in prefix_value else ""
+            )
+        collections_payload = _list_collections(root, prefix_path)
         books_payload = []
-        for listing in _list_books(root, sort_mode):
+        for listing in _list_books(prefix_path, sort_mode):
             book_dir = listing.path
+            try:
+                book_id = _relative_library_path(root, book_dir)
+            except ValueError:
+                continue
             (
                 metadata,
                 book_title,
@@ -3253,7 +3595,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
                 effective_defaults,
             ) = _book_media_info(book_dir, config, metadata=listing.metadata)
             chapters = _list_chapters(book_dir)
-            status_snapshot = _status_snapshot(book_dir.name)
+            status_snapshot = _status_snapshot(book_id)
             states = [
                 _chapter_state(
                     chapter,
@@ -3270,7 +3612,8 @@ def create_app(config: PlayerConfig) -> FastAPI:
             completed = sum(1 for st in states if st["mp3_exists"])
             pending = total - completed
             payload: dict[str, object] = {
-                "id": book_dir.name,
+                "id": book_id,
+                "path": book_id,
                 "title": book_title,
                 "total_chapters": total,
                 "completed_chapters": completed,
@@ -3278,17 +3621,22 @@ def create_app(config: PlayerConfig) -> FastAPI:
             }
             if book_author:
                 payload["author"] = book_author
-            cover_url = _cover_url(book_dir.name, cover_path)
+            cover_url = _cover_url(book_id, cover_path)
             if cover_url:
                 payload["cover_url"] = cover_url
             books_payload.append(payload)
-        return JSONResponse({"books": books_payload})
+        return JSONResponse(
+            {
+                "prefix": prefix_value,
+                "parent_prefix": parent_prefix,
+                "collections": collections_payload,
+                "books": books_payload,
+            }
+        )
 
-    @app.get("/api/books/{book_id}/chapters")
+    @app.get("/api/books/{book_id:path}/chapters")
     def api_chapters(book_id: str) -> JSONResponse:
-        book_path = root / book_id
-        if not book_path.is_dir():
-            raise HTTPException(status_code=404, detail="Book not found")
+        canonical_id, book_path = _resolve_book(book_id)
         (
             metadata,
             book_title,
@@ -3298,7 +3646,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
             effective_defaults,
         ) = _book_media_info(book_path, config)
         chapters = _list_chapters(book_path)
-        status_snapshot = _status_snapshot(book_id)
+        status_snapshot = _status_snapshot(canonical_id)
         states = [
             _chapter_state(
                 chapter,
@@ -3320,7 +3668,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
         media_payload = {
             "album": book_title,
             "artist": book_author or book_title,
-            "cover_url": _cover_url(book_id, cover_path),
+            "cover_url": _cover_url(canonical_id, cover_path),
             "tts_defaults": {
                 "effective": effective_defaults,
                 "saved": saved_defaults,
@@ -3335,31 +3683,25 @@ def create_app(config: PlayerConfig) -> FastAPI:
             }
         )
 
-    @app.get("/api/books/{book_id}/status")
+    @app.get("/api/books/{book_id:path}/status")
     def api_book_status(book_id: str) -> JSONResponse:
-        book_path = root / book_id
-        if not book_path.is_dir():
-            raise HTTPException(status_code=404, detail="Book not found")
-        statuses = _status_snapshot(book_id)
+        canonical_id, _ = _resolve_book(book_id)
+        statuses = _status_snapshot(canonical_id)
         return JSONResponse({"status": statuses})
 
-    @app.get("/api/books/{book_id}/bookmarks")
+    @app.get("/api/books/{book_id:path}/bookmarks")
     def api_bookmarks(book_id: str) -> JSONResponse:
-        book_path = root / book_id
-        if not book_path.is_dir():
-            raise HTTPException(status_code=404, detail="Book not found")
+        _, book_path = _resolve_book(book_id)
         with bookmark_lock:
             payload = _bookmarks_payload(book_path)
         return JSONResponse(payload)
 
-    @app.post("/api/books/{book_id}/bookmarks")
+    @app.post("/api/books/{book_id:path}/bookmarks")
     def api_add_bookmark(
         book_id: str,
         payload: dict[str, object] = Body(...),
     ) -> JSONResponse:
-        book_path = root / book_id
-        if not book_path.is_dir():
-            raise HTTPException(status_code=404, detail="Book not found")
+        _, book_path = _resolve_book(book_id)
         if not isinstance(payload, dict):
             raise HTTPException(status_code=400, detail="Invalid payload.")
         chapter_id = payload.get("chapter_id")
@@ -3386,14 +3728,12 @@ def create_app(config: PlayerConfig) -> FastAPI:
             bookmarks = _bookmarks_payload(book_path)
         return JSONResponse(bookmarks)
 
-    @app.post("/api/books/{book_id}/bookmarks/last-played")
+    @app.post("/api/books/{book_id:path}/bookmarks/last-played")
     def api_update_last_played(
         book_id: str,
         payload: dict[str, object] = Body(...),
     ) -> JSONResponse:
-        book_path = root / book_id
-        if not book_path.is_dir():
-            raise HTTPException(status_code=404, detail="Book not found")
+        _, book_path = _resolve_book(book_id)
         if not isinstance(payload, dict):
             raise HTTPException(status_code=400, detail="Invalid payload.")
         chapter_id = payload.get("chapter_id")
@@ -3408,21 +3748,17 @@ def create_app(config: PlayerConfig) -> FastAPI:
             bookmarks = _bookmarks_payload(book_path)
         return JSONResponse(bookmarks)
 
-    @app.delete("/api/books/{book_id}/bookmarks/last-played")
+    @app.delete("/api/books/{book_id:path}/bookmarks/last-played")
     def api_clear_last_played(book_id: str) -> JSONResponse:
-        book_path = root / book_id
-        if not book_path.is_dir():
-            raise HTTPException(status_code=404, detail="Book not found")
+        _, book_path = _resolve_book(book_id)
         with bookmark_lock:
             _clear_last_played_entry(book_path)
             bookmarks = _bookmarks_payload(book_path)
         return JSONResponse(bookmarks)
 
-    @app.delete("/api/books/{book_id}/bookmarks/{bookmark_id}")
+    @app.delete("/api/books/{book_id:path}/bookmarks/{bookmark_id}")
     def api_delete_bookmark(book_id: str, bookmark_id: str) -> JSONResponse:
-        book_path = root / book_id
-        if not book_path.is_dir():
-            raise HTTPException(status_code=404, detail="Book not found")
+        _, book_path = _resolve_book(book_id)
         if not bookmark_id:
             raise HTTPException(status_code=400, detail="bookmark_id is required.")
         with bookmark_lock:
@@ -3432,15 +3768,13 @@ def create_app(config: PlayerConfig) -> FastAPI:
             raise HTTPException(status_code=404, detail="Bookmark not found.")
         return JSONResponse(bookmarks)
 
-    @app.patch("/api/books/{book_id}/bookmarks/{bookmark_id}")
+    @app.patch("/api/books/{book_id:path}/bookmarks/{bookmark_id}")
     def api_update_bookmark(
         book_id: str,
         bookmark_id: str,
         payload: dict[str, object] = Body(...),
     ) -> JSONResponse:
-        book_path = root / book_id
-        if not book_path.is_dir():
-            raise HTTPException(status_code=404, detail="Book not found")
+        _, book_path = _resolve_book(book_id)
         if not bookmark_id:
             raise HTTPException(status_code=400, detail="bookmark_id is required.")
         if not isinstance(payload, dict):
@@ -3464,14 +3798,12 @@ def create_app(config: PlayerConfig) -> FastAPI:
             raise HTTPException(status_code=404, detail="Bookmark not found.")
         return JSONResponse(bookmarks)
 
-    @app.post("/api/books/{book_id}/tts-defaults")
+    @app.post("/api/books/{book_id:path}/tts-defaults")
     def api_update_tts_defaults(
         book_id: str,
         payload: dict[str, object] = Body(...),
     ) -> JSONResponse:
-        book_path = root / book_id
-        if not book_path.is_dir():
-            raise HTTPException(status_code=404, detail="Book not found")
+        _, book_path = _resolve_book(book_id)
         if not isinstance(payload, dict):
             raise HTTPException(status_code=400, detail="Invalid payload.")
         updates: dict[str, float | int | None] = {}
@@ -3536,23 +3868,21 @@ def create_app(config: PlayerConfig) -> FastAPI:
             }
         )
 
-    @app.get("/api/books/{book_id}/cover")
+    @app.get("/api/books/{book_id:path}/cover")
     def api_cover(book_id: str) -> FileResponse:
-        book_path = root / book_id
-        if not book_path.is_dir():
-            raise HTTPException(status_code=404, detail="Book not found")
+        _, book_path = _resolve_book(book_id)
         _, _, _, cover_path, _, _ = _book_media_info(book_path, config)
         if cover_path is None or not cover_path.exists():
             raise HTTPException(status_code=404, detail="Cover not found")
         return FileResponse(cover_path)
 
-    @app.post("/api/books/{book_id}/chapters/{chapter_id}/prepare")
+    @app.post("/api/books/{book_id:path}/chapters/{chapter_id}/prepare")
     async def api_prepare_chapter(
         book_id: str,
         chapter_id: str,
         restart: bool = Query(False),
     ) -> JSONResponse:
-        book_path = root / book_id
+        book_key, book_path = _resolve_book(book_id)
         chapter_path = book_path / chapter_id
         if not chapter_path.exists():
             raise HTTPException(status_code=404, detail="Chapter not found")
@@ -3565,7 +3895,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
 
         loop = asyncio.get_running_loop()
 
-        job_key = (book_id, chapter_id)
+        job_key = (book_key, chapter_id)
         cancel_event = threading.Event()
 
         def work() -> int:
@@ -3590,7 +3920,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
         try:
             created = await future
         except KeyboardInterrupt:
-            _clear_chapter_status(book_id, chapter_id)
+            _clear_chapter_status(book_key, chapter_id)
             raise HTTPException(
                 status_code=409, detail="Build aborted by user."
             ) from None
@@ -3612,15 +3942,13 @@ def create_app(config: PlayerConfig) -> FastAPI:
             }
         )
 
-    @app.post("/api/books/{book_id}/chapters/{chapter_id}/abort")
+    @app.post("/api/books/{book_id:path}/chapters/{chapter_id}/abort")
     async def api_abort_chapter(book_id: str, chapter_id: str) -> JSONResponse:
-        book_path = root / book_id
-        if not book_path.is_dir():
-            raise HTTPException(status_code=404, detail="Book not found")
+        book_key, book_path = _resolve_book(book_id)
         chapter_path = book_path / chapter_id
         if not chapter_path.exists():
             raise HTTPException(status_code=404, detail="Chapter not found")
-        key = (book_id, chapter_id)
+        key = (book_key, chapter_id)
         with build_lock:
             job = active_build_jobs.get(key)
         if not job:
@@ -3630,12 +3958,12 @@ def create_app(config: PlayerConfig) -> FastAPI:
         cancel_event = job.get("cancel")
         if isinstance(cancel_event, threading.Event):
             cancel_event.set()
-        _set_chapter_status(book_id, chapter_id, state="aborting")
+        _set_chapter_status(book_key, chapter_id, state="aborting")
         return JSONResponse({"status": "aborting"})
 
-    @app.get("/api/books/{book_id}/chapters/{chapter_id}/stream")
+    @app.get("/api/books/{book_id:path}/chapters/{chapter_id}/stream")
     async def api_stream_chapter(book_id: str, chapter_id: str) -> FileResponse:
-        book_path = root / book_id
+        _, book_path = _resolve_book(book_id)
         chapter_path = book_path / chapter_id
         if not chapter_path.exists():
             raise HTTPException(status_code=404, detail="Chapter not found")
