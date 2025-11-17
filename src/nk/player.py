@@ -351,11 +351,25 @@ INDEX_HTML = """<!DOCTYPE html>
       justify-content: flex-end;
       gap: 0.5rem;
     }
+    .card .cover-wrapper {
+      position: relative;
+      width: 100%;
+    }
     .card .cover {
       width: 100%;
       border-radius: calc(var(--radius) - 6px);
       object-fit: cover;
       display: block;
+    }
+    .card .cover-link {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      border: none;
+      background: transparent;
+      cursor: pointer;
     }
     .card .author {
       color: var(--muted);
@@ -1102,11 +1116,24 @@ INDEX_HTML = """<!DOCTYPE html>
         card.className = 'card';
 
         if (book.cover_url) {
+          const coverWrapper = document.createElement('div');
+          coverWrapper.className = 'cover-wrapper';
           const cover = document.createElement('img');
           cover.className = 'cover';
           cover.src = book.cover_url;
           cover.alt = `${book.title} cover`;
-          card.appendChild(cover);
+          coverWrapper.appendChild(cover);
+          const coverButton = document.createElement('button');
+          coverButton.className = 'cover-link';
+          coverButton.setAttribute('aria-label', `Open ${book.title}`);
+          coverWrapper.appendChild(coverButton);
+          coverWrapper.onclick = () => handlePromise(loadChapters(book).then(() => {
+            const panel = document.getElementById('chapters-panel');
+            if (panel) {
+              panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          }));
+          card.appendChild(coverWrapper);
         }
 
         const title = document.createElement('div');
@@ -1136,16 +1163,6 @@ INDEX_HTML = """<!DOCTYPE html>
           badgesWrap.appendChild(badge('Empty', 'muted'));
         }
         card.appendChild(badgesWrap);
-
-        const open = document.createElement('button');
-        open.textContent = 'Open chapters';
-        open.onclick = () => handlePromise(loadChapters(book).then(() => {
-          const panel = document.getElementById('chapters-panel');
-          if (panel) {
-            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-        }));
-        card.appendChild(open);
 
         booksGrid.appendChild(card);
       });
