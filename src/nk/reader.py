@@ -99,10 +99,12 @@ INDEX_HTML = """<!DOCTYPE html>
       border: 1px solid transparent;
       background: transparent;
       padding: 0.6rem 0.75rem;
+      padding-left: calc(0.75rem + var(--indent, 0rem));
       text-align: left;
       color: var(--text);
       cursor: pointer;
       transition: background 0.15s ease, border 0.15s ease;
+      position: relative;
     }
     .chapter:hover {
       background: rgba(56,189,248,0.08);
@@ -119,6 +121,42 @@ INDEX_HTML = """<!DOCTYPE html>
       font-size: 0.78rem;
       color: var(--muted);
       margin-top: 0.15rem;
+    }
+    .chapter.folder-toggle::before {
+      content: '▸';
+      position: absolute;
+      left: calc(0.35rem + var(--indent, 0rem));
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      transition: transform 0.15s ease;
+      font-size: 0.78rem;
+    }
+    .chapter-folder.expanded > .folder-toggle::before {
+      transform: translateY(-50%) rotate(90deg);
+    }
+    .chapter.folder-toggle:disabled {
+      opacity: 0.8;
+      cursor: default;
+    }
+    .chapter-folder,
+    .chapter-leaf {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: block;
+      width: 100%;
+    }
+    .chapter-children {
+      list-style: none;
+      margin: 0.35rem 0 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .chapter-children.collapsed {
+      display: none;
     }
     main {
       padding: 1.4rem;
@@ -433,6 +471,7 @@ INDEX_HTML = """<!DOCTYPE html>
         filterValue: '',
         activeToken: null,
         chapterPayload: null,
+        folderState: {},
       };
       const baseTitle = document.title || 'nk Reader';
 
@@ -513,6 +552,23 @@ INDEX_HTML = """<!DOCTYPE html>
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) return value;
         return date.toLocaleString();
+      }
+
+      function isFolderExpanded(path) {
+        if (!path) {
+          return true;
+        }
+        if (Object.prototype.hasOwnProperty.call(state.folderState, path)) {
+          return Boolean(state.folderState[path]);
+        }
+        return false;
+      }
+
+      function setFolderExpanded(path, expanded) {
+        if (!path) {
+          return;
+        }
+        state.folderState[path] = Boolean(expanded);
       }
 
       function setLineRegistry(key, lines) {
@@ -896,6 +952,154 @@ INDEX_HTML = """<!DOCTYPE html>
         renderChapterList();
       }
 
+      function buildChapterTree(chapters) {
+        const createDirNode = (name, path, depth) => ({
+          type: 'dir',
+          name,
+          path,
+          depth,
+          children: [],
+          dirs: new Map(),
+          chapterCount: 0,
+        });
+        const root = createDirNode('', '', 0);
+        const ensureDir = (node, name) => {
+          if (node.dirs.has(name)) {
+            return node.dirs.get(name);
+          }
+          const dirPath = node.path ? `${node.path}/${name}` : name;
+          const child = createDirNode(name, dirPath, node.depth + 1);
+          node.dirs.set(name, child);
+          node.children.push(child);
+          return child;
+        };
+
+        chapters.forEach((chapter) => {
+          const parts = chapter.path.split('/');
+          const fileName = parts.pop() || chapter.name;
+          let cursor = root;
+          parts.forEach((part) => {
+            if (part) {
+              cursor = ensureDir(cursor, part);
+            }
+          });
+          cursor.children.push({
+            type: 'file',
+            name: fileName,
+            path: chapter.path,
+            depth: cursor.depth + 1,
+            chapter,
+          });
+        });
+
+        const finalize = (node) => {
+          let total = 0;
+          node.children.sort((a, b) => {
+            if (a.type !== b.type) {
+              return a.type === 'dir' ? -1 : 1;
+            }
+            return a.name.localeCompare(b.name, 'ja', { numeric: true, sensitivity: 'base' });
+          });
+          node.children.forEach((child) => {
+            if (child.type === 'dir') {
+              total += finalize(child);
+            } else {
+              total += 1;
+            }
+          });
+          node.chapterCount = total;
+          node.dirs = undefined;
+          return total;
+        };
+
+        finalize(root);
+        return root;
+      }
+
+      function renderTreeNode(node) {
+        if (node.type === 'dir') {
+          return renderFolderNode(node);
+        }
+        return renderFileNode(node);
+      }
+
+      function renderFolderNode(node) {
+        const searchActive = Boolean(state.filterValue.trim());
+        const li = document.createElement('li');
+        li.className = 'chapter-folder';
+        const expanded = searchActive || isFolderExpanded(node.path);
+        li.classList.toggle('collapsed', !expanded);
+        li.classList.toggle('expanded', expanded);
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'chapter folder-toggle';
+        const indentLevel = Math.max(0, node.depth - 1);
+        button.style.setProperty('--indent', `${indentLevel * 1.2}rem`);
+        button.dataset.folderPath = node.path;
+        const name = document.createElement('div');
+        name.className = 'name';
+        name.textContent = node.name || node.path || 'root';
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        const label = node.chapterCount === 1 ? 'chapter' : 'chapters';
+        meta.textContent = `${node.chapterCount} ${label}`;
+        button.appendChild(name);
+        button.appendChild(meta);
+        button.setAttribute('aria-expanded', String(expanded));
+
+        const children = document.createElement('ul');
+        children.className = 'chapter-children';
+        children.classList.toggle('collapsed', !expanded);
+        node.children.forEach((child) => {
+          children.appendChild(renderTreeNode(child));
+        });
+        if (searchActive) {
+          button.disabled = true;
+          button.title = 'Folders stay expanded while search is active';
+        } else {
+          button.addEventListener('click', () => {
+            const currentlyExpanded = !children.classList.contains('collapsed');
+            const nextState = !currentlyExpanded;
+            setFolderExpanded(node.path, nextState);
+            li.classList.toggle('collapsed', !nextState);
+            li.classList.toggle('expanded', nextState);
+            children.classList.toggle('collapsed', !nextState);
+            button.setAttribute('aria-expanded', String(nextState));
+          });
+        }
+        li.appendChild(button);
+        li.appendChild(children);
+        return li;
+      }
+
+      function renderFileNode(node) {
+        const li = document.createElement('li');
+        li.className = 'chapter-leaf';
+        const button = document.createElement('button');
+        button.type = 'button';
+        const isActive = state.selectedPath === node.chapter.path;
+        button.className = 'chapter' + (isActive ? ' active' : '');
+        button.dataset.path = node.chapter.path;
+        const indentLevel = Math.max(0, node.depth - 1);
+        button.style.setProperty('--indent', `${indentLevel * 1.2}rem`);
+        const name = document.createElement('div');
+        name.className = 'name';
+        name.textContent = node.chapter.name;
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        const tokenFlag = node.chapter.has_token ? 'token✓' : 'token×';
+        const origFlag = node.chapter.has_original ? 'orig✓' : 'orig×';
+        meta.textContent = `${tokenFlag} · ${origFlag} · ${formatBytes(node.chapter.size)} · ${formatDate(node.chapter.modified)}`;
+        button.appendChild(name);
+        button.appendChild(meta);
+        button.addEventListener('click', () => {
+          openChapter(node.chapter.path, { autoCollapse: true });
+        });
+        li.appendChild(button);
+        return li;
+      }
+
       function renderChapterList() {
         listEl.innerHTML = '';
         if (!state.filtered.length) {
@@ -905,28 +1109,12 @@ INDEX_HTML = """<!DOCTYPE html>
           listEl.appendChild(empty);
           return;
         }
-        state.filtered.forEach((chapter) => {
-          const item = document.createElement('li');
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'chapter' + (state.selectedPath === chapter.path ? ' active' : '');
-          button.dataset.path = chapter.path;
-          const name = document.createElement('div');
-          name.className = 'name';
-          name.textContent = chapter.book ? `${chapter.book} / ${chapter.name}` : chapter.name;
-          const meta = document.createElement('div');
-          meta.className = 'meta';
-          const tokenFlag = chapter.has_token ? 'token✓' : 'token×';
-          const origFlag = chapter.has_original ? 'orig✓' : 'orig×';
-          meta.textContent = `${tokenFlag} · ${origFlag} · ${formatBytes(chapter.size)} · ${formatDate(chapter.modified)}`;
-          button.appendChild(name);
-          button.appendChild(meta);
-          button.addEventListener('click', () => {
-            openChapter(chapter.path, { autoCollapse: true });
-          });
-          item.appendChild(button);
-          listEl.appendChild(item);
+        const tree = buildChapterTree(state.filtered);
+        const fragment = document.createDocumentFragment();
+        tree.children.forEach((child) => {
+          fragment.appendChild(renderTreeNode(child));
         });
+        listEl.appendChild(fragment);
       }
 
       function clearSelection() {
