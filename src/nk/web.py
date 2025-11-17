@@ -927,7 +927,15 @@ INDEX_HTML = """<!DOCTYPE html>
         const restartBtn = document.createElement('button');
         restartBtn.textContent = 'Rebuild';
         restartBtn.className = 'secondary';
-        restartBtn.onclick = () => handlePromise(buildChapter(index, { restart: true }));
+        restartBtn.onclick = () => {
+          const chapter = state.chapters[index];
+          const label = chapter ? chapter.title : 'this chapter';
+          const confirmText = `Rebuild audio for ${label}? Existing MP3 will be overwritten.`;
+          if (!window.confirm(confirmText)) {
+            return;
+          }
+          handlePromise(buildChapter(index, { restart: true }));
+        };
         buttons.appendChild(restartBtn);
         footer.appendChild(buttons);
 
@@ -1168,7 +1176,11 @@ def _list_books(root: Path) -> list[Path]:
 
 
 def _list_chapters(book_dir: Path) -> list[Path]:
-    return [p for p in sorted(book_dir.glob("*.txt")) if p.is_file()]
+    return [
+        p
+        for p in sorted(book_dir.glob("*.txt"))
+        if p.is_file() and not p.name.endswith(".original.txt")
+    ]
 
 
 def _safe_read_int(path: Path) -> int | None:
