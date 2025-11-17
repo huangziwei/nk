@@ -650,9 +650,7 @@ def test_token_metadata_overrides_voicevox(monkeypatch, tmp_path: Path) -> None:
             accent = payload["accent_phrases"][0]["accent"]
             self.payloads.append(payload)
             self.counter += 1
-            wav_bytes = _tone_wav_bytes(frequency=380 + accent * 40)
-            _save_artifact(f"pitch_override_chunk{self.counter}.wav", wav_bytes)
-            return wav_bytes
+            return _tone_wav_bytes(frequency=380 + accent * 40)
 
         def close(self) -> None:
             pass
@@ -687,6 +685,88 @@ def test_token_metadata_overrides_voicevox(monkeypatch, tmp_path: Path) -> None:
     second_accent = client.payloads[1]["accent_phrases"][0]["accent"]
     assert first_accent == 1  # enforced atamadaka
     assert second_accent == 3  # heiban -> mora count (アメ + ヲ)
+
+
+def test_token_metadata_handles_stripped_punctuation(
+    monkeypatch, tmp_path: Path
+) -> None:
+    chapter_path = tmp_path / "punct.txt"
+    chapter_text = "『アメ』ヲ\n\n．アメ．ヲ"
+    chapter_path.write_text(chapter_text, encoding="utf-8")
+    tokens = [
+        {
+            "surface": "雨",
+            "reading": "アメ",
+            "accent": 1,
+            "start": 1,
+            "end": 3,
+            "pos": "名詞",
+        },
+        {
+            "surface": "飴",
+            "reading": "アメ",
+            "accent": 0,
+            "start": 8,
+            "end": 10,
+            "pos": "名詞",
+        },
+    ]
+    _write_token_payload(chapter_path, tokens, chapter_text)
+
+    target = TTSTarget(source=chapter_path, output=tmp_path / "punct.mp3")
+
+    class CaptureClient:
+        def __init__(self) -> None:
+            self.payloads: list[dict[str, object]] = []
+            self.texts: list[str] = []
+
+        def synthesize_wav(self, text: str, modify_query=None) -> bytes:
+            self.texts.append(text)
+            moras = [{"text": ch} for ch in text]
+            payload = {"accent_phrases": [{"moras": moras, "accent": len(moras)}]}
+            if modify_query is not None:
+                modify_query(payload)
+            self.payloads.append(payload)
+            accent = payload["accent_phrases"][0]["accent"]
+            return _tone_wav_bytes(frequency=360 + accent * 30)
+
+        def recalculate_mora_pitch(self, accent_phrases):
+            return accent_phrases
+
+        def close(self) -> None:
+            pass
+
+    client = CaptureClient()
+    monkeypatch.setattr(
+        "nk.tts.wav_bytes_to_mp3",
+        lambda wav_bytes, output, **_: output.write_bytes(wav_bytes),
+    )
+    monkeypatch.setattr(
+        "nk.tts._merge_wavs_to_mp3",
+        lambda wav_paths, output_path, **_: output_path.write_bytes(
+            b"".join(path.read_bytes() for path in wav_paths)
+        ),
+    )
+
+    result = _synthesize_target_with_client(
+        target,
+        client,
+        index=1,
+        total=1,
+        ffmpeg_path="ffmpeg",
+        overwrite=True,
+        progress=None,
+        cache_base=tmp_path / "cache",
+        keep_cache=False,
+    )
+    assert result == target.output
+    assert len(client.payloads) == 2
+    assert client.texts[0] == "アメヲ"  # 『』 stripped, tokens still align
+    assert client.texts[1] == "．アメ．ヲ"
+    first_accent = client.payloads[0]["accent_phrases"][0]["accent"]
+    second_accent = client.payloads[1]["accent_phrases"][0]["accent"]
+    assert first_accent == 1
+    assert second_accent == len(client.texts[1])
 
 
 def test_token_metadata_skipped_when_hash_mismatch(monkeypatch, tmp_path: Path) -> None:
@@ -724,9 +804,7 @@ def test_token_metadata_skipped_when_hash_mismatch(monkeypatch, tmp_path: Path) 
             if modify_query is not None:
                 modify_query(payload)
             self.payloads.append(payload)
-            wav_bytes = _tone_wav_bytes(frequency=420 + len(moras) * 20)
-            _save_artifact(f"pitch_hashskip_chunk{len(self.payloads)}.wav", wav_bytes)
-            return wav_bytes
+            return _tone_wav_bytes(frequency=420 + len(moras) * 20)
 
         def close(self) -> None:
             pass
@@ -824,11 +902,10 @@ def test_voicevox_pitch_artifacts(monkeypatch, tmp_path: Path) -> None:
         chunk_paths = sorted(cache_dir.glob("*.wav"))
         assert len(chunk_paths) == 2
         for idx, chunk_path in enumerate(chunk_paths, start=1):
-            data = chunk_path.read_bytes()
-            _save_artifact(f"voicevox_chunk{idx}.wav", data)
+            _save_artifact(f"voicevox_base_chunk{idx}.wav", chunk_path.read_bytes())
 
         # Capture a reference artifact where the same text stays in a single chunk.
-        single_chunk_text = chapter_text.replace("\n\n", "。")
+        single_chunk_text = chapter_text.replace("\n\n", "\n")
         single_chunk_path = tmp_path / "voice_single_chunk.txt"
         single_chunk_path.write_text(single_chunk_text, encoding="utf-8")
         single_tokens = [
@@ -870,6 +947,101 @@ def test_voicevox_pitch_artifacts(monkeypatch, tmp_path: Path) -> None:
         single_cache_dir = _target_cache_dir(single_cache_root, single_target)
         single_chunk_paths = sorted(single_cache_dir.glob("*.wav"))
         assert len(single_chunk_paths) == 1
-        _save_artifact("voicevox_single_chunk.wav", single_chunk_paths[0].read_bytes())
+        _save_artifact(
+            "voicevox_base_single_chunk.wav", single_chunk_paths[0].read_bytes()
+        )
+
+        # Capture a punctuation-heavy example to ensure offset remapping survives stripping.
+        punct_path = tmp_path / "voice_punct.txt"
+        punct_text = "『アメ』ヲ\n\n．アメ．ヲ"
+        punct_path.write_text(punct_text, encoding="utf-8")
+        punct_tokens = [
+            {
+                "surface": "雨",
+                "reading": "アメ",
+                "accent": 1,
+                "start": 1,
+                "end": 3,
+                "pos": "名詞",
+            },
+            {
+                "surface": "飴",
+                "reading": "アメ",
+                "accent": 0,
+                "start": 8,
+                "end": 10,
+                "pos": "名詞",
+            },
+        ]
+        _write_token_payload(punct_path, punct_tokens, punct_text)
+        punct_target = TTSTarget(source=punct_path, output=tmp_path / "punct.mp3")
+        punct_cache_root = tmp_path / "cache_punct"
+        punct_result = _synthesize_target_with_client(
+            punct_target,
+            client,
+            index=1,
+            total=1,
+            ffmpeg_path="ffmpeg",
+            overwrite=True,
+            progress=None,
+            cache_base=punct_cache_root,
+            keep_cache=True,
+        )
+        assert punct_result == punct_target.output
+        punct_cache_dir = _target_cache_dir(punct_cache_root, punct_target)
+        punct_chunk_paths = sorted(punct_cache_dir.glob("*.wav"))
+        assert len(punct_chunk_paths) == 2
+        for idx, chunk_path in enumerate(punct_chunk_paths, start=1):
+            _save_artifact(
+                f"voicevox_punct_chunk{idx}.wav", chunk_path.read_bytes()
+            )
+
+        punct_single_text = punct_text.replace("\n\n", "\n")
+        punct_single_path = tmp_path / "voice_punct_single.txt"
+        punct_single_path.write_text(punct_single_text, encoding="utf-8")
+        punct_single_tokens = [
+            {
+                "surface": "雨",
+                "reading": "アメ",
+                "accent": 1,
+                "start": 1,
+                "end": 3,
+                "pos": "名詞",
+            },
+            {
+                "surface": "飴",
+                "reading": "アメ",
+                "accent": 0,
+                "start": 7,
+                "end": 9,
+                "pos": "名詞",
+            },
+        ]
+        _write_token_payload(punct_single_path, punct_single_tokens, punct_single_text)
+        punct_single_target = TTSTarget(
+            source=punct_single_path, output=tmp_path / "punct_single.mp3"
+        )
+        punct_single_cache_root = tmp_path / "cache_punct_single"
+        punct_single_result = _synthesize_target_with_client(
+            punct_single_target,
+            client,
+            index=1,
+            total=1,
+            ffmpeg_path="ffmpeg",
+            overwrite=True,
+            progress=None,
+            cache_base=punct_single_cache_root,
+            keep_cache=True,
+        )
+        assert punct_single_result == punct_single_target.output
+        punct_single_cache_dir = _target_cache_dir(
+            punct_single_cache_root, punct_single_target
+        )
+        punct_single_chunk_paths = sorted(punct_single_cache_dir.glob("*.wav"))
+        assert len(punct_single_chunk_paths) == 1
+        _save_artifact(
+            "voicevox_punct_single_chunk.wav",
+            punct_single_chunk_paths[0].read_bytes(),
+        )
     finally:
         client.close()
