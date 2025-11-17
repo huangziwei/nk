@@ -196,6 +196,9 @@ INDEX_HTML = """<!DOCTYPE html>
       background: var(--accent);
       transition: background 0.2s ease;
     }
+    button.danger {
+      background: var(--danger);
+    }
     button.secondary {
       background: rgba(148, 163, 184, 0.18);
       color: var(--muted);
@@ -206,6 +209,9 @@ INDEX_HTML = """<!DOCTYPE html>
     button.secondary:hover:not(:disabled) {
       background: rgba(148, 163, 184, 0.32);
       color: #e2e8f0;
+    }
+    button.danger:hover:not(:disabled) {
+      background: #dc2626;
     }
     button:disabled {
       opacity: 0.5;
@@ -751,6 +757,7 @@ INDEX_HTML = """<!DOCTYPE html>
         manual: [],
         lastPlayed: null,
       },
+      localBuilds: new Set(),
     };
     let statusPollHandle = null;
     let lastPlaySyncAt = 0;
@@ -843,6 +850,7 @@ INDEX_HTML = """<!DOCTYPE html>
         const actions = document.createElement('div');
         actions.className = 'actions';
         const playBtn = document.createElement('button');
+        playBtn.dataset.role = 'primary-action';
         playBtn.textContent = 'Play';
         playBtn.onclick = () => {
           handlePromise(playBookmark(entry));
@@ -1258,6 +1266,20 @@ INDEX_HTML = """<!DOCTYPE html>
       return res.json();
     }
 
+    async function readErrorResponse(response) {
+      const text = await response.text();
+      if (!text) return `HTTP ${response.status}`;
+      try {
+        const payload = JSON.parse(text);
+        if (payload && typeof payload.detail === 'string') {
+          return payload.detail;
+        }
+      } catch {
+        // ignore parse errors
+      }
+      return text;
+    }
+
     function badge(label, className = '') {
       const span = document.createElement('span');
       span.className = className ? `badge ${className}` : 'badge';
@@ -1432,6 +1454,12 @@ INDEX_HTML = """<!DOCTYPE html>
           }
           return { label, className: 'warning' };
         }
+        if (status.state === 'aborting') {
+          return { label: 'Aborting…', className: 'warning' };
+        }
+        if (status.state === 'aborted') {
+          return { label: 'Aborted', className: 'muted' };
+        }
         if (status.state === 'error') {
           return { label: 'Failed', className: 'danger' };
         }
@@ -1455,6 +1483,7 @@ INDEX_HTML = """<!DOCTYPE html>
         if (!chapterId) return;
         const chapter = state.chapters.find(ch => ch.id === chapterId);
         if (!chapter) return;
+        const chapterIndex = state.chapters.indexOf(chapter);
         const statusInfo = chapterStatusInfo(chapter);
         const statusEl = node.querySelector('[data-role="status-label"]');
         if (statusEl) {
@@ -1470,13 +1499,39 @@ INDEX_HTML = """<!DOCTYPE html>
             chunkEl.classList.add('hidden');
           }
         }
+        const primaryBtn = node.querySelector('[data-role="primary-action"]');
+        if (primaryBtn) {
+          primaryBtn.textContent = chapterPrimaryLabel(chapter);
+          const isBuilding = chapter.build_status && chapter.build_status.state === 'building';
+          const isAborting = chapter.build_status && chapter.build_status.state === 'aborting';
+          primaryBtn.disabled = Boolean(isAborting);
+          primaryBtn.classList.toggle('danger', Boolean(isBuilding || isAborting));
+          primaryBtn.onclick = () => {
+            if (isBuilding) {
+              handlePromise(abortChapter(chapterIndex));
+            } else if (chapter.mp3_exists) {
+              handlePromise(playChapter(chapterIndex));
+            } else {
+              handlePromise(buildChapter(chapterIndex, { restart: false }));
+            }
+          };
+        }
+        const restartBtn = node.querySelector('[data-role="restart-action"]');
+        if (restartBtn) {
+          restartBtn.disabled = Boolean(chapter.build_status && (chapter.build_status.state === 'building' || chapter.build_status.state === 'aborting'));
+        }
       });
     }
 
     function applyStatusUpdates(statusMap) {
       state.chapters.forEach(ch => {
         const nextStatus = statusMap[ch.id] || null;
-        ch.build_status = nextStatus;
+        const hasLocal = state.localBuilds && state.localBuilds.has(ch.id);
+        if (nextStatus) {
+          ch.build_status = nextStatus;
+        } else if (!hasLocal) {
+          ch.build_status = null;
+        }
         if (nextStatus && typeof nextStatus.chunk_count === 'number' && !ch.total_chunks) {
           ch.total_chunks = nextStatus.chunk_count;
         }
@@ -1514,6 +1569,12 @@ INDEX_HTML = """<!DOCTYPE html>
     }
 
     function chapterPrimaryLabel(ch) {
+      if (ch.build_status && ch.build_status.state === 'building') {
+        return 'Abort';
+      }
+      if (ch.build_status && ch.build_status.state === 'aborting') {
+        return 'Aborting…';
+      }
       return ch.mp3_exists ? 'Play' : 'Build';
     }
 
@@ -1524,7 +1585,7 @@ INDEX_HTML = """<!DOCTYPE html>
       const statusEl = wrapper.querySelector('[data-role="status-label"]');
       if (statusEl) {
         statusEl.textContent = label;
-        statusEl.className = className ? `badge ${className}` : 'badge';
+        statusEl.className = className || 'badge';
       }
     }
 
@@ -1618,8 +1679,14 @@ INDEX_HTML = """<!DOCTYPE html>
         buttons.className = 'badges controls';
         const playBtn = document.createElement('button');
         playBtn.textContent = chapterPrimaryLabel(ch);
+        const isBuilding = ch.build_status && ch.build_status.state === 'building';
+        const isAborting = ch.build_status && ch.build_status.state === 'aborting';
+        playBtn.disabled = Boolean(isAborting);
+        playBtn.classList.toggle('danger', Boolean(isBuilding || isAborting));
         playBtn.onclick = () => {
-          if (ch.mp3_exists) {
+          if (isBuilding) {
+            handlePromise(abortChapter(index));
+          } else if (ch.mp3_exists) {
             handlePromise(playChapter(index));
           } else {
             handlePromise(buildChapter(index, { restart: false }));
@@ -1628,8 +1695,10 @@ INDEX_HTML = """<!DOCTYPE html>
         buttons.appendChild(playBtn);
 
         const restartBtn = document.createElement('button');
+        restartBtn.dataset.role = 'restart-action';
         restartBtn.textContent = 'Rebuild';
         restartBtn.className = 'secondary';
+        restartBtn.disabled = Boolean(ch.build_status && (ch.build_status.state === 'building' || ch.build_status.state === 'aborting'));
         restartBtn.onclick = () => {
           const chapter = state.chapters[index];
           const label = chapter ? chapter.title : 'this chapter';
@@ -1685,6 +1754,11 @@ INDEX_HTML = """<!DOCTYPE html>
       const { preserveSelection = false } = options;
       state.currentBook = book;
       lastOpenedBookId = book.id;
+      if (state.localBuilds) {
+        state.localBuilds.clear();
+      } else {
+        state.localBuilds = new Set();
+      }
       if (!preserveSelection) {
         state.autoAdvance = false;
         state.currentChapterIndex = -1;
@@ -1730,33 +1804,83 @@ INDEX_HTML = """<!DOCTYPE html>
       if (!state.currentBook) return;
       const chapter = state.chapters[index];
       if (!chapter) return;
+      if (chapter.build_status && chapter.build_status.state === 'building') {
+        return;
+      }
       const params = new URLSearchParams();
       if (restart) params.set('restart', '1');
       if (state.currentChapterIndex === index) {
         statusLine.textContent = restart ? 'Rebuilding audio...' : 'Building audio...';
       }
       setChapterStatusLabel(chapter.id, restart ? 'Rebuilding…' : 'Building…', 'badge warning');
+      if (state.localBuilds) {
+        state.localBuilds.add(chapter.id);
+      }
+      const clearLocalBuild = () => {
+        if (state.localBuilds) {
+          state.localBuilds.delete(chapter.id);
+        }
+        chapter.build_status = null;
+        renderChapters(summaryForChapters());
+      };
+      chapter.build_status = { state: 'building' };
+      renderChapters(summaryForChapters());
+      try {
+        const res = await fetch(
+          `/api/books/${encodeURIComponent(state.currentBook.id)}/chapters/${encodeURIComponent(chapter.id)}/prepare?${params.toString()}`,
+          { method: 'POST' }
+        );
+        if (!res.ok) {
+          const detail = await readErrorResponse(res);
+          if (res.status === 409 && detail.toLowerCase().includes('aborted')) {
+            clearLocalBuild();
+            if (state.currentChapterIndex === index) {
+              statusLine.textContent = 'Build aborted.';
+            }
+            return;
+          }
+          clearLocalBuild();
+          if (state.currentChapterIndex !== index) {
+            setChapterStatusLabel(chapter.id, 'Failed', 'badge danger');
+          }
+          throw new Error(detail);
+        }
+        const result = await res.json();
+        clearLocalBuild();
+        chapter.mp3_exists = true;
+        if (typeof result.total_chunks === 'number') {
+          chapter.total_chunks = result.total_chunks;
+        }
+        chapter.has_cache = true;
+        renderChapters(summaryForChapters());
+        if (state.currentChapterIndex === index) {
+          statusLine.textContent = 'Build finished. Tap Play to listen.';
+        }
+      } catch (err) {
+        clearLocalBuild();
+        throw err;
+      }
+    }
+
+    async function abortChapter(index) {
+      if (!state.currentBook) return;
+      const chapter = state.chapters[index];
+      if (!chapter) return;
       const res = await fetch(
-        `/api/books/${encodeURIComponent(state.currentBook.id)}/chapters/${encodeURIComponent(chapter.id)}/prepare?${params.toString()}`,
+        `/api/books/${encodeURIComponent(state.currentBook.id)}/chapters/${encodeURIComponent(chapter.id)}/abort`,
         { method: 'POST' }
       );
       if (!res.ok) {
-        const text = await res.text();
-        if (state.currentChapterIndex !== index) {
-          setChapterStatusLabel(chapter.id, 'Failed', 'badge danger');
-        }
-        throw new Error(text || `HTTP ${res.status}`);
+        const detail = await readErrorResponse(res);
+        throw new Error(detail);
       }
-      const result = await res.json();
-      chapter.mp3_exists = true;
-      if (typeof result.total_chunks === 'number') {
-        chapter.total_chunks = result.total_chunks;
-      }
-      chapter.has_cache = true;
+      setChapterStatusLabel(chapter.id, 'Aborting…', 'badge warning');
+      chapter.build_status = { state: 'aborting' };
       renderChapters(summaryForChapters());
       if (state.currentChapterIndex === index) {
-        statusLine.textContent = 'Build finished. Tap Play to listen.';
+        statusLine.textContent = 'Aborting build...';
       }
+      refreshStatuses();
     }
 
     async function playChapter(index, { resumeTime = null } = {}) {
@@ -2354,6 +2478,7 @@ def _synthesize_sequence(
     force_indices: frozenset[int] | None = None,
     progress_handler: Callable[[TTSTarget, dict[str, object]], None] | None = None,
     voice_settings: dict[str, float | int | None] | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> int:
     if not targets:
         return 0
@@ -2365,6 +2490,9 @@ def _synthesize_sequence(
             work_plan.append((idx, target, force))
     if not work_plan:
         return 0
+
+    if cancel_event and cancel_event.is_set():
+        raise KeyboardInterrupt
 
     with lock:
         runtime_hint = config.engine_runtime or discover_voicevox_runtime(
@@ -2396,6 +2524,8 @@ def _synthesize_sequence(
             try:
                 total = len(work_plan)
                 for order, (_, target, force) in enumerate(work_plan, start=1):
+                    if cancel_event and cancel_event.is_set():
+                        raise KeyboardInterrupt
                     if force:
                         target.output.unlink(missing_ok=True)
                         cache_dir = _target_cache_dir(config.cache_dir, target)
@@ -2420,6 +2550,7 @@ def _synthesize_sequence(
                             progress=progress_callback,
                             cache_base=config.cache_dir,
                             keep_cache=config.keep_cache,
+                            cancel_event=cancel_event,
                         )
                     except Exception as exc:
                         if progress_handler is not None:
@@ -2445,6 +2576,8 @@ def create_app(config: PlayerConfig) -> FastAPI:
     status_lock = threading.Lock()
     chapter_status: dict[str, dict[str, dict[str, object]]] = {}
     bookmark_lock = threading.Lock()
+    build_lock = threading.Lock()
+    active_build_jobs: dict[tuple[str, str], dict[str, object]] = {}
 
     def _book_id_from_target(target: TTSTarget) -> str:
         try:
@@ -2871,6 +3004,9 @@ def create_app(config: PlayerConfig) -> FastAPI:
 
         loop = asyncio.get_running_loop()
 
+        job_key = (book_id, chapter_id)
+        cancel_event = threading.Event()
+
         def work() -> int:
             return _synthesize_sequence(
                 config,
@@ -2879,14 +3015,27 @@ def create_app(config: PlayerConfig) -> FastAPI:
                 force_indices=force_indices,
                 progress_handler=_record_progress_event,
                 voice_settings=voice_overrides,
+                cancel_event=cancel_event,
             )
 
+        with build_lock:
+            if job_key in active_build_jobs:
+                raise HTTPException(status_code=409, detail="Chapter is already building.")
+            future = loop.run_in_executor(None, work)
+            active_build_jobs[job_key] = {"cancel": cancel_event, "future": future}
+
         try:
-            created = await loop.run_in_executor(None, work)
+            created = await future
+        except KeyboardInterrupt:
+            _clear_chapter_status(book_id, chapter_id)
+            raise HTTPException(status_code=409, detail="Build aborted by user.") from None
         except (VoiceVoxUnavailableError, VoiceVoxError, FFmpegError) as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+        finally:
+            with build_lock:
+                active_build_jobs.pop(job_key, None)
 
         cache_dir = _target_cache_dir(config.cache_dir, target)
         total_chunks = _safe_read_int(cache_dir / ".complete")
@@ -2897,6 +3046,25 @@ def create_app(config: PlayerConfig) -> FastAPI:
                 "total_chunks": total_chunks,
             }
         )
+
+    @app.post("/api/books/{book_id}/chapters/{chapter_id}/abort")
+    async def api_abort_chapter(book_id: str, chapter_id: str) -> JSONResponse:
+        book_path = root / book_id
+        if not book_path.is_dir():
+            raise HTTPException(status_code=404, detail="Book not found")
+        chapter_path = book_path / chapter_id
+        if not chapter_path.exists():
+            raise HTTPException(status_code=404, detail="Chapter not found")
+        key = (book_id, chapter_id)
+        with build_lock:
+            job = active_build_jobs.get(key)
+        if not job:
+            raise HTTPException(status_code=409, detail="Chapter is not currently building.")
+        cancel_event = job.get("cancel")
+        if isinstance(cancel_event, threading.Event):
+            cancel_event.set()
+        _set_chapter_status(book_id, chapter_id, state="aborting")
+        return JSONResponse({"status": "aborting"})
 
     @app.get("/api/books/{book_id}/chapters/{chapter_id}/stream")
     async def api_stream_chapter(book_id: str, chapter_id: str) -> FileResponse:
