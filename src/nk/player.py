@@ -655,6 +655,7 @@ INDEX_HTML = """<!DOCTYPE html>
     let statusPollHandle = null;
     let lastPlaySyncAt = 0;
     let lastPlayPending = null;
+    let lastOpenedBookId = null;
 
     function formatTrackNumber(num) {
       if (typeof num !== 'number' || !Number.isFinite(num)) return '';
@@ -1102,6 +1103,14 @@ INDEX_HTML = """<!DOCTYPE html>
 
     applyVoiceDefaults(DEFAULT_VOICE, {});
 
+    function scrollToLastBook() {
+      if (!lastOpenedBookId) return;
+      const anchor = booksGrid.querySelector(`[data-book-id="${lastOpenedBookId}"]`);
+      if (anchor) {
+        anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
     function renderBooks() {
       booksGrid.innerHTML = '';
       if (!state.books.length) {
@@ -1114,6 +1123,7 @@ INDEX_HTML = """<!DOCTYPE html>
       state.books.forEach(book => {
         const card = document.createElement('article');
         card.className = 'card';
+        card.dataset.bookId = book.id;
 
         if (book.cover_url) {
           const coverWrapper = document.createElement('div');
@@ -1127,12 +1137,9 @@ INDEX_HTML = """<!DOCTYPE html>
           coverButton.className = 'cover-link';
           coverButton.setAttribute('aria-label', `Open ${book.title}`);
           coverWrapper.appendChild(coverButton);
-          coverWrapper.onclick = () => handlePromise(loadChapters(book).then(() => {
-            const panel = document.getElementById('chapters-panel');
-            if (panel) {
-              panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-          }));
+          coverWrapper.addEventListener('click', () => {
+            handlePromise(openBook(book));
+          });
           card.appendChild(coverWrapper);
         }
 
@@ -1164,8 +1171,14 @@ INDEX_HTML = """<!DOCTYPE html>
         }
         card.appendChild(badgesWrap);
 
+        if (!book.cover_url) {
+          card.addEventListener('click', () => {
+            handlePromise(openBook(book));
+          });
+        }
         booksGrid.appendChild(card);
       });
+      scrollToLastBook();
     }
 
     function chapterStatusInfo(ch) {
@@ -1422,9 +1435,19 @@ INDEX_HTML = """<!DOCTYPE html>
       renderBooks();
     }
 
+    async function openBook(book) {
+      lastOpenedBookId = book.id;
+      await loadChapters(book);
+      const panel = document.getElementById('chapters-panel');
+      if (panel) {
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
     async function loadChapters(book, options = {}) {
       const { preserveSelection = false } = options;
       state.currentBook = book;
+      lastOpenedBookId = book.id;
       if (!preserveSelection) {
         state.autoAdvance = false;
         state.currentChapterIndex = -1;
@@ -1565,6 +1588,12 @@ INDEX_HTML = """<!DOCTYPE html>
         return;
       }
       await playChapter(index, { resumeTime: last.time });
+      const targetChapter = chaptersList.querySelector(
+        `[data-chapter-id="${state.chapters[index].id}"]`
+      );
+      if (targetChapter) {
+        targetChapter.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
 
     async function playBook(restart = false) {
