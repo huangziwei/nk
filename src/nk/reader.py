@@ -275,6 +275,9 @@ INDEX_HTML = """<!DOCTYPE html>
       align-items: flex-start;
       font-size: 0.9rem;
     }
+    .text-grid.single-column .text-line {
+      grid-template-columns: 1fr;
+    }
     .line-number {
       min-width: 3rem;
       font-family: "SFMono-Regular", Consolas, "Hiragino Sans", monospace;
@@ -283,6 +286,9 @@ INDEX_HTML = """<!DOCTYPE html>
       padding-right: 0.4rem;
       border-right: 1px solid rgba(255,255,255,0.08);
       font-variant-numeric: tabular-nums;
+    }
+    .text-grid.single-column .line-number {
+      display: none;
     }
     .line-body {
       display: block;
