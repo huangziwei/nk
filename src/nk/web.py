@@ -16,10 +16,7 @@ from .book_io import (
     LoadedBookMetadata,
     load_book_metadata,
     update_book_tts_defaults,
-    write_book_package,
 )
-from .core import epub_to_chapter_texts, get_epub_cover
-from .nlp import NLPBackend, NLPBackendUnavailableError
 from .voice_defaults import (
     DEFAULT_INTONATION_SCALE,
     DEFAULT_PITCH_SCALE,
@@ -407,7 +404,7 @@ INDEX_HTML = """<!DOCTYPE html>
 <body>
   <header>
     <h1>nk Player</h1>
-    <p>Play chapterized TXT files with VoiceVox. Chapters without MP3s will be rendered before playback.</p>
+    <p>Play chapterized TXT files with VoiceVox. Use Build to synthesize audio before playback.</p>
   </header>
   <main>
     <section class="panel" id="books-panel">
@@ -1410,39 +1407,10 @@ def _synthesize_sequence(
     return len(work_plan)
 
 
-def _ensure_chapterized(root: Path) -> None:
-    epubs = sorted(p for p in root.iterdir() if p.suffix.lower() == ".epub")
-    if not epubs:
-        return
-    nlp = None
-    try:
-        nlp = NLPBackend()
-    except NLPBackendUnavailableError as exc:
-        raise RuntimeError(f"NLP backend unavailable: {exc}") from exc
-    for epub_path in epubs:
-        output_dir = epub_path.with_suffix("")
-        if output_dir.exists() and any(output_dir.glob("*.txt")):
-            continue
-        try:
-            print(f"[nk web] Generating chapters for {epub_path.name}")
-            chapters, ruby_evidence = epub_to_chapter_texts(str(epub_path), nlp=nlp)
-            cover = get_epub_cover(str(epub_path))
-            write_book_package(
-                output_dir,
-                chapters,
-                source_epub=epub_path,
-                cover_image=cover,
-                ruby_evidence=ruby_evidence,
-            )
-        except Exception as exc:  # pragma: no cover - fail fast
-            raise RuntimeError(f"Failed to chapterize {epub_path}: {exc}") from exc
-
-
 def create_app(config: WebConfig) -> FastAPI:
     root = config.root.expanduser().resolve()
     if not root.exists():
         raise FileNotFoundError(f"Books root not found: {root}")
-    _ensure_chapterized(root)
 
     app = FastAPI(title="nk VoiceVox")
     app.state.config = config
