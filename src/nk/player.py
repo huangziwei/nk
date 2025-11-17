@@ -86,6 +86,9 @@ INDEX_HTML = """<!DOCTYPE html>
       background: var(--bg);
       color: var(--text);
     }
+    body.modal-open {
+      overflow: hidden;
+    }
     .hidden {
       display: none !important;
     }
@@ -452,9 +455,12 @@ INDEX_HTML = """<!DOCTYPE html>
       flex-direction: column;
       gap: 0.1rem;
       font-size: 0.85rem;
+      flex: 1;
+      min-width: 0;
     }
     .bookmark-item .label {
       font-weight: 600;
+      word-break: break-word;
     }
     .bookmark-item .time {
       color: var(--muted);
@@ -463,6 +469,7 @@ INDEX_HTML = """<!DOCTYPE html>
       display: flex;
       gap: 0.4rem;
       flex-shrink: 0;
+      align-items: center;
     }
     .bookmark-item button {
       font-size: 0.8rem;
@@ -502,6 +509,64 @@ INDEX_HTML = """<!DOCTYPE html>
       gap: 0.6rem;
       align-items: center;
     }
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(5, 6, 17, 0.78);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      z-index: 120;
+    }
+    .modal.hidden {
+      display: none;
+    }
+    .modal-card {
+      background: var(--panel);
+      border-radius: calc(var(--radius) - 8px);
+      width: min(520px, 100%);
+      max-height: 90vh;
+      padding: 1.25rem;
+      box-shadow: 0 20px 45px rgba(5, 6, 17, 0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      border: 1px solid rgba(59,130,246,0.3);
+    }
+    .modal-card h3 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+    .modal-meta {
+      margin: -0.5rem 0 0;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .modal-card textarea {
+      width: 100%;
+      min-height: 8rem;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(0,0,0,0.35);
+      color: var(--text);
+      font-size: 0.9rem;
+      font-family: inherit;
+      line-height: 1.4;
+      padding: 0.6rem 0.75rem;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    .modal-card textarea:focus {
+      outline: none;
+      border-color: rgba(59,130,246,0.7);
+      box-shadow: 0 0 0 1px rgba(59,130,246,0.4);
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.6rem;
+    }
     @media (max-width: 640px) {
       header {
         padding: 1.2rem 1.1rem 0.9rem;
@@ -528,6 +593,24 @@ INDEX_HTML = """<!DOCTYPE html>
       }
       audio {
         margin-top: 0.6rem;
+      }
+      .bookmark-item {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .bookmark-item .actions {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+      }
+      .bookmark-item .actions button {
+        flex: 1 1 auto;
+        min-width: 30%;
+      }
+      .modal-card {
+        padding: 1rem;
+      }
+      .modal-card textarea {
+        min-height: 6rem;
       }
     }
   </style>
@@ -604,6 +687,18 @@ INDEX_HTML = """<!DOCTYPE html>
     </div>
   </main>
 
+  <div id="note-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="note-modal-title">
+      <h3 id="note-modal-title">Bookmark notes</h3>
+      <p class="modal-meta" id="note-modal-meta" hidden></p>
+      <textarea id="note-input" rows="6" placeholder="Add notes…"></textarea>
+      <div class="modal-actions">
+        <button id="note-cancel" class="secondary">Cancel</button>
+        <button id="note-save">Save</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const booksGrid = document.getElementById('books-grid');
     const chaptersPanel = document.getElementById('chapters-panel');
@@ -623,6 +718,11 @@ INDEX_HTML = """<!DOCTYPE html>
     const bookmarkAddWrapper = document.querySelector('#player-dock .player-actions');
     const bookmarkAddBtn = document.getElementById('bookmark-add');
     const bookmarkList = document.getElementById('bookmark-list');
+    const noteModal = document.getElementById('note-modal');
+    const noteTextarea = document.getElementById('note-input');
+    const noteModalMeta = document.getElementById('note-modal-meta');
+    const noteSaveBtn = document.getElementById('note-save');
+    const noteCancelBtn = document.getElementById('note-cancel');
     const voiceSpeakerInput = document.getElementById('voice-speaker');
     const voiceSpeedInput = document.getElementById('voice-speed');
     const voicePitchInput = document.getElementById('voice-pitch');
@@ -656,6 +756,7 @@ INDEX_HTML = """<!DOCTYPE html>
     let lastPlaySyncAt = 0;
     let lastPlayPending = null;
     let lastOpenedBookId = null;
+    let noteModalContext = null;
 
     function formatTrackNumber(num) {
       if (typeof num !== 'number' || !Number.isFinite(num)) return '';
@@ -741,11 +842,11 @@ INDEX_HTML = """<!DOCTYPE html>
         renameBtn.onclick = () => {
           const fallback = `@ ${formatTimecode(entry.time || 0)}`;
           const currentLabel = entry.label && entry.label.trim().length ? entry.label.trim() : fallback;
-          const nextLabel = window.prompt('Bookmark notes (leave empty to clear).', currentLabel);
-          if (nextLabel === null) {
-            return;
-          }
-          handlePromise(renameBookmark(entry.id, nextLabel.trim()));
+          openNoteEditor({
+            value: entry.label || '',
+            fallback,
+            onSave: (nextValue) => renameBookmark(entry.id, nextValue),
+          });
         };
         actions.appendChild(renameBtn);
 
@@ -1007,6 +1108,112 @@ INDEX_HTML = """<!DOCTYPE html>
         statusLine.textContent = `Error: ${msg}`;
       });
     }
+
+    function isNoteModalActive() {
+      return noteModal && !noteModal.classList.contains('hidden');
+    }
+
+    function setNoteModalDisabled(disabled) {
+      if (noteSaveBtn) noteSaveBtn.disabled = disabled;
+      if (noteCancelBtn) noteCancelBtn.disabled = disabled;
+    }
+
+    function closeNoteEditor() {
+      if (!noteModal) return;
+      noteModal.classList.add('hidden');
+      noteModal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('modal-open');
+      setNoteModalDisabled(false);
+      noteModalContext = null;
+      if (noteTextarea) {
+        noteTextarea.value = '';
+      }
+    }
+
+    function submitNoteEditor() {
+      if (!noteModalContext || typeof noteModalContext.onSave !== 'function' || !noteTextarea) {
+        closeNoteEditor();
+        return;
+      }
+      const trimmed = noteTextarea.value.trim();
+      const result = noteModalContext.onSave(trimmed);
+      if (!result || typeof result.then !== 'function') {
+        closeNoteEditor();
+        return;
+      }
+      setNoteModalDisabled(true);
+      handlePromise(
+        result
+          .then(() => {
+            closeNoteEditor();
+          })
+          .catch((error) => {
+            setNoteModalDisabled(false);
+            throw error;
+          })
+      );
+    }
+
+    function openNoteEditor({ value = '', fallback = '', onSave } = {}) {
+      if (!noteModal || !noteTextarea || typeof onSave !== 'function') {
+        const initial = value || fallback || '';
+        const next = window.prompt('Bookmark notes (leave empty to clear).', initial);
+        if (next === null) {
+          return;
+        }
+        handlePromise(onSave(next.trim()));
+        return;
+      }
+      noteModalContext = { onSave };
+      noteTextarea.value = value || '';
+      noteTextarea.placeholder = fallback ? `Defaults to ${fallback}` : '';
+      if (noteModalMeta) {
+        noteModalMeta.textContent = fallback ? `Fallback when empty: ${fallback}` : '';
+        noteModalMeta.hidden = !fallback;
+      }
+      noteModal.classList.remove('hidden');
+      noteModal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('modal-open');
+      setNoteModalDisabled(false);
+      requestAnimationFrame(() => {
+        noteTextarea.focus();
+        noteTextarea.setSelectionRange(noteTextarea.value.length, noteTextarea.value.length);
+      });
+    }
+
+    if (noteCancelBtn) {
+      noteCancelBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        closeNoteEditor();
+      });
+    }
+    if (noteSaveBtn) {
+      noteSaveBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        submitNoteEditor();
+      });
+    }
+    if (noteModal) {
+      noteModal.addEventListener('click', (event) => {
+        if (event.target === noteModal) {
+          closeNoteEditor();
+        }
+      });
+    }
+    if (noteTextarea) {
+      noteTextarea.addEventListener('keydown', (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+          event.preventDefault();
+          submitNoteEditor();
+        }
+      });
+    }
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && isNoteModalActive()) {
+        event.preventDefault();
+        closeNoteEditor();
+      }
+    });
 
     async function fetchJSON(url, options = {}) {
       const init = { cache: 'no-store', ...options };
@@ -2431,8 +2638,6 @@ def create_app(config: PlayerConfig) -> FastAPI:
             raise HTTPException(
                 status_code=400, detail="label must be a string or null."
             )
-        if label_text and len(label_text) > 200:
-            label_text = label_text[:200]
         _ensure_chapter_for_bookmark(book_path, chapter_id)
         with bookmark_lock:
             _append_manual_bookmark(
@@ -2512,8 +2717,6 @@ def create_app(config: PlayerConfig) -> FastAPI:
             raise HTTPException(
                 status_code=400, detail="label must be a string or null."
             )
-        if label_text and len(label_text) > 200:
-            label_text = label_text[:200]
         with bookmark_lock:
             updated = _update_manual_bookmark_label(book_path, bookmark_id, label_text)
             bookmarks = _bookmarks_payload(book_path)
