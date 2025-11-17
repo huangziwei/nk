@@ -483,6 +483,40 @@ INDEX_HTML = """<!DOCTYPE html>
         folderState: {},
       };
       const baseTitle = document.title || 'nk Reader';
+      const CHAPTER_HASH_PREFIX = '#chapter=';
+
+      function getChapterPathFromHash() {
+        const hash = window.location.hash || '';
+        if (!hash.startsWith(CHAPTER_HASH_PREFIX)) {
+          return null;
+        }
+        const encoded = hash.slice(CHAPTER_HASH_PREFIX.length);
+        if (!encoded) {
+          return null;
+        }
+        try {
+          return decodeURIComponent(encoded);
+        } catch (error) {
+          console.warn('Failed to parse chapter hash', error);
+          return encoded;
+        }
+      }
+
+      function updateChapterHash(path) {
+        const currentHash = window.location.hash || '';
+        const nextHash = path ? `${CHAPTER_HASH_PREFIX}${encodeURIComponent(path)}` : '';
+        if (currentHash === nextHash) {
+          return;
+        }
+        if (path) {
+          window.location.hash = nextHash;
+          return;
+        }
+        if (currentHash) {
+          const newUrl = `${window.location.pathname}${window.location.search}`;
+          window.history.replaceState(null, '', newUrl);
+        }
+      }
 
       const listEl = document.getElementById('chapter-list');
       const filterEl = document.getElementById('chapter-filter');
@@ -507,6 +541,10 @@ INDEX_HTML = """<!DOCTYPE html>
         original: [],
       };
       let alignFrame = null;
+      const initialHashPath = getChapterPathFromHash();
+      if (initialHashPath) {
+        state.selectedPath = initialHashPath;
+      }
 
       function updateSidebarToggleLabel(collapsed) {
         if (!sidebarToggle) return;
@@ -1216,7 +1254,10 @@ INDEX_HTML = """<!DOCTYPE html>
         if (!options.preservePayload) {
           state.chapterPayload = null;
         }
-        renderChapterList();
+        if (state.chapters.length) {
+          renderChapterList();
+        }
+        updateChapterHash(path);
         const includeTransformed =
           options.includeTransformed ?? Boolean(toggleTransformed && toggleTransformed.checked);
         const preserveScroll = Boolean(options.preserveScroll);
@@ -1282,6 +1323,22 @@ INDEX_HTML = """<!DOCTYPE html>
         });
       }
 
+      function handleHashNavigation() {
+        const targetPath = getChapterPathFromHash();
+        if (!targetPath) {
+          if (state.selectedPath) {
+            state.selectedPath = null;
+            renderChapterList();
+            clearSelection();
+          }
+          return;
+        }
+        if (targetPath === state.selectedPath) {
+          return;
+        }
+        openChapter(targetPath, { autoCollapse: false });
+      }
+
       function loadChapters() {
         renderStatus('Loading chapters…');
         fetchJSON('/api/chapters')
@@ -1309,8 +1366,13 @@ INDEX_HTML = """<!DOCTYPE html>
         loadChapters();
       });
 
+      window.addEventListener('hashchange', handleHashNavigation);
+
       clearSelection();
       loadChapters();
+      if (initialHashPath) {
+        openChapter(initialHashPath, { autoCollapse: false, preservePayload: false });
+      }
     })();
   </script>
 </body>
