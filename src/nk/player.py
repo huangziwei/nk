@@ -313,6 +313,11 @@ INDEX_HTML = """<!DOCTYPE html>
       flex-direction: column;
       gap: 0.6rem;
     }
+    .chapter .bookmark-list {
+      margin-top: 0.2rem;
+      border-top: 1px solid rgba(148,163,184,0.2);
+      padding-top: 0.4rem;
+    }
     .chapter.playing {
       outline: 2px solid rgba(59, 130, 246, 0.65);
       outline-offset: 2px;
@@ -409,18 +414,6 @@ INDEX_HTML = """<!DOCTYPE html>
       font-size: 0.85rem;
       color: var(--muted);
     }
-    .player-actions {
-      margin-top: 0.6rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .bookmark-row {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.5rem;
-    }
     .bookmark-status {
       font-size: 0.85rem;
       color: var(--muted);
@@ -464,6 +457,36 @@ INDEX_HTML = """<!DOCTYPE html>
     .bookmark-empty {
       font-size: 0.85rem;
       color: var(--muted);
+    }
+    .bookmark-panel {
+      background: rgba(20, 23, 36, 0.6);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: calc(var(--radius) - 8px);
+      padding: 0.8rem 1rem;
+      margin-bottom: 1rem;
+    }
+    .bookmark-panel.hidden {
+      display: none;
+    }
+    .bookmark-panel .header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.6rem;
+    }
+    .bookmark-panel h4 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: 0.02em;
+      color: var(--muted);
+    }
+    .bookmark-panel .bookmark-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      align-items: center;
     }
     @media (max-width: 640px) {
       header {
@@ -520,34 +543,16 @@ INDEX_HTML = """<!DOCTYPE html>
           <button id="restart-book" class="secondary">Restart Book</button>
         </div>
       </div>
-      <details class="voice-controls">
-        <summary>Voice settings</summary>
-        <div class="voice-controls-content">
-          <div class="voice-grid">
-            <label class="voice-field">
-              Speaker
-              <input type="number" id="voice-speaker" min="1" step="1">
-            </label>
-            <label class="voice-field">
-              Speed
-              <input type="number" id="voice-speed" step="0.01">
-            </label>
-            <label class="voice-field">
-              Pitch
-              <input type="number" id="voice-pitch" step="0.01">
-            </label>
-            <label class="voice-field">
-              Intonation
-              <input type="number" id="voice-intonation" step="0.01">
-            </label>
-          </div>
-          <div class="voice-actions">
-            <button id="voice-save">Save voice defaults</button>
-            <button id="voice-reset" class="secondary">Reset to global defaults</button>
-            <span class="voice-status" id="voice-status" style="color: var(--muted);"></span>
+      <div class="bookmark-panel hidden" id="bookmark-panel">
+        <div class="header">
+          <h4>Bookmarks</h4>
+          <div class="bookmark-actions">
+            <button id="bookmark-add" class="secondary" disabled>Add bookmark</button>
+            <span class="bookmark-status" id="last-play-status">No last play saved.</span>
           </div>
         </div>
-      </details>
+        <div class="bookmark-list" id="bookmark-list"></div>
+      </div>
       <div class="chapters" id="chapters-list"></div>
     </section>
 
@@ -560,13 +565,6 @@ INDEX_HTML = """<!DOCTYPE html>
         </div>
       </div>
       <audio id="player" controls preload="none"></audio>
-      <div class="player-actions">
-        <div class="bookmark-row">
-          <button id="bookmark-add" class="secondary" disabled>Add bookmark</button>
-        </div>
-        <span class="bookmark-status" id="last-play-status">No last play saved.</span>
-      </div>
-      <div class="bookmark-list" id="bookmark-list"></div>
       <div class="status-line" id="status">Idle</div>
     </div>
   </main>
@@ -587,6 +585,7 @@ INDEX_HTML = """<!DOCTYPE html>
     const playerCover = document.getElementById('player-cover');
     const playerSubtitle = document.getElementById('player-subtitle');
     const lastPlayStatus = document.getElementById('last-play-status');
+    const bookmarkPanel = document.getElementById('bookmark-panel');
     const bookmarkAddBtn = document.getElementById('bookmark-add');
     const bookmarkList = document.getElementById('bookmark-list');
     const voiceSpeakerInput = document.getElementById('voice-speaker');
@@ -662,22 +661,16 @@ INDEX_HTML = """<!DOCTYPE html>
       updateBookmarkUI();
     }
 
-    function renderManualBookmarks() {
-      if (!bookmarkList) return;
-      bookmarkList.innerHTML = '';
-      const chapter = currentChapter();
-      if (!chapter) {
-        bookmarkList.innerHTML =
-          '<div class="bookmark-empty">Select a chapter to manage bookmarks.</div>';
-        if (bookmarkAddBtn) bookmarkAddBtn.disabled = true;
-        return;
-      }
-      if (bookmarkAddBtn) bookmarkAddBtn.disabled = false;
-      const entries = (state.bookmarks.manual || [])
-        .filter(entry => entry.chapter === chapter.id)
-        .sort((a, b) => a.time - b.time);
+    function bookmarksForChapter(chapterId) {
+      return (state.bookmarks.manual || [])
+        .filter(entry => entry.chapter === chapterId)
+        .sort((a, b) => (a.time || 0) - (b.time || 0));
+    }
+
+    function renderBookmarkList(container, entries, chapter) {
+      container.innerHTML = '';
       if (!entries.length) {
-        bookmarkList.innerHTML =
+        container.innerHTML =
           '<div class="bookmark-empty">No bookmarks for this chapter yet.</div>';
         return;
       }
@@ -735,12 +728,25 @@ INDEX_HTML = """<!DOCTYPE html>
         };
         actions.appendChild(deleteBtn);
         item.appendChild(actions);
-        bookmarkList.appendChild(item);
+        container.appendChild(item);
       });
     }
 
     function updateBookmarkUI() {
-      renderManualBookmarks();
+      const current = currentChapter();
+      if (bookmarkAddBtn) {
+        bookmarkAddBtn.disabled = !current;
+      }
+      // chapter-level bookmarks
+      const containers = document.querySelectorAll('[data-role="chapter-bookmarks"]');
+      containers.forEach(container => {
+        const chapterId = container.dataset.chapterId;
+        if (!chapterId) return;
+        const chapter = state.chapters.find(ch => ch.id === chapterId);
+        const entries = chapter ? bookmarksForChapter(chapter.id) : [];
+        renderBookmarkList(container, entries, chapter);
+      });
+
       const last = state.bookmarks.lastPlayed;
       const playBtn = playBookBtn;
       if (
@@ -1329,6 +1335,13 @@ INDEX_HTML = """<!DOCTYPE html>
         footer.appendChild(buttons);
 
         wrapper.appendChild(footer);
+
+        const bookmarkContainer = document.createElement('div');
+        bookmarkContainer.className = 'bookmark-list';
+        bookmarkContainer.dataset.role = 'chapter-bookmarks';
+        bookmarkContainer.dataset.chapterId = ch.id;
+        renderBookmarkList(bookmarkContainer, bookmarksForChapter(ch.id), ch);
+        wrapper.appendChild(bookmarkContainer);
         chaptersList.appendChild(wrapper);
       });
       updateChapterHighlight();
@@ -1360,6 +1373,9 @@ INDEX_HTML = """<!DOCTYPE html>
         stopStatusPolling();
         setBookmarks({ manual: [], last_played: null });
         lastPlaySyncAt = 0;
+       if (bookmarkPanel) {
+          bookmarkPanel.classList.add('hidden');
+        }
       }
       try {
         const data = await fetchJSON(`/api/books/${encodeURIComponent(book.id)}/chapters`);
@@ -1386,6 +1402,9 @@ INDEX_HTML = """<!DOCTYPE html>
           setBookmarks(data.bookmarks);
         } else {
           setBookmarks({ manual: [], last_played: null });
+        }
+        if (bookmarkPanel) {
+          bookmarkPanel.classList.remove('hidden');
         }
         renderChapters(data.summary);
         chaptersPanel.classList.remove('hidden');
@@ -1544,6 +1563,9 @@ INDEX_HTML = """<!DOCTYPE html>
       state.currentChapterIndex = -1;
       state.media = null;
       setBookmarks({ manual: [], last_played: null });
+      if (bookmarkPanel) {
+        bookmarkPanel.classList.add('hidden');
+      }
       player.pause();
       statusLine.textContent = 'Idle';
       player.removeAttribute('src');
