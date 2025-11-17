@@ -1131,6 +1131,92 @@ INDEX_HTML = """<!DOCTYPE html>
     if (storedLibrarySort === 'recent' || storedLibrarySort === 'author') {
       state.librarySortOrder = storedLibrarySort;
     }
+    const LOCATION_PREFIX_PARAM = 'folder';
+    const LOCATION_BOOK_PARAM = 'book';
+
+    function normalizeLibraryPath(value) {
+      if (typeof value !== 'string') {
+        return '';
+      }
+      const replaced = value.replace(/\\\\/g, '/').trim();
+      if (!replaced) {
+        return '';
+      }
+      return replaced.replace(/^\/+|\/+$/g, '');
+    }
+
+    function parentLibraryPath(value) {
+      const normalized = normalizeLibraryPath(value);
+      if (!normalized) {
+        return '';
+      }
+      const idx = normalized.lastIndexOf('/');
+      return idx === -1 ? '' : normalized.slice(0, idx);
+    }
+
+    function readLibraryLocation() {
+      const params = new URLSearchParams(window.location.search);
+      return {
+        prefix: normalizeLibraryPath(params.get(LOCATION_PREFIX_PARAM)),
+        bookId: normalizeLibraryPath(params.get(LOCATION_BOOK_PARAM)),
+      };
+    }
+
+    function updateLocationFromState({ replace = false } = {}) {
+      const params = new URLSearchParams(window.location.search);
+      const previous = params.toString();
+      const prefix = normalizeLibraryPath(state.libraryPrefix);
+      const bookId = normalizeLibraryPath(state.currentBook && state.currentBook.id);
+      if (prefix) {
+        params.set(LOCATION_PREFIX_PARAM, prefix);
+      } else {
+        params.delete(LOCATION_PREFIX_PARAM);
+      }
+      if (bookId) {
+        params.set(LOCATION_BOOK_PARAM, bookId);
+      } else {
+        params.delete(LOCATION_BOOK_PARAM);
+      }
+      const next = params.toString();
+      if (next === previous && !replace) {
+        return;
+      }
+      const hash = window.location.hash || '';
+      const nextUrl = next ? `${window.location.pathname}?${next}${hash}` : `${window.location.pathname}${hash}`;
+      if (replace) {
+        window.history.replaceState(null, '', nextUrl);
+      } else {
+        window.history.pushState(null, '', nextUrl);
+      }
+    }
+
+    const initialLocation = readLibraryLocation();
+    const initialBookId = initialLocation.bookId;
+    const initialLibraryPrefix = initialLocation.prefix || parentLibraryPath(initialBookId);
+
+    async function applyLibraryLocationFromUrl() {
+      const location = readLibraryLocation();
+      const targetPrefix = location.prefix || parentLibraryPath(location.bookId);
+      const normalizedPrefix = normalizeLibraryPath(targetPrefix);
+      const currentPrefix = normalizeLibraryPath(state.libraryPrefix);
+      if (normalizedPrefix !== currentPrefix) {
+        try {
+          await loadBooks(normalizedPrefix || '', { skipHistory: true });
+        } catch (err) {
+          console.error('Failed to sync library for navigation', err);
+          return;
+        }
+      }
+      if (location.bookId) {
+        const opened = await openBookById(location.bookId, { skipHistory: true });
+        if (!opened) {
+          console.warn('History requested unknown book', location.bookId);
+          closeBookView({ skipHistory: true });
+        }
+      } else {
+        closeBookView({ skipHistory: true });
+      }
+    }
     let statusPollHandle = null;
     let lastPlaySyncAt = 0;
     let lastPlayPending = null;
@@ -1380,7 +1466,7 @@ INDEX_HTML = """<!DOCTYPE html>
         job => job.status === 'success' && prevStatuses.get(job.id) !== 'success'
       );
       if (hasNewSuccess) {
-        handlePromise(loadBooks());
+        handlePromise(loadBooks(state.libraryPrefix || '', { skipHistory: true }));
       }
     }
 
@@ -2263,7 +2349,7 @@ INDEX_HTML = """<!DOCTYPE html>
           const detail = await res.text();
           throw new Error(detail || `HTTP ${res.status}`);
         }
-        await loadBooks(state.libraryPrefix || '');
+        await loadBooks(state.libraryPrefix || '', { skipHistory: true });
         await loadUploads();
       } catch (err) {
         alert(`Failed to chapterize EPUBs: ${err.message || err}`);
@@ -2632,7 +2718,10 @@ INDEX_HTML = """<!DOCTYPE html>
       };
     }
 
-    async function loadBooks(nextPrefix = undefined) {
+    async function loadBooks(nextPrefix = undefined, options = {}) {
+      const navOptions =
+        options && typeof options === 'object' ? options : {};
+      const { skipHistory = false, replaceHistory = false } = navOptions;
       const params = new URLSearchParams();
       params.set('sort', state.librarySortOrder || 'author');
       let targetPrefix = '';
@@ -2655,15 +2744,47 @@ INDEX_HTML = """<!DOCTYPE html>
       renderCollections();
       renderPendingEpubs();
       renderBooks();
+      if (!skipHistory) {
+        updateLocationFromState({ replace: replaceHistory });
+      }
     }
 
-    async function openBook(book) {
+    async function openBook(book, options = {}) {
+      const navOptions =
+        options && typeof options === 'object' ? options : {};
+      const { skipHistory = false, replaceHistory = false } = navOptions;
       lastOpenedBookId = book.id;
-      await loadChapters(book);
+      const loaded = await loadChapters(book);
       const panel = document.getElementById('chapters-panel');
       if (panel) {
         panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
+      if (!skipHistory && loaded !== false) {
+        updateLocationFromState({ replace: replaceHistory });
+      }
+    }
+
+    function findBookById(bookId) {
+      const target = normalizeLibraryPath(bookId);
+      if (!target || !Array.isArray(state.books)) {
+        return null;
+      }
+      return state.books.find(book => {
+        if (!book || typeof book !== 'object') {
+          return false;
+        }
+        const candidate = normalizeLibraryPath(book.id || book.path);
+        return candidate === target;
+      }) || null;
+    }
+
+    async function openBookById(bookId, options = {}) {
+      const book = findBookById(bookId);
+      if (!book) {
+        return false;
+      }
+      await openBook(book, options);
+      return true;
     }
 
     async function loadChapters(book, options = {}) {
@@ -2711,8 +2832,10 @@ INDEX_HTML = """<!DOCTYPE html>
         renderChapters(data.summary);
         chaptersPanel.classList.remove('hidden');
         startStatusPolling();
+        return true;
       } catch (err) {
         alert(`Failed to load chapters: ${err.message}`);
+        return false;
       }
     }
 
@@ -2883,6 +3006,38 @@ INDEX_HTML = """<!DOCTYPE html>
       await playChapter(index);
     }
 
+    function closeBookView(options = {}) {
+      const navOptions =
+        options && typeof options === 'object' ? options : {};
+      const { skipHistory = false, replaceHistory = false } = navOptions;
+      const hadSelection = Boolean(state.currentBook) || state.chapters.length > 0;
+      stopStatusPolling();
+      chaptersPanel.classList.add('hidden');
+      state.chapters = [];
+      state.currentBook = null;
+      state.autoAdvance = false;
+      state.currentChapterIndex = -1;
+      state.media = null;
+      setBookmarks({ manual: [], last_played: null });
+      if (bookmarkPanel) {
+        bookmarkPanel.classList.add('hidden');
+      }
+      player.pause();
+      statusLine.textContent = 'Idle';
+      player.removeAttribute('src');
+      player.load();
+      if (playerDock) {
+        playerDock.classList.add('hidden');
+        chaptersPanel.appendChild(playerDock);
+      }
+      updatePlayerDetails(null);
+      applyVoiceDefaults(DEFAULT_VOICE, {});
+      renderBooks();
+      if (!skipHistory && hadSelection) {
+        updateLocationFromState({ replace: replaceHistory });
+      }
+    }
+
     player.addEventListener('playing', () => {
       statusLine.textContent = 'Playing';
     });
@@ -2921,28 +3076,7 @@ INDEX_HTML = """<!DOCTYPE html>
     });
 
     backButton.onclick = () => {
-      stopStatusPolling();
-      chaptersPanel.classList.add('hidden');
-      state.chapters = [];
-      state.currentBook = null;
-      state.autoAdvance = false;
-      state.currentChapterIndex = -1;
-      state.media = null;
-      setBookmarks({ manual: [], last_played: null });
-      if (bookmarkPanel) {
-        bookmarkPanel.classList.add('hidden');
-      }
-      player.pause();
-      statusLine.textContent = 'Idle';
-      player.removeAttribute('src');
-      player.load();
-      if (playerDock) {
-        playerDock.classList.add('hidden');
-        chaptersPanel.appendChild(playerDock);
-      }
-      updatePlayerDetails(null);
-      applyVoiceDefaults(DEFAULT_VOICE, {});
-      renderBooks();
+      closeBookView();
     };
 
     voiceSaveBtn.onclick = () => {
@@ -2967,6 +3101,10 @@ INDEX_HTML = """<!DOCTYPE html>
         setVoiceStatus(err.message || 'Failed to reset defaults.', true);
       });
     };
+
+    window.addEventListener('popstate', () => {
+      handlePromise(applyLibraryLocationFromUrl());
+    });
 
     if (bookmarkAddBtn) {
       bookmarkAddBtn.onclick = () => {
@@ -2997,9 +3135,24 @@ INDEX_HTML = """<!DOCTYPE html>
     renderCollections();
     renderPendingEpubs();
 
-    loadBooks().catch(err => {
-      booksGrid.innerHTML = `<div style="color:var(--danger)">Failed to load books: ${err.message}</div>`;
-    });
+    const initialLoadOptions = initialBookId
+      ? { skipHistory: true }
+      : { replaceHistory: true };
+    loadBooks(initialLibraryPrefix || undefined, initialLoadOptions)
+      .then(() => {
+        if (!initialBookId) {
+          return null;
+        }
+        return openBookById(initialBookId, { replaceHistory: true }).then(opened => {
+          if (!opened) {
+            updateLocationFromState({ replace: true });
+          }
+          return opened;
+        });
+      })
+      .catch(err => {
+        booksGrid.innerHTML = `<div style="color:var(--danger)">Failed to load books: ${err.message}</div>`;
+      });
   </script>
 </body>
 </html>
