@@ -39,7 +39,7 @@ from .tts import (
 
 
 @dataclass(slots=True)
-class WebConfig:
+class PlayerConfig:
     root: Path
     speaker: int = 2
     engine_url: str = "http://127.0.0.1:50021"
@@ -1810,7 +1810,7 @@ def _engine_thread_overrides(
 
 def _chapter_state(
     chapter_path: Path,
-    config: WebConfig,
+    config: PlayerConfig,
     index: int,
     *,
     chapter_meta: ChapterMetadata | None = None,
@@ -1852,7 +1852,7 @@ def _fallback_cover_path(book_dir: Path) -> Path | None:
 
 def _book_media_info(
     book_dir: Path,
-    config: WebConfig,
+    config: PlayerConfig,
 ) -> tuple[
     LoadedBookMetadata | None,
     str,
@@ -1884,7 +1884,7 @@ def _cover_url(book_id: str, cover_path: Path | None) -> str | None:
 
 
 def _voice_settings_for_book(
-    config: WebConfig,
+    config: PlayerConfig,
     metadata: LoadedBookMetadata | None,
     *,
     for_display: bool = False,
@@ -1923,7 +1923,7 @@ def _voice_settings_for_book(
 
 def _tts_defaults_payload(
     metadata: LoadedBookMetadata | None,
-    config: WebConfig,
+    config: PlayerConfig,
 ) -> tuple[dict[str, float | int], dict[str, float | int | None]]:
     saved: dict[str, float | int] = {}
     defaults = metadata.tts_defaults if metadata else None
@@ -1941,7 +1941,7 @@ def _tts_defaults_payload(
 
 
 def _synthesize_sequence(
-    config: WebConfig,
+    config: PlayerConfig,
     targets: list[TTSTarget],
     lock: threading.Lock,
     *,
@@ -2020,7 +2020,7 @@ def _synthesize_sequence(
     return len(work_plan)
 
 
-def create_app(config: WebConfig) -> FastAPI:
+def create_app(config: PlayerConfig) -> FastAPI:
     root = config.root.expanduser().resolve()
     if not root.exists():
         raise FileNotFoundError(f"Books root not found: {root}")

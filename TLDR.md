@@ -194,20 +194,20 @@ m4b-tool automatically reads the cover path and chapter names from `m4b.json`, s
 
 ---
 
-## 6. Web playback service (`nk web`)
+## 6. Web playback service (`nk play`)
 
 Serve your chapterized books over HTTP and stream them from a phone or tablet on the same network.
 
 1. Chapterize your EPUBs if you haven’t already: `nk my_book.epub` (creates `output/my_book/*.txt` by default).
 2. Start the server on your Mac:
    ```bash
-   nk web output/ --host 0.0.0.0 --port 2046
+   nk play output/ --host 0.0.0.0 --port 2046
    ```
    Options mirror `nk tts` (speaker, engine runtime, cache directory, etc.).
 3. On your phone, open Safari and visit `http://<your-mac-ip>:2046`.
 4. Tap a book → choose a chapter → press play. You can resume or restart individual chapters, and Safari will stream the MP3 while nk continues synthesising and caching in the background.
 
-> The web service uses the same chunk cache/resume logic as the CLI. Stopping playback mid-chapter and tapping “Resume” picks up exactly where you left off. A final MP3 is written when playback completes. The server will chapterize missing books on demand, just like `nk tts` does when you point it directly at an EPUB.
+> The player service uses the same chunk cache/resume logic as the CLI. Stopping playback mid-chapter and tapping “Resume” picks up exactly where you left off. A final MP3 is written when playback completes.
 
 ---
 
@@ -240,8 +240,8 @@ nk tts book.txt|directory [--speaker N]
                           [--keep-cache]
                           [--overwrite]
 
-# Web service (browse + stream)
-nk web output/ [--host HOST] [--port PORT] [--speaker N]
+# Player service (browse + stream)
+nk play output/ [--host HOST] [--port PORT] [--speaker N]
                [--speed SCALE] [--pitch SCALE] [--intonation SCALE] [...]
 
 # WebDAV share (Flacbox, etc.)

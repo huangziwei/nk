@@ -59,7 +59,7 @@ from .tts import (
 )
 from .refine import load_override_config, refine_book
 from .reader import create_reader_app
-from .web import WebConfig, create_app
+from .player import PlayerConfig, create_app
 from .voice_defaults import (
     DEFAULT_INTONATION_SCALE,
     DEFAULT_PITCH_SCALE,
@@ -293,7 +293,7 @@ def build_dav_parser() -> argparse.ArgumentParser:
     return ap
 
 
-def build_web_parser() -> argparse.ArgumentParser:
+def build_play_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="Serve chapterized text as a browser-based VoiceVox player.",
     )
@@ -1119,12 +1119,12 @@ def _run_deps(args: argparse.Namespace) -> int:
     return 0 if all_ok else 1
 
 
-def _run_web(args: argparse.Namespace) -> None:
+def _run_play(args: argparse.Namespace) -> None:
     root = Path(args.root).expanduser().resolve()
     cache_dir = Path(args.cache_dir).expanduser().resolve() if args.cache_dir else None
     engine_runtime = Path(args.engine_runtime).expanduser().resolve() if args.engine_runtime else None
 
-    config = WebConfig(
+    config = PlayerConfig(
         root=root,
         speaker=args.speaker,
         engine_url=args.engine_url,
@@ -1143,8 +1143,8 @@ def _run_web(args: argparse.Namespace) -> None:
     app = create_app(config)
     public_ip = _resolve_local_ip(args.host)
     url = f"http://{public_ip}:{args.port}/"
-    print(f"Serving nk web from {root}")
-    print(f"Web URL: {url}")
+    print(f"Serving nk play from {root}")
+    print(f"Player URL: {url}")
     print("Press Ctrl+C to stop.\n")
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
@@ -1169,10 +1169,10 @@ def main(argv: list[str] | None = None) -> int:
         tts_parser = build_tts_parser()
         tts_args = tts_parser.parse_args(argv[1:])
         return _run_tts(tts_args)
-    if argv and argv[0] == "web":
-        web_parser = build_web_parser()
-        web_args = web_parser.parse_args(argv[1:])
-        _run_web(web_args)
+    if argv and argv[0] == "play":
+        play_parser = build_play_parser()
+        play_args = play_parser.parse_args(argv[1:])
+        _run_play(play_args)
         return 0
     if argv and argv[0] == "read":
         read_parser = build_reader_parser()
