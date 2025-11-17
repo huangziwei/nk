@@ -2042,8 +2042,6 @@ def _cover_url(book_id: str, cover_path: Path | None) -> str | None:
 def _voice_settings_for_book(
     config: PlayerConfig,
     metadata: LoadedBookMetadata | None,
-    *,
-    for_display: bool = False,
 ) -> dict[str, float | int | None]:
     defaults = metadata.tts_defaults if metadata else None
 
@@ -2051,16 +2049,14 @@ def _voice_settings_for_book(
         attr: str,
         cfg_value: float | int | None,
         fallback: float | int,
-    ) -> float | int | None:
+    ) -> float | int:
         if defaults:
             value = getattr(defaults, attr, None)
             if value is not None:
                 return value
         if cfg_value is not None:
             return cfg_value
-        if for_display:
-            return fallback
-        return None
+        return fallback
 
     speaker_value = _pick("speaker", config.speaker, DEFAULT_SPEAKER_ID)
     if speaker_value is None:
@@ -2092,7 +2088,7 @@ def _tts_defaults_payload(
             saved["pitch"] = defaults.pitch
         if defaults.intonation is not None:
             saved["intonation"] = defaults.intonation
-    effective = _voice_settings_for_book(config, metadata, for_display=True)
+    effective = _voice_settings_for_book(config, metadata)
     return saved, effective
 
 
@@ -2620,7 +2616,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
 
         target = TTSTarget(source=chapter_path, output=chapter_path.with_suffix(".mp3"))
         metadata = load_book_metadata(book_path)
-        voice_overrides = _voice_settings_for_book(config, metadata, for_display=False)
+        voice_overrides = _voice_settings_for_book(config, metadata)
         force_indices = frozenset({0}) if restart else frozenset()
 
         loop = asyncio.get_running_loop()
