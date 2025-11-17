@@ -46,16 +46,7 @@ INDEX_HTML = """<!DOCTYPE html>
       display: grid;
       grid-template-columns: 320px 1fr;
       min-height: 100vh;
-    }
-    @media (max-width: 900px) {
-      .app {
-        grid-template-columns: 1fr;
-      }
-      aside {
-        position: sticky;
-        top: 0;
-        z-index: 20;
-      }
+      position: relative;
     }
     aside {
       background: var(--sidebar);
@@ -65,6 +56,7 @@ INDEX_HTML = """<!DOCTYPE html>
       flex-direction: column;
       gap: 1rem;
       min-height: 100vh;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
     aside h1 {
       margin: 0;
@@ -137,6 +129,21 @@ INDEX_HTML = """<!DOCTYPE html>
     .status {
       color: var(--muted);
       font-size: 0.95rem;
+    }
+    .sidebar-toggle {
+      position: fixed;
+      top: 0.85rem;
+      right: 0.85rem;
+      z-index: 50;
+      background: var(--panel-alt);
+      color: var(--text);
+      border: 1px solid var(--outline);
+      border-radius: 999px;
+      padding: 0.35rem 0.95rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: none;
     }
     .panel {
       background: var(--panel);
@@ -331,6 +338,31 @@ INDEX_HTML = """<!DOCTYPE html>
     .warn {
       color: var(--warn);
     }
+    @media (max-width: 900px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+      aside {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: min(320px, 85vw);
+        max-width: 90vw;
+        z-index: 40;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+      }
+      body.sidebar-collapsed aside {
+        transform: translateX(-105%);
+        box-shadow: none;
+        pointer-events: none;
+      }
+      .sidebar-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -349,6 +381,9 @@ INDEX_HTML = """<!DOCTYPE html>
       <ul class="chapter-list" id="chapter-list"></ul>
     </aside>
     <main id="details">
+      <button type="button" id="sidebar-toggle" class="sidebar-toggle" aria-controls="chapter-list" aria-expanded="true">
+        Hide chapters
+      </button>
       <div class="status" id="status">Loading chapters…</div>
       <section class="panel text-grid" id="text-grid">
         <div class="text-controls">
@@ -410,11 +445,33 @@ INDEX_HTML = """<!DOCTYPE html>
       const originalPanel = document.getElementById('original-panel');
       const toggleTransformed = document.getElementById('toggle-transformed');
       const toggleOriginal = document.getElementById('toggle-original');
+      const sidebarToggle = document.getElementById('sidebar-toggle');
+      const mobileQuery = window.matchMedia('(max-width: 900px)');
+      const bodyEl = document.body;
       const lineRegistry = {
         transformed: [],
         original: [],
       };
       let alignFrame = null;
+
+      function updateSidebarToggleLabel(collapsed) {
+        if (!sidebarToggle) return;
+        sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
+        sidebarToggle.textContent = collapsed ? 'Show chapters' : 'Hide chapters';
+      }
+
+      function setSidebarCollapsed(collapsed) {
+        bodyEl.classList.toggle('sidebar-collapsed', collapsed);
+        updateSidebarToggleLabel(collapsed);
+      }
+
+      function handleSidebarMediaChange(event) {
+        if (event.matches) {
+          setSidebarCollapsed(true);
+        } else {
+          setSidebarCollapsed(false);
+        }
+      }
 
       function setDocumentTitle(label) {
         document.title = label ? `${label} – ${baseTitle}` : baseTitle;
@@ -563,6 +620,19 @@ INDEX_HTML = """<!DOCTYPE html>
         requestTransformedLoad();
       });
       bindPanelToggle(originalPanel, toggleOriginal);
+
+      if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', () => {
+          const collapsed = bodyEl.classList.contains('sidebar-collapsed');
+          setSidebarCollapsed(!collapsed);
+        });
+      }
+      if (typeof mobileQuery.addEventListener === 'function') {
+        mobileQuery.addEventListener('change', handleSidebarMediaChange);
+      } else if (typeof mobileQuery.addListener === 'function') {
+        mobileQuery.addListener(handleSidebarMediaChange);
+      }
+      setSidebarCollapsed(mobileQuery.matches);
 
       if (transformedText && originalText) {
         transformedText.addEventListener('scroll', () => syncScroll(transformedText, originalText));
@@ -846,7 +916,7 @@ INDEX_HTML = """<!DOCTYPE html>
           button.appendChild(name);
           button.appendChild(meta);
           button.addEventListener('click', () => {
-            openChapter(chapter.path);
+            openChapter(chapter.path, { autoCollapse: true });
           });
           item.appendChild(button);
           listEl.appendChild(item);
@@ -960,6 +1030,9 @@ INDEX_HTML = """<!DOCTYPE html>
               scrollSnapshot,
               preserveHighlight: Boolean(options.preserveHighlight),
             });
+            if (options.autoCollapse && mobileQuery.matches) {
+              setSidebarCollapsed(true);
+            }
           })
           .catch((err) => {
             if (state.selectedPath !== path) {
@@ -1002,6 +1075,7 @@ INDEX_HTML = """<!DOCTYPE html>
           preserveHighlight: true,
           preservePayload: true,
           keepStateOnError: true,
+          autoCollapse: false,
         });
       }
 
