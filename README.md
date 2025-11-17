@@ -20,7 +20,7 @@ nk example/\[夏目漱石\]\ 夢十夜.epub # convert epubs into kana-only chapt
 nk tts example/\[夏目漱石\]\ 夢十夜 # convert txt files into mp3s
 nk web example --host 0.0.0.0 --port 2046 # start a local server to allow stream via browser
 nk dav example # start start a local server to allow stream via webdav compatible clients
-nk check example/\[夏目漱石\]\ 夢十夜 # inspect pitch offsets against original text in the browser
+nk read example/\[夏目漱石\]\ 夢十夜 # inspect tokens/original text in the browser
 ```
 
 run `nk -h` to see all usages.

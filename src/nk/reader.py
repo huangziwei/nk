@@ -12,7 +12,7 @@ INDEX_HTML = """<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <title>nk Token Inspector</title>
+  <title>nk Reader</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     :root {
@@ -337,7 +337,7 @@ INDEX_HTML = """<!DOCTYPE html>
   <div class="app">
     <aside>
       <div>
-        <h1>nk token check</h1>
+        <h1>nk Reader</h1>
         <p style="margin:0.35rem 0 0;font-size:0.85rem;color:var(--muted);">
           Select a chapter and hover tokens to compare transformed vs original offsets.
         </p>
@@ -393,7 +393,7 @@ INDEX_HTML = """<!DOCTYPE html>
         activeToken: null,
         chapterPayload: null,
       };
-      const baseTitle = document.title || 'nk Token Inspector';
+      const baseTitle = document.title || 'nk Reader';
 
       const listEl = document.getElementById('chapter-list');
       const filterEl = document.getElementById('chapter-filter');
@@ -1167,12 +1167,12 @@ def _load_token_payload(path: Path) -> tuple[list[dict[str, object]], dict[str, 
     return converted, raw_payload, None
 
 
-def create_check_app(root: Path) -> FastAPI:
+def create_reader_app(root: Path) -> FastAPI:
     resolved_root = root.expanduser().resolve()
     if not resolved_root.exists() or not resolved_root.is_dir():
         raise FileNotFoundError(f"Root not found: {resolved_root}")
 
-    app = FastAPI(title="nk Token Inspector")
+    app = FastAPI(title="nk Reader")
     app.state.root = resolved_root
 
     @app.get("/", response_class=HTMLResponse)
