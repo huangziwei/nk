@@ -543,6 +543,34 @@ INDEX_HTML = """<!DOCTYPE html>
           <button id="restart-book" class="secondary">Restart Book</button>
         </div>
       </div>
+      <details class="voice-controls">
+        <summary>Voice settings</summary>
+        <div class="voice-controls-content">
+          <div class="voice-grid">
+            <label class="voice-field">
+              Speaker
+              <input type="number" id="voice-speaker" min="1" step="1">
+            </label>
+            <label class="voice-field">
+              Speed
+              <input type="number" id="voice-speed" step="0.01">
+            </label>
+            <label class="voice-field">
+              Pitch
+              <input type="number" id="voice-pitch" step="0.01">
+            </label>
+            <label class="voice-field">
+              Intonation
+              <input type="number" id="voice-intonation" step="0.01">
+            </label>
+          </div>
+          <div class="voice-actions">
+            <button id="voice-save">Save voice defaults</button>
+            <button id="voice-reset" class="secondary">Reset to global defaults</button>
+            <span class="voice-status" id="voice-status" style="color: var(--muted);"></span>
+          </div>
+        </div>
+      </details>
       <div class="bookmark-panel hidden" id="bookmark-panel">
         <div class="header">
           <h4>Bookmarks</h4>
@@ -1239,7 +1267,12 @@ INDEX_HTML = """<!DOCTYPE html>
         if (idx === state.currentChapterIndex) {
           node.classList.add('playing');
           if (playerDock && !docked) {
-            node.appendChild(playerDock);
+            const chapterBookmarks = node.querySelector('.bookmark-list');
+            if (chapterBookmarks) {
+              chapterBookmarks.parentNode.insertBefore(playerDock, chapterBookmarks);
+            } else {
+              node.appendChild(playerDock);
+            }
             playerDock.classList.remove('hidden');
             docked = true;
           }
