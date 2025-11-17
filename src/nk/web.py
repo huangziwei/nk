@@ -4,6 +4,8 @@ import asyncio
 import shutil
 import threading
 import time
+import json
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -54,6 +56,8 @@ class WebConfig:
 
 
 COVER_EXTENSIONS = (".jpg", ".jpeg", ".png")
+BOOKMARKS_FILENAME = ".nk-player-bookmarks.json"
+BOOKMARK_STATE_VERSION = 1
 
 
 INDEX_HTML = """<!DOCTYPE html>
@@ -371,6 +375,62 @@ INDEX_HTML = """<!DOCTYPE html>
       font-size: 0.85rem;
       color: var(--muted);
     }
+    .player-actions {
+      margin-top: 0.6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .bookmark-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .bookmark-status {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .bookmark-list {
+      margin-top: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .bookmark-item {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 0.4rem 0.6rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .bookmark-item .info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+      font-size: 0.85rem;
+    }
+    .bookmark-item .label {
+      font-weight: 600;
+    }
+    .bookmark-item .time {
+      color: var(--muted);
+    }
+    .bookmark-item .actions {
+      display: flex;
+      gap: 0.4rem;
+      flex-shrink: 0;
+    }
+    .bookmark-item button {
+      font-size: 0.8rem;
+      padding: 0.3rem 0.6rem;
+    }
+    .bookmark-empty {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
     @media (max-width: 640px) {
       header {
         padding: 1.2rem 1.1rem 0.9rem;
@@ -422,7 +482,7 @@ INDEX_HTML = """<!DOCTYPE html>
           </div>
         </div>
         <div class="right">
-          <button id="play-book">Resume Book</button>
+          <button id="play-book" disabled>Resume last play</button>
           <button id="restart-book" class="secondary">Restart Book</button>
         </div>
       </div>
@@ -463,6 +523,14 @@ INDEX_HTML = """<!DOCTYPE html>
         </div>
       </div>
       <audio id="player" controls preload="none"></audio>
+      <div class="player-actions">
+        <div class="bookmark-row">
+          <button id="bookmark-add" class="secondary" disabled>Add bookmark</button>
+          <span class="bookmark-status">Manual bookmarks</span>
+        </div>
+        <span class="bookmark-status" id="last-play-status">No last play saved.</span>
+      </div>
+      <div class="bookmark-list" id="bookmark-list"></div>
       <div class="status-line" id="status">Idle</div>
     </div>
   </main>
@@ -482,6 +550,9 @@ INDEX_HTML = """<!DOCTYPE html>
     const statusLine = document.getElementById('status');
     const playerCover = document.getElementById('player-cover');
     const playerSubtitle = document.getElementById('player-subtitle');
+    const lastPlayStatus = document.getElementById('last-play-status');
+    const bookmarkAddBtn = document.getElementById('bookmark-add');
+    const bookmarkList = document.getElementById('bookmark-list');
     const voiceSpeakerInput = document.getElementById('voice-speaker');
     const voiceSpeedInput = document.getElementById('voice-speed');
     const voicePitchInput = document.getElementById('voice-pitch');
@@ -506,12 +577,261 @@ INDEX_HTML = """<!DOCTYPE html>
       media: null,
       voiceDefaults: { ...DEFAULT_VOICE },
       savedVoiceDefaults: {},
+      bookmarks: {
+        manual: [],
+        lastPlayed: null,
+      },
     };
     let statusPollHandle = null;
+    let lastPlaySyncAt = 0;
+    let lastPlayPending = null;
 
     function formatTrackNumber(num) {
       if (typeof num !== 'number' || !Number.isFinite(num)) return '';
       return String(num).padStart(3, '0');
+    }
+
+    function formatTimecode(seconds) {
+      if (!Number.isFinite(seconds)) return '0:00';
+      const total = Math.max(0, Math.floor(seconds));
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
+      const secs = total % 60;
+      const mm = hours ? String(minutes).padStart(2, '0') : String(minutes);
+      const ss = String(secs).padStart(2, '0');
+      return hours ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`;
+    }
+
+    function currentChapter() {
+      if (state.currentChapterIndex < 0) return null;
+      return state.chapters[state.currentChapterIndex] || null;
+    }
+
+    function chapterById(chapterId) {
+      return state.chapters.find(ch => ch.id === chapterId) || null;
+    }
+
+    function setBookmarks(payload) {
+      const manual = Array.isArray(payload?.manual) ? payload.manual.slice() : [];
+      const last = payload?.last_played;
+      state.bookmarks = {
+        manual,
+        lastPlayed:
+          last &&
+          typeof last.chapter === 'string' &&
+          Number.isFinite(Number(last.time))
+            ? { chapter: last.chapter, time: Number(last.time) }
+            : null,
+      };
+      updateBookmarkUI();
+    }
+
+    function renderManualBookmarks() {
+      if (!bookmarkList) return;
+      bookmarkList.innerHTML = '';
+      const chapter = currentChapter();
+      if (!chapter) {
+        bookmarkList.innerHTML =
+          '<div class="bookmark-empty">Select a chapter to manage bookmarks.</div>';
+        if (bookmarkAddBtn) bookmarkAddBtn.disabled = true;
+        return;
+      }
+      if (bookmarkAddBtn) bookmarkAddBtn.disabled = false;
+      const entries = (state.bookmarks.manual || [])
+        .filter(entry => entry.chapter === chapter.id)
+        .sort((a, b) => a.time - b.time);
+      if (!entries.length) {
+        bookmarkList.innerHTML =
+          '<div class="bookmark-empty">No bookmarks for this chapter yet.</div>';
+        return;
+      }
+      entries.forEach(entry => {
+        const item = document.createElement('div');
+        item.className = 'bookmark-item';
+        const info = document.createElement('div');
+        info.className = 'info';
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = entry.label && entry.label.trim().length
+          ? entry.label.trim()
+          : `@ ${formatTimecode(entry.time || 0)}`;
+        const time = document.createElement('div');
+        time.className = 'time';
+        time.textContent = formatTimecode(entry.time || 0);
+        info.appendChild(label);
+        info.appendChild(time);
+        item.appendChild(info);
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const playBtn = document.createElement('button');
+        playBtn.textContent = 'Play';
+        playBtn.onclick = () => {
+          handlePromise(playBookmark(entry));
+        };
+        actions.appendChild(playBtn);
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.className = 'secondary';
+        deleteBtn.onclick = () => {
+          const fallback = `@ ${formatTimecode(entry.time || 0)}`;
+          const labelText = entry.label && entry.label.trim().length
+            ? entry.label.trim()
+            : fallback;
+          if (!window.confirm(`Delete bookmark "${labelText}"?`)) {
+            return;
+          }
+          handlePromise(deleteBookmark(entry.id));
+        };
+        actions.appendChild(deleteBtn);
+        item.appendChild(actions);
+        bookmarkList.appendChild(item);
+      });
+    }
+
+    function updateBookmarkUI() {
+      renderManualBookmarks();
+      const last = state.bookmarks.lastPlayed;
+      const playBtn = playBookBtn;
+      if (
+        last &&
+        typeof last.chapter === 'string' &&
+        Number.isFinite(last.time)
+      ) {
+        const chapter = chapterById(last.chapter);
+        const title = chapter ? (chapter.title || chapter.id) : last.chapter;
+        if (lastPlayStatus) {
+          lastPlayStatus.textContent = `Last played: ${title} @ ${formatTimecode(last.time)}`;
+        }
+        if (playBtn) {
+          playBtn.disabled = false;
+          playBtn.textContent = 'Resume last play';
+        }
+      } else {
+        if (lastPlayStatus) {
+          lastPlayStatus.textContent = 'No last play saved.';
+        }
+        if (playBtn) {
+          playBtn.disabled = true;
+          playBtn.textContent = 'Resume last play';
+        }
+      }
+    }
+
+    function ensureSeekAfterLoad(seconds, label) {
+      if (!Number.isFinite(seconds) || seconds < 0) return;
+      const applySeek = () => {
+        try {
+          player.currentTime = seconds;
+        } catch {
+          return;
+        }
+        if (label) {
+          statusLine.textContent = label;
+        }
+      };
+      if (player.readyState >= 1) {
+        applySeek();
+      } else {
+        const handler = () => {
+          player.removeEventListener('loadedmetadata', handler);
+          applySeek();
+        };
+        player.addEventListener('loadedmetadata', handler);
+      }
+    }
+
+    async function refreshBookmarks() {
+      if (!state.currentBook) return;
+      try {
+        const data = await fetchJSON(
+          `/api/books/${encodeURIComponent(state.currentBook.id)}/bookmarks`
+        );
+        setBookmarks(data || {});
+      } catch {
+        // ignore refresh errors
+      }
+    }
+
+    async function playBookmark(entry) {
+      if (!entry || typeof entry.chapter !== 'string') return;
+      const index = state.chapters.findIndex(ch => ch.id === entry.chapter);
+      if (index === -1) {
+        alert('Chapter not found for this bookmark.');
+        return;
+      }
+      await playChapter(index, { resumeTime: entry.time || 0 });
+    }
+
+    async function deleteBookmark(bookmarkId) {
+      if (!state.currentBook || !bookmarkId) return;
+      const data = await fetchJSON(
+        `/api/books/${encodeURIComponent(state.currentBook.id)}/bookmarks/${encodeURIComponent(bookmarkId)}`,
+        { method: 'DELETE' }
+      );
+      setBookmarks(data || {});
+      statusLine.textContent = 'Bookmark deleted.';
+    }
+
+    async function createBookmarkForCurrent(time, label) {
+      const chapter = currentChapter();
+      if (!state.currentBook || !chapter) return;
+      const payload = {
+        chapter_id: chapter.id,
+        time,
+        label: label && label.trim().length ? label.trim() : null,
+      };
+      const data = await fetchJSON(
+        `/api/books/${encodeURIComponent(state.currentBook.id)}/bookmarks`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
+      setBookmarks(data || {});
+      statusLine.textContent = 'Bookmark saved.';
+    }
+
+    async function persistLastPlayed(chapterId, time) {
+      if (!state.currentBook || !chapterId || !Number.isFinite(time)) return;
+      const data = await fetchJSON(
+        `/api/books/${encodeURIComponent(state.currentBook.id)}/bookmarks/last-played`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chapter_id: chapterId, time }),
+        }
+      );
+      setBookmarks(data || {});
+    }
+
+    async function clearLastPlayed() {
+      if (!state.currentBook) return;
+      const data = await fetchJSON(
+        `/api/books/${encodeURIComponent(state.currentBook.id)}/bookmarks/last-played`,
+        { method: 'DELETE' }
+      );
+      setBookmarks(data || {});
+    }
+
+    function scheduleLastPlaySync(time) {
+      const chapter = currentChapter();
+      if (!chapter || !Number.isFinite(time) || time < 5) return;
+      const last = state.bookmarks.lastPlayed;
+      if (last && last.chapter === chapter.id && Math.abs(last.time - time) < 5) {
+        return;
+      }
+      const now = Date.now();
+      if (lastPlayPending || now - lastPlaySyncAt < 5000) {
+        return;
+      }
+      lastPlayPending = persistLastPlayed(chapter.id, time)
+        .catch(() => {})
+        .finally(() => {
+          lastPlayPending = null;
+          lastPlaySyncAt = Date.now();
+        });
     }
 
     function updatePlayerDetails(chapter) {
@@ -584,8 +904,12 @@ INDEX_HTML = """<!DOCTYPE html>
       });
     }
 
-    async function fetchJSON(url) {
-      const res = await fetch(url, { cache: 'no-store' });
+    async function fetchJSON(url, options = {}) {
+      const init = { cache: 'no-store', ...options };
+      if (options.headers) {
+        init.headers = { ...options.headers };
+      }
+      const res = await fetch(url, init);
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `HTTP ${res.status}`);
@@ -969,6 +1293,8 @@ INDEX_HTML = """<!DOCTYPE html>
         state.autoAdvance = false;
         state.currentChapterIndex = -1;
         stopStatusPolling();
+        setBookmarks({ manual: [], last_played: null });
+        lastPlaySyncAt = 0;
       }
       try {
         const data = await fetchJSON(`/api/books/${encodeURIComponent(book.id)}/chapters`);
@@ -990,6 +1316,11 @@ INDEX_HTML = """<!DOCTYPE html>
           applyVoiceDefaults(defaultsPayload.effective || DEFAULT_VOICE, defaultsPayload.saved || {});
         } else {
           applyVoiceDefaults(DEFAULT_VOICE, {});
+        }
+        if (data.bookmarks) {
+          setBookmarks(data.bookmarks);
+        } else {
+          setBookmarks({ manual: [], last_played: null });
         }
         renderChapters(data.summary);
         chaptersPanel.classList.remove('hidden');
@@ -1024,7 +1355,7 @@ INDEX_HTML = """<!DOCTYPE html>
       statusLine.textContent = 'Build finished. Tap Play to listen.';
     }
 
-    async function playChapter(index) {
+    async function playChapter(index, { resumeTime = null } = {}) {
       if (!state.chapters.length || !state.currentBook) return;
       const chapter = state.chapters[index];
       if (!chapter) return;
@@ -1038,6 +1369,7 @@ INDEX_HTML = """<!DOCTYPE html>
       state.currentChapterIndex = index;
       updateChapterHighlight();
       updatePlayerDetails(chapter);
+      updateBookmarkUI();
       statusLine.textContent = 'Loading audio...';
 
       const playUrl = `/api/books/${encodeURIComponent(state.currentBook.id)}/chapters/${encodeURIComponent(chapter.id)}/stream?ts=${Date.now()}`;
@@ -1045,6 +1377,9 @@ INDEX_HTML = """<!DOCTYPE html>
       player.src = playUrl;
       player.load();
       updateMediaSession(chapter);
+      if (Number.isFinite(resumeTime) && resumeTime >= 0) {
+        ensureSeekAfterLoad(resumeTime, `Resumed at ${formatTimecode(resumeTime)}.`);
+      }
       try {
         await player.play();
         statusLine.textContent = 'Playing';
@@ -1070,6 +1405,24 @@ INDEX_HTML = """<!DOCTYPE html>
       return -1;
     }
 
+    async function resumeLastPlay() {
+      const last = state.bookmarks.lastPlayed;
+      if (
+        !last ||
+        typeof last.chapter !== 'string' ||
+        !Number.isFinite(last.time)
+      ) {
+        alert('No last play saved yet.');
+        return;
+      }
+      const index = state.chapters.findIndex(ch => ch.id === last.chapter);
+      if (index === -1) {
+        alert('Last played chapter is no longer available.');
+        return;
+      }
+      await playChapter(index, { resumeTime: last.time });
+    }
+
     async function playBook(restart = false) {
       if (!state.chapters.length) return;
       const index = findPlayableChapterIndex(restart);
@@ -1086,14 +1439,20 @@ INDEX_HTML = """<!DOCTYPE html>
     player.addEventListener('waiting', () => {
       statusLine.textContent = 'Buffering...';
     });
+    player.addEventListener('timeupdate', () => {
+      if (player.paused || player.seeking) return;
+      scheduleLastPlaySync(player.currentTime);
+    });
     player.addEventListener('pause', () => {
       if (!player.ended) {
+        scheduleLastPlaySync(player.currentTime);
         statusLine.textContent = 'Paused';
       }
     });
     player.addEventListener('ended', () => {
       statusLine.textContent = 'Finished';
       renderChapters(summaryForChapters());
+      handlePromise(clearLastPlayed());
       if (state.autoAdvance) {
         const nextIndex = state.currentChapterIndex + 1;
         const nextChapter = state.chapters[nextIndex];
@@ -1119,6 +1478,7 @@ INDEX_HTML = """<!DOCTYPE html>
       state.autoAdvance = false;
       state.currentChapterIndex = -1;
       state.media = null;
+      setBookmarks({ manual: [], last_played: null });
       player.pause();
       statusLine.textContent = 'Idle';
       player.removeAttribute('src');
@@ -1155,8 +1515,31 @@ INDEX_HTML = """<!DOCTYPE html>
       });
     };
 
-    playBookBtn.onclick = () => handlePromise(playBook(false));
+    if (bookmarkAddBtn) {
+      bookmarkAddBtn.onclick = () => {
+        const chapter = currentChapter();
+        if (!chapter) {
+          alert('Select a chapter before adding bookmarks.');
+          return;
+        }
+        if (!Number.isFinite(player.currentTime) || player.currentTime < 1) {
+          alert('Play the audio to the desired position before bookmarking.');
+          return;
+        }
+        const defaultLabel = `@ ${formatTimecode(player.currentTime)}`;
+        const label = window.prompt('Bookmark label (optional):', defaultLabel);
+        if (label === null) {
+          return;
+        }
+        const finalLabel = label.trim() || defaultLabel;
+        handlePromise(createBookmarkForCurrent(player.currentTime, finalLabel));
+      };
+    }
+
+    playBookBtn.onclick = () => handlePromise(resumeLastPlay());
     restartBookBtn.onclick = () => handlePromise(playBook(true));
+
+    setBookmarks({ manual: [], last_played: null });
 
     loadBooks().catch(err => {
       booksGrid.innerHTML = `<div style="color:var(--danger)">Failed to load books: ${err.message}</div>`;
@@ -1181,6 +1564,180 @@ def _list_chapters(book_dir: Path) -> list[Path]:
         for p in sorted(book_dir.glob("*.txt"))
         if p.is_file() and not p.name.endswith(".original.txt")
     ]
+
+
+def _bookmark_file(book_dir: Path) -> Path:
+    return book_dir / BOOKMARKS_FILENAME
+
+
+def _empty_bookmark_state() -> dict[str, object]:
+    return {"version": BOOKMARK_STATE_VERSION, "manual": [], "last_played": None}
+
+
+def _load_bookmark_state(book_dir: Path) -> dict[str, object]:
+    path = _bookmark_file(book_dir)
+    if not path.exists():
+        return _empty_bookmark_state()
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return _empty_bookmark_state()
+    if not isinstance(raw, dict):
+        return _empty_bookmark_state()
+    manual_entries: list[dict[str, object]] = []
+    seen_ids: set[str] = set()
+    manual_payload = raw.get("manual")
+    if isinstance(manual_payload, list):
+        for entry in manual_payload:
+            if not isinstance(entry, dict):
+                continue
+            chapter = entry.get("chapter")
+            time_value = entry.get("time")
+            if not isinstance(chapter, str):
+                continue
+            if not isinstance(time_value, (int, float)):
+                continue
+            entry_id = entry.get("id")
+            if not isinstance(entry_id, str) or not entry_id.strip():
+                entry_id = uuid.uuid4().hex
+            if entry_id in seen_ids:
+                continue
+            seen_ids.add(entry_id)
+            label = entry.get("label")
+            if not isinstance(label, str):
+                label = None
+            created_at = entry.get("created_at")
+            updated_at = entry.get("updated_at")
+            manual_entries.append(
+                {
+                    "id": entry_id,
+                    "chapter": chapter,
+                    "time": float(time_value),
+                    "label": label,
+                    "created_at": created_at if isinstance(created_at, (int, float)) else None,
+                    "updated_at": updated_at if isinstance(updated_at, (int, float)) else None,
+                }
+            )
+    last_payload = None
+    last_entry = raw.get("last_played")
+    if isinstance(last_entry, dict):
+        chapter = last_entry.get("chapter")
+        time_value = last_entry.get("time")
+        if isinstance(chapter, str) and isinstance(time_value, (int, float)):
+            updated_at = last_entry.get("updated_at")
+            last_payload = {
+                "chapter": chapter,
+                "time": float(time_value),
+                "updated_at": updated_at if isinstance(updated_at, (int, float)) else None,
+            }
+    return {
+        "version": BOOKMARK_STATE_VERSION,
+        "manual": manual_entries,
+        "last_played": last_payload,
+    }
+
+
+def _save_bookmark_state(book_dir: Path, state: dict[str, object]) -> None:
+    path = _bookmark_file(book_dir)
+    path.write_text(
+        json.dumps(state, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _bookmarks_payload(book_dir: Path) -> dict[str, object]:
+    state = _load_bookmark_state(book_dir)
+    manual_entries = sorted(
+        state.get("manual", []),
+        key=lambda entry: (
+            entry.get("chapter") or "",
+            entry.get("time") if isinstance(entry.get("time"), (int, float)) else 0.0,
+        ),
+    )
+    last_payload = state.get("last_played")
+    if not (
+        isinstance(last_payload, dict)
+        and isinstance(last_payload.get("chapter"), str)
+        and isinstance(last_payload.get("time"), (int, float))
+    ):
+        last_payload = None
+    else:
+        last_payload = {
+            "chapter": last_payload["chapter"],
+            "time": float(last_payload["time"]),
+            "updated_at": last_payload.get("updated_at"),
+        }
+    return {
+        "manual": manual_entries,
+        "last_played": last_payload,
+    }
+
+
+def _ensure_chapter_for_bookmark(book_dir: Path, chapter_id: str) -> None:
+    chapter_path = book_dir / chapter_id
+    if (
+        not chapter_path.exists()
+        or not chapter_path.is_file()
+        or chapter_path.suffix.lower() != ".txt"
+        or chapter_path.name.endswith(".original.txt")
+    ):
+        raise HTTPException(status_code=404, detail="Chapter not found for bookmark.")
+
+
+def _append_manual_bookmark(
+    book_dir: Path,
+    chapter_id: str,
+    time_value: float,
+    label: str | None = None,
+) -> None:
+    state = _load_bookmark_state(book_dir)
+    now = time.time()
+    entry = {
+        "id": uuid.uuid4().hex,
+        "chapter": chapter_id,
+        "time": float(time_value),
+        "label": label,
+        "created_at": now,
+        "updated_at": now,
+    }
+    manual_entries = state.get("manual")
+    if not isinstance(manual_entries, list):
+        manual_entries = []
+    manual_entries.append(entry)
+    state["manual"] = manual_entries
+    _save_bookmark_state(book_dir, state)
+
+
+def _remove_manual_bookmark(book_dir: Path, bookmark_id: str) -> bool:
+    state = _load_bookmark_state(book_dir)
+    manual_entries = state.get("manual")
+    if not isinstance(manual_entries, list):
+        return False
+    filtered = [entry for entry in manual_entries if entry.get("id") != bookmark_id]
+    if len(filtered) == len(manual_entries):
+        return False
+    state["manual"] = filtered
+    _save_bookmark_state(book_dir, state)
+    return True
+
+
+def _update_last_played(book_dir: Path, chapter_id: str, time_value: float) -> None:
+    state = _load_bookmark_state(book_dir)
+    state["last_played"] = {
+        "chapter": chapter_id,
+        "time": float(time_value),
+        "updated_at": time.time(),
+    }
+    _save_bookmark_state(book_dir, state)
+
+
+def _clear_last_played_entry(book_dir: Path) -> bool:
+    state = _load_bookmark_state(book_dir)
+    if not state.get("last_played"):
+        return False
+    state["last_played"] = None
+    _save_bookmark_state(book_dir, state)
+    return True
 
 
 def _safe_read_int(path: Path) -> int | None:
@@ -1431,6 +1988,7 @@ def create_app(config: WebConfig) -> FastAPI:
 
     status_lock = threading.Lock()
     chapter_status: dict[str, dict[str, dict[str, object]]] = {}
+    bookmark_lock = threading.Lock()
 
     def _book_id_from_target(target: TTSTarget) -> str:
         try:
@@ -1600,11 +2158,14 @@ def create_app(config: WebConfig) -> FastAPI:
             )
             for idx, chapter in enumerate(chapters)
         ]
+        completed_count = sum(1 for st in states if st["mp3_exists"])
         summary = {
             "total": len(states),
-            "completed": sum(1 for st in states if st["mp3_exists"]),
-            "pending": sum(1 for st in states if not st["mp3_exists"]),
+            "completed": completed_count,
+            "pending": len(states) - completed_count,
         }
+        with bookmark_lock:
+            bookmarks_payload = _bookmarks_payload(book_path)
         media_payload = {
             "album": book_title,
             "artist": book_author or book_title,
@@ -1615,7 +2176,12 @@ def create_app(config: WebConfig) -> FastAPI:
             },
         }
         return JSONResponse(
-            {"chapters": states, "summary": summary, "media": media_payload}
+            {
+                "chapters": states,
+                "summary": summary,
+                "media": media_payload,
+                "bookmarks": bookmarks_payload,
+            }
         )
 
     @app.get("/api/books/{book_id}/status")
@@ -1625,6 +2191,93 @@ def create_app(config: WebConfig) -> FastAPI:
             raise HTTPException(status_code=404, detail="Book not found")
         statuses = _status_snapshot(book_id)
         return JSONResponse({"status": statuses})
+
+    @app.get("/api/books/{book_id}/bookmarks")
+    def api_bookmarks(book_id: str) -> JSONResponse:
+        book_path = root / book_id
+        if not book_path.is_dir():
+            raise HTTPException(status_code=404, detail="Book not found")
+        with bookmark_lock:
+            payload = _bookmarks_payload(book_path)
+        return JSONResponse(payload)
+
+    @app.post("/api/books/{book_id}/bookmarks")
+    def api_add_bookmark(
+        book_id: str,
+        payload: dict[str, object] = Body(...),
+    ) -> JSONResponse:
+        book_path = root / book_id
+        if not book_path.is_dir():
+            raise HTTPException(status_code=404, detail="Book not found")
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="Invalid payload.")
+        chapter_id = payload.get("chapter_id")
+        if not isinstance(chapter_id, str) or not chapter_id.strip():
+            raise HTTPException(status_code=400, detail="chapter_id is required.")
+        time_value = payload.get("time")
+        if not isinstance(time_value, (int, float)) or time_value < 0:
+            raise HTTPException(status_code=400, detail="time must be non-negative.")
+        label_value = payload.get("label")
+        label_text: str | None
+        if label_value is None:
+            label_text = None
+        elif isinstance(label_value, str):
+            label_text = label_value.strip() or None
+        else:
+            raise HTTPException(status_code=400, detail="label must be a string or null.")
+        if label_text and len(label_text) > 200:
+            label_text = label_text[:200]
+        _ensure_chapter_for_bookmark(book_path, chapter_id)
+        with bookmark_lock:
+            _append_manual_bookmark(book_path, chapter_id, float(time_value), label_text)
+            bookmarks = _bookmarks_payload(book_path)
+        return JSONResponse(bookmarks)
+
+    @app.delete("/api/books/{book_id}/bookmarks/{bookmark_id}")
+    def api_delete_bookmark(book_id: str, bookmark_id: str) -> JSONResponse:
+        book_path = root / book_id
+        if not book_path.is_dir():
+            raise HTTPException(status_code=404, detail="Book not found")
+        if not bookmark_id:
+            raise HTTPException(status_code=400, detail="bookmark_id is required.")
+        with bookmark_lock:
+            removed = _remove_manual_bookmark(book_path, bookmark_id)
+            bookmarks = _bookmarks_payload(book_path)
+        if not removed:
+            raise HTTPException(status_code=404, detail="Bookmark not found.")
+        return JSONResponse(bookmarks)
+
+    @app.post("/api/books/{book_id}/bookmarks/last-played")
+    def api_update_last_played(
+        book_id: str,
+        payload: dict[str, object] = Body(...),
+    ) -> JSONResponse:
+        book_path = root / book_id
+        if not book_path.is_dir():
+            raise HTTPException(status_code=404, detail="Book not found")
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="Invalid payload.")
+        chapter_id = payload.get("chapter_id")
+        if not isinstance(chapter_id, str) or not chapter_id.strip():
+            raise HTTPException(status_code=400, detail="chapter_id is required.")
+        time_value = payload.get("time")
+        if not isinstance(time_value, (int, float)) or time_value < 0:
+            raise HTTPException(status_code=400, detail="time must be non-negative.")
+        _ensure_chapter_for_bookmark(book_path, chapter_id)
+        with bookmark_lock:
+            _update_last_played(book_path, chapter_id, float(time_value))
+            bookmarks = _bookmarks_payload(book_path)
+        return JSONResponse(bookmarks)
+
+    @app.delete("/api/books/{book_id}/bookmarks/last-played")
+    def api_clear_last_played(book_id: str) -> JSONResponse:
+        book_path = root / book_id
+        if not book_path.is_dir():
+            raise HTTPException(status_code=404, detail="Book not found")
+        with bookmark_lock:
+            _clear_last_played_entry(book_path)
+            bookmarks = _bookmarks_payload(book_path)
+        return JSONResponse(bookmarks)
 
     @app.post("/api/books/{book_id}/tts-defaults")
     def api_update_tts_defaults(
