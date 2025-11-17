@@ -39,7 +39,9 @@ def test_ruby_evidence_keeps_different_unidic_reading() -> None:
 
 
 def test_fixture_book_ruby_evidence_has_small_kana() -> None:
-    path = Path("data/test/負けヒロインが多すぎる！ ６ (ガガガ文庫) - 雨森たきび/ruby_evidence.json")
+    path = Path(
+        "data/test/負けヒロインが多すぎる！ ６ (ガガガ文庫) - 雨森たきび/ruby_evidence.json"
+    )
     payload = json.loads(path.read_text(encoding="utf-8"))
     target = next(entry for entry in payload if entry.get("base") == "慎重")
     assert target["reading"] == "シンチョウ"
