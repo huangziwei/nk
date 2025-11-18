@@ -600,6 +600,7 @@ INDEX_HTML = """<!DOCTYPE html>
         <select id="sort-order">
           <option value="author">Author · Title</option>
           <option value="recent">Recently Added</option>
+          <option value="played">Recently Played</option>
         </select>
       </label>
       <ul class="chapter-list" id="chapter-list"></ul>
@@ -720,8 +721,9 @@ INDEX_HTML = """<!DOCTYPE html>
       };
       let alignFrame = null;
       const SORT_STORAGE_KEY = 'nkReaderSortOrder';
+      const SORT_OPTIONS = ['author', 'recent', 'played'];
       const storedSort = window.localStorage.getItem(SORT_STORAGE_KEY);
-      if (storedSort === 'recent' || storedSort === 'author') {
+      if (SORT_OPTIONS.includes(storedSort)) {
         state.sortOrder = storedSort;
       }
       let uploadPollTimer = null;
@@ -735,7 +737,7 @@ INDEX_HTML = """<!DOCTYPE html>
       if (sortSelect) {
         sortSelect.value = state.sortOrder;
         sortSelect.addEventListener('change', () => {
-          const next = sortSelect.value === 'recent' ? 'recent' : 'author';
+          const next = SORT_OPTIONS.includes(sortSelect.value) ? sortSelect.value : 'author';
           if (state.sortOrder === next) {
             return;
           }
@@ -1855,7 +1857,7 @@ INDEX_HTML = """<!DOCTYPE html>
 """
 
 
-_SORT_MODES = {"author", "recent"}
+_SORT_MODES = {"author", "recent", "played"}
 
 
 def _normalize_sort_mode(value: str | None) -> str:
@@ -2027,7 +2029,9 @@ def create_reader_app(root: Path) -> FastAPI:
 
     @app.get("/api/chapters")
     def api_chapters(
-        sort: str | None = Query(None, description="Sort order: author or recent"),
+        sort: str | None = Query(
+            None, description="Sort order: author, recent, or played"
+        ),
     ) -> JSONResponse:
         sort_mode = _normalize_sort_mode(sort)
         chapters = _list_chapters(resolved_root, sort_mode)

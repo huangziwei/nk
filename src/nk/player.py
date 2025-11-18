@@ -62,7 +62,7 @@ class PlayerConfig:
 COVER_EXTENSIONS = (".jpg", ".jpeg", ".png")
 BOOKMARKS_FILENAME = ".nk-player-bookmarks.json"
 BOOKMARK_STATE_VERSION = 1
-_SORT_MODES = {"author", "recent"}
+_SORT_MODES = {"author", "recent", "played"}
 RECENTLY_PLAYED_PREFIX = "__nk_recently_played__"
 RECENTLY_PLAYED_LABEL = "Recently Played"
 
@@ -969,6 +969,7 @@ INDEX_HTML = """<!DOCTYPE html>
             <select id="books-sort">
               <option value="author">Author · Title</option>
               <option value="recent">Recently Added</option>
+              <option value="played">Recently Played</option>
             </select>
           </label>
         </div>
@@ -1131,8 +1132,9 @@ INDEX_HTML = """<!DOCTYPE html>
     const LAST_PLAY_THROTTLE_MS = 1000;
     const LAST_PLAY_MIN_DELTA = 1;
     const LIBRARY_SORT_KEY = 'nkPlayerSortOrder';
+    const LIBRARY_SORT_OPTIONS = ['author', 'recent', 'played'];
     const storedLibrarySort = window.localStorage.getItem(LIBRARY_SORT_KEY);
-    if (storedLibrarySort === 'recent' || storedLibrarySort === 'author') {
+    if (LIBRARY_SORT_OPTIONS.includes(storedLibrarySort)) {
       state.librarySortOrder = storedLibrarySort;
     }
     const LOCATION_PREFIX_PARAM = 'folder';
@@ -1242,7 +1244,9 @@ INDEX_HTML = """<!DOCTYPE html>
     if (booksSortSelect) {
       booksSortSelect.value = state.librarySortOrder;
       booksSortSelect.addEventListener('change', () => {
-        const next = booksSortSelect.value === 'recent' ? 'recent' : 'author';
+        const next = LIBRARY_SORT_OPTIONS.includes(booksSortSelect.value)
+          ? booksSortSelect.value
+          : 'author';
         if (state.librarySortOrder === next) {
           return;
         }
@@ -4287,7 +4291,9 @@ def create_app(config: PlayerConfig) -> FastAPI:
         prefix: str | None = Query(
             None, description="Relative folder under the library root."
         ),
-        sort: str | None = Query(None, description="Sort order: author or recent"),
+        sort: str | None = Query(
+            None, description="Sort order: author, recent, or played"
+        ),
     ) -> JSONResponse:
         sort_mode = _normalize_sort_mode(sort)
         normalized_prefix = _normalize_library_path(prefix)
