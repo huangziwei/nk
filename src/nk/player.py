@@ -1436,6 +1436,7 @@ INDEX_HTML = """<!DOCTYPE html>
     const PLAYBACK_RATES = [0.75, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2];
     const SPEED_STORAGE_KEY = 'nk-player-speed';
     const SEEK_STEP = 15;
+    const PREVIOUS_CHAPTER_RESTART_THRESHOLD = 5;
     let isScrubbing = false;
     let playbackRateIndex = PLAYBACK_RATES.indexOf(1);
     const voiceSpeakerInput = document.getElementById('voice-speaker');
@@ -2312,7 +2313,7 @@ INDEX_HTML = """<!DOCTYPE html>
         playerForwardBtn.disabled = !hasChapter;
       }
       if (playerPrevBtn) {
-        playerPrevBtn.disabled = adjacentPlayableIndex(-1) === -1;
+        playerPrevBtn.disabled = !hasChapter;
       }
       if (playerNextBtn) {
         playerNextBtn.disabled = adjacentPlayableIndex(1) === -1;
@@ -2373,6 +2374,19 @@ INDEX_HTML = """<!DOCTYPE html>
         return;
       }
       updateProgressUI();
+    }
+
+    function restartCurrentChapter() {
+      const chapter = currentChapter();
+      if (!player || !chapter || !chapter.mp3_exists) return false;
+      try {
+        player.currentTime = 0;
+      } catch {
+        return false;
+      }
+      updateProgressUI();
+      statusLine.textContent = 'Restarted chapter.';
+      return true;
     }
 
     function updateMediaSession(chapter) {
@@ -3790,7 +3804,17 @@ INDEX_HTML = """<!DOCTYPE html>
       playerPrevBtn.addEventListener('click', () => {
         if (playerPrevBtn.disabled) return;
         const prevIndex = adjacentPlayableIndex(-1);
-        if (prevIndex === -1) return;
+        const playbackPosition =
+          player && Number.isFinite(player.currentTime) ? player.currentTime : 0;
+        const shouldRestart =
+          prevIndex === -1 ||
+          playbackPosition >= PREVIOUS_CHAPTER_RESTART_THRESHOLD;
+        if (shouldRestart) {
+          const restarted = restartCurrentChapter();
+          if (restarted || prevIndex === -1) {
+            return;
+          }
+        }
         handlePromise(playChapter(prevIndex));
       });
     }
