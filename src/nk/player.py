@@ -861,37 +861,39 @@ INDEX_HTML = """<!DOCTYPE html>
       height: 72px;
       width: 72px;
       justify-self: center;
-    }
-    .control-btn.play-toggle .icon {
-      width: 20px;
-      height: 20px;
       position: relative;
     }
-    .control-btn.play-toggle .pause-icon,
-    .control-btn.play-toggle.playing .play-icon {
-      display: none;
+    .control-btn.play-toggle::before,
+    .control-btn.play-toggle::after {
+      content: '';
+      position: absolute;
+      transition: opacity 0.15s ease;
     }
-    .control-btn.play-toggle.playing .pause-icon {
-      display: inline-block;
-    }
-    .control-btn.play-toggle .play-icon {
+    .control-btn.play-toggle::before {
       width: 0;
       height: 0;
-      border-top: 12px solid transparent;
-      border-bottom: 12px solid transparent;
-      border-left: 20px solid var(--panel);
-      margin-left: 4px;
+      border-top: 14px solid transparent;
+      border-bottom: 14px solid transparent;
+      border-left: 22px solid var(--panel);
+      left: calc(50% - 9px);
+      top: calc(50% - 14px);
+      opacity: 1;
     }
-    .control-btn.play-toggle .pause-icon {
-      display: inline-flex;
-      gap: 4px;
-    }
-    .control-btn.play-toggle .pause-icon span {
-      display: inline-block;
-      width: 6px;
-      height: 22px;
-      background: var(--panel);
+    .control-btn.play-toggle::after {
+      width: 12px;
+      height: 26px;
       border-radius: 2px;
+      background: var(--panel);
+      box-shadow: 14px 0 0 var(--panel);
+      left: calc(50% - 13px);
+      top: calc(50% - 13px);
+      opacity: 0;
+    }
+    .control-btn.play-toggle.playing::before {
+      opacity: 0;
+    }
+    .control-btn.play-toggle.playing::after {
+      opacity: 1;
     }
     .control-btn.compact {
       background: transparent;
@@ -901,6 +903,42 @@ INDEX_HTML = """<!DOCTYPE html>
     .control-btn .fwd-indicator {
       font-size: 0.95rem;
       font-weight: 600;
+    }
+    .skip-icon {
+      width: 26px;
+      height: 18px;
+      position: relative;
+      display: inline-block;
+    }
+    .skip-icon::before,
+    .skip-icon::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 0;
+      height: 0;
+      border-top: 9px solid transparent;
+      border-bottom: 9px solid transparent;
+    }
+    .skip-icon.prev::before {
+      left: 60%;
+      border-right: 10px solid currentColor;
+      transform: translate(-50%, -50%);
+    }
+    .skip-icon.prev::after {
+      left: 35%;
+      border-right: 10px solid currentColor;
+      transform: translate(-50%, -50%);
+    }
+    .skip-icon.next::before {
+      left: 40%;
+      border-left: 10px solid currentColor;
+      transform: translate(-50%, -50%);
+    }
+    .skip-icon.next::after {
+      left: 65%;
+      border-left: 10px solid currentColor;
+      transform: translate(-50%, -50%);
     }
     .player-quick-actions {
       margin-top: 1rem;
@@ -1311,21 +1349,19 @@ INDEX_HTML = """<!DOCTYPE html>
       </div>
       <div class="player-primary-controls">
         <button id="player-prev" class="control-btn compact" type="button" aria-label="Previous chapter">
-          <span class="rew-indicator" aria-hidden="true">⏮</span>
+          <span class="skip-icon prev" aria-hidden="true"></span>
         </button>
         <button id="player-rewind" class="control-btn compact" type="button" aria-label="Rewind 15 seconds">
           <span class="rew-indicator" aria-hidden="true">-15s</span>
         </button>
         <button id="player-toggle" class="control-btn play-toggle" type="button" aria-label="Play">
           <span class="sr-only">Play</span>
-          <span class="icon play-icon" aria-hidden="true"></span>
-          <span class="icon pause-icon" aria-hidden="true"><span></span><span></span></span>
         </button>
         <button id="player-forward" class="control-btn compact" type="button" aria-label="Forward 15 seconds">
           <span class="fwd-indicator" aria-hidden="true">+15s</span>
         </button>
         <button id="player-next" class="control-btn compact" type="button" aria-label="Next chapter">
-          <span class="fwd-indicator" aria-hidden="true">⏭</span>
+          <span class="skip-icon next" aria-hidden="true"></span>
         </button>
       </div>
       <div class="player-quick-actions">
