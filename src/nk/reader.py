@@ -450,6 +450,40 @@ INDEX_HTML = """<!DOCTYPE html>
       justify-content: flex-start;
       align-items: center;
     }
+    .chapter-nav {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+    .chapter-nav button {
+      border-radius: 999px;
+      border: 1px solid var(--outline);
+      background: rgba(255,255,255,0.07);
+      color: var(--text);
+      padding: 0.35rem 0.9rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .chapter-nav button:hover:not(:disabled) {
+      background: rgba(56,189,248,0.1);
+      border-color: rgba(56,189,248,0.4);
+    }
+    .chapter-nav button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .chapter-nav-status {
+      flex: 1;
+      min-width: 160px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
     .toggle {
       display: inline-flex;
       align-items: center;
@@ -730,6 +764,11 @@ INDEX_HTML = """<!DOCTYPE html>
             <span>Transformed text</span>
           </label>
         </div>
+        <div class="chapter-nav" aria-label="Chapter navigation">
+          <button type="button" id="chapter-prev" aria-label="Previous chapter" disabled>&larr; Previous</button>
+          <div class="chapter-nav-status" id="chapter-nav-status">Select a chapter to preview.</div>
+          <button type="button" id="chapter-next" aria-label="Next chapter" disabled>Next &rarr;</button>
+        </div>
         <div class="text-panel" id="original-panel">
           <header>
             <strong>Original text</strong>
@@ -817,6 +856,7 @@ INDEX_HTML = """<!DOCTYPE html>
       };
       const baseTitle = document.title || 'nk Reader';
       const CHAPTER_HASH_PREFIX = '#chapter=';
+      const CHAPTER_NAV_DEFAULT = 'Select a chapter to preview.';
 
       function getChapterPathFromHash() {
         const hash = window.location.hash || '';
@@ -868,6 +908,9 @@ INDEX_HTML = """<!DOCTYPE html>
       const originalPanel = document.getElementById('original-panel');
       const toggleTransformed = document.getElementById('toggle-transformed');
       const toggleOriginal = document.getElementById('toggle-original');
+      const prevChapterBtn = document.getElementById('chapter-prev');
+      const nextChapterBtn = document.getElementById('chapter-next');
+      const chapterNavStatus = document.getElementById('chapter-nav-status');
       let preferTransformedView = false;
       let hideOriginalView = false;
       try {
@@ -1107,6 +1150,70 @@ INDEX_HTML = """<!DOCTYPE html>
       function setDocumentTitle(label) {
         document.title = label ? `${label} – ${baseTitle}` : baseTitle;
       }
+
+      function chapterLabelFromPath(path) {
+        if (!path) {
+          return '';
+        }
+        const match = state.chapters.find((chapter) => chapter.path === path);
+        if (match && typeof match.name === 'string' && match.name.trim()) {
+          return match.name;
+        }
+        return path;
+      }
+
+      function setChapterNavLabel(label) {
+        if (!chapterNavStatus) {
+          return;
+        }
+        const normalized = label && String(label).trim() ? String(label).trim() : CHAPTER_NAV_DEFAULT;
+        chapterNavStatus.textContent = normalized;
+      }
+
+      function adjacentChapterPath(direction) {
+        if (!state.chapters.length || !state.selectedPath || !direction) {
+          return null;
+        }
+        const step = direction < 0 ? -1 : 1;
+        const currentIndex = state.chapters.findIndex((chapter) => chapter.path === state.selectedPath);
+        if (currentIndex === -1) {
+          return null;
+        }
+        for (
+          let idx = currentIndex + step;
+          idx >= 0 && idx < state.chapters.length;
+          idx += step
+        ) {
+          const candidate = state.chapters[idx];
+          if (candidate && typeof candidate.path === 'string') {
+            return candidate.path;
+          }
+        }
+        return null;
+      }
+
+      function updateChapterNavButtons() {
+        if (prevChapterBtn) {
+          prevChapterBtn.disabled = !adjacentChapterPath(-1);
+        }
+        if (nextChapterBtn) {
+          nextChapterBtn.disabled = !adjacentChapterPath(1);
+        }
+        if (!state.selectedPath) {
+          setChapterNavLabel('');
+        }
+      }
+
+      function navigateAdjacentChapter(direction) {
+        const targetPath = adjacentChapterPath(direction);
+        if (!targetPath) {
+          return;
+        }
+        openChapter(targetPath, { autoCollapse: false });
+      }
+
+      setChapterNavLabel('');
+      updateChapterNavButtons();
 
       function renderStatus(text) {
         statusEl.textContent = text;
@@ -1378,6 +1485,13 @@ INDEX_HTML = """<!DOCTYPE html>
         if (transformedText && typeof snapshot.transformed === 'number') {
           transformedText.scrollTop = snapshot.transformed;
         }
+      }
+
+      if (prevChapterBtn) {
+        prevChapterBtn.addEventListener('click', () => navigateAdjacentChapter(-1));
+      }
+      if (nextChapterBtn) {
+        nextChapterBtn.addEventListener('click', () => navigateAdjacentChapter(1));
       }
 
       let scrollSyncLock = false;
@@ -2068,6 +2182,8 @@ INDEX_HTML = """<!DOCTYPE html>
         state.tokens = [];
         closeRefineModal();
         setHighlighted(null);
+        setChapterNavLabel('');
+        updateChapterNavButtons();
       }
 
       function buildChapterUrl(path, includeTransformed) {
@@ -2121,6 +2237,8 @@ INDEX_HTML = """<!DOCTYPE html>
         const displayName = payload.name || chapterName || state.selectedPath || '';
         renderStatus(`Loaded ${displayName} (${tokens.length} tokens)`);
         setDocumentTitle(displayName);
+        setChapterNavLabel(displayName);
+        updateChapterNavButtons();
         updateMetaPanel(payload);
         renderOriginalText(payload, tokens);
         renderTransformedText(payload, tokens);
@@ -2137,6 +2255,9 @@ INDEX_HTML = """<!DOCTYPE html>
           return;
         }
         state.selectedPath = path;
+        const pendingLabel = chapterLabelFromPath(path) || path;
+        setChapterNavLabel(pendingLabel);
+        updateChapterNavButtons();
         expandFoldersForPath(path);
         if (!options.preservePayload) {
           state.chapterPayload = null;
@@ -2238,6 +2359,10 @@ INDEX_HTML = """<!DOCTYPE html>
               clearSelection();
             }
             applyFilter();
+            if (state.selectedPath) {
+              setChapterNavLabel(chapterLabelFromPath(state.selectedPath));
+            }
+            updateChapterNavButtons();
             renderStatus(`Found ${state.chapters.length} chapter(s) under ${data.root}`);
           })
           .catch((err) => {
