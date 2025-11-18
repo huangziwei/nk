@@ -108,6 +108,17 @@ INDEX_HTML = """<!DOCTYPE html>
     .hidden {
       display: none !important;
     }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
     header {
       padding: 1.3rem 1.6rem 1rem;
       background: linear-gradient(135deg, rgba(59,130,246,0.18), transparent);
@@ -709,50 +720,38 @@ INDEX_HTML = """<!DOCTYPE html>
       color: var(--muted);
       font-size: 0.85rem;
     }
-    audio {
-      width: 100%;
-      margin-top: 0.75rem;
+    audio#player {
+      position: absolute;
+      width: 0;
+      height: 0;
+      opacity: 0;
+      pointer-events: none;
     }
     .chapter-player {
-      margin-top: 0.4rem;
-      padding-top: 0.75rem;
-      border-top: 1px solid rgba(148, 163, 184, 0.2);
+      margin-top: 0.75rem;
+      padding: 1rem 1.2rem 1.2rem;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: calc(var(--radius) - 4px);
+      background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(9,11,18,0.9));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
     }
     .chapter-player.hidden {
       display: none;
     }
-    .chapter-player .now-playing {
-      font-size: 0.95rem;
-      color: var(--muted);
-    }
-    .chapter-player audio {
-      margin-top: 0.5rem;
-    }
-    .chapter-player .status-line {
-      margin-top: 0.4rem;
-    }
     .status-line {
-      margin-top: 0.5rem;
+      margin-top: 0.75rem;
       color: var(--muted);
       font-size: 0.9rem;
     }
-    .player-actions {
-      margin-top: 0.45rem;
-      display: flex;
-      justify-content: flex-end;
-    }
-    .player-actions button {
-      min-width: 140px;
-    }
     .player-meta {
       display: flex;
-      gap: 0.8rem;
+      gap: 1rem;
       align-items: center;
     }
     .player-cover {
-      width: 64px;
-      height: 64px;
-      border-radius: 12px;
+      width: 88px;
+      height: 88px;
+      border-radius: 16px;
       object-fit: cover;
       background: rgba(255,255,255,0.05);
       flex-shrink: 0;
@@ -764,11 +763,196 @@ INDEX_HTML = """<!DOCTYPE html>
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 0.2rem;
+      gap: 0.35rem;
+    }
+    .player-text .now-playing {
+      font-size: 1.15rem;
+      font-weight: 600;
     }
     .player-subtitle {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .player-progress {
+      margin-top: 1rem;
+    }
+    .player-progress input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: linear-gradient(var(--accent), var(--accent)) no-repeat;
+      background-color: rgba(255,255,255,0.1);
+      background-size: var(--progress, 0%) 100%;
+      outline: none;
+      cursor: pointer;
+      transition: background-size 0.2s ease;
+    }
+    .player-progress input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px rgba(59,130,246,0.3);
+      border: none;
+    }
+    .player-progress input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: none;
+      box-shadow: 0 0 0 4px rgba(59,130,246,0.3);
+    }
+    .player-progress input[type="range"]:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .progress-times {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 0.35rem;
       font-size: 0.85rem;
       color: var(--muted);
+      gap: 0.5rem;
+    }
+    .progress-times .time-left {
+      text-align: center;
+      flex: 1;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .player-primary-controls {
+      margin-top: 1.2rem;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      align-items: center;
+      gap: 1rem;
+    }
+    .control-btn {
+      border: none;
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      border-radius: 999px;
+      height: 52px;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      cursor: pointer;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+    .control-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .control-btn:not(:disabled):hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.14);
+    }
+    .control-btn.play-toggle {
+      background: var(--text);
+      color: var(--panel);
+      border-radius: 50%;
+      height: 72px;
+      width: 72px;
+      justify-self: center;
+    }
+    .control-btn.play-toggle .icon {
+      width: 20px;
+      height: 20px;
+      position: relative;
+    }
+    .control-btn.play-toggle .pause-icon,
+    .control-btn.play-toggle.playing .play-icon {
+      display: none;
+    }
+    .control-btn.play-toggle.playing .pause-icon {
+      display: inline-block;
+    }
+    .control-btn.play-toggle .play-icon {
+      width: 0;
+      height: 0;
+      border-top: 12px solid transparent;
+      border-bottom: 12px solid transparent;
+      border-left: 20px solid var(--panel);
+      margin-left: 4px;
+    }
+    .control-btn.play-toggle .pause-icon {
+      display: inline-flex;
+      gap: 4px;
+    }
+    .control-btn.play-toggle .pause-icon span {
+      display: inline-block;
+      width: 6px;
+      height: 22px;
+      background: var(--panel);
+      border-radius: 2px;
+    }
+    .control-btn.compact {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    .control-btn .rew-indicator,
+    .control-btn .fwd-indicator {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .player-quick-actions {
+      margin-top: 1rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.75rem;
+      align-items: stretch;
+    }
+    .quick-btn {
+      width: 100%;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      padding: 0.55rem 0.9rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      font-weight: 600;
+    }
+    .quick-btn.primary {
+      background: var(--accent);
+      border-color: transparent;
+      color: #fff;
+    }
+    .quick-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .quick-btn .icon {
+      width: 20px;
+      height: 18px;
+      position: relative;
+      display: inline-block;
+    }
+    .icon-airplay {
+      border: 2px solid currentColor;
+      border-top: 0;
+      border-radius: 4px;
+      width: 20px;
+      height: 12px;
+    }
+    .icon-airplay::after {
+      content: '';
+      display: block;
+      width: 0;
+      height: 0;
+      margin: 4px auto 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 8px solid currentColor;
     }
     .bookmark-status {
       font-size: 0.85rem;
@@ -938,8 +1122,67 @@ INDEX_HTML = """<!DOCTYPE html>
       .chapter-footer {
         align-items: flex-start;
       }
-      audio {
-        margin-top: 0.6rem;
+      .chapter > #player-dock.chapter-player {
+        margin-left: -0.9rem;
+        margin-right: -0.9rem;
+      }
+      .chapter-player {
+        padding: 0.85rem 0.95rem 1rem;
+      }
+      .player-meta {
+        flex-direction: column;
+        gap: 0.55rem;
+        align-items: flex-start;
+      }
+      .player-cover {
+        width: 64px;
+        height: 64px;
+        border-radius: 14px;
+      }
+      .player-text .now-playing {
+        font-size: 1rem;
+      }
+      .player-progress input[type="range"] {
+        height: 8px;
+      }
+      .player-primary-controls {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-areas:
+          "prev play next"
+          "rew play fwd";
+        gap: 0.55rem;
+      }
+      #player-prev {
+        grid-area: prev;
+        justify-self: flex-start;
+      }
+      #player-next {
+        grid-area: next;
+        justify-self: flex-end;
+      }
+      #player-rewind {
+        grid-area: rew;
+      }
+      #player-forward {
+        grid-area: fwd;
+      }
+      #player-toggle {
+        grid-area: play;
+        justify-self: center;
+      }
+      .control-btn {
+        height: 48px;
+        font-size: 0.95rem;
+      }
+      .control-btn.play-toggle {
+        width: 68px;
+        height: 68px;
+      }
+      .player-quick-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      #bookmark-add.quick-btn {
+        grid-column: span 2;
       }
       .bookmark-item {
         flex-direction: column;
@@ -1058,11 +1301,43 @@ INDEX_HTML = """<!DOCTYPE html>
           <div id="player-subtitle" class="player-subtitle"></div>
         </div>
       </div>
-      <audio id="player" controls preload="none"></audio>
-      <div class="status-line" id="status">Idle</div>
-      <div class="player-actions hidden">
-        <button id="bookmark-add" class="secondary">Add bookmark</button>
+      <div class="player-progress">
+        <input id="player-seek" type="range" min="0" max="1000" value="0" step="1" disabled>
+        <div class="progress-times">
+          <span id="player-current-time">0:00</span>
+          <span id="player-time-left" class="time-left">--</span>
+          <span id="player-duration">0:00</span>
+        </div>
       </div>
+      <div class="player-primary-controls">
+        <button id="player-prev" class="control-btn compact" type="button" aria-label="Previous chapter">
+          <span class="rew-indicator" aria-hidden="true">⏮</span>
+        </button>
+        <button id="player-rewind" class="control-btn compact" type="button" aria-label="Rewind 15 seconds">
+          <span class="rew-indicator" aria-hidden="true">-15s</span>
+        </button>
+        <button id="player-toggle" class="control-btn play-toggle" type="button" aria-label="Play">
+          <span class="sr-only">Play</span>
+          <span class="icon play-icon" aria-hidden="true"></span>
+          <span class="icon pause-icon" aria-hidden="true"><span></span><span></span></span>
+        </button>
+        <button id="player-forward" class="control-btn compact" type="button" aria-label="Forward 15 seconds">
+          <span class="fwd-indicator" aria-hidden="true">+15s</span>
+        </button>
+        <button id="player-next" class="control-btn compact" type="button" aria-label="Next chapter">
+          <span class="fwd-indicator" aria-hidden="true">⏭</span>
+        </button>
+      </div>
+      <div class="player-quick-actions">
+        <button id="player-speed" class="quick-btn" type="button">1.0x Speed</button>
+        <button id="player-airplay" class="quick-btn" type="button">
+          <span class="icon icon-airplay" aria-hidden="true"></span>
+          AirPlay
+        </button>
+        <button id="bookmark-add" class="quick-btn primary" type="button">Add bookmark</button>
+      </div>
+      <div class="status-line" id="status">Idle</div>
+      <audio id="player" preload="none" aria-hidden="true"></audio>
     </div>
   </main>
 
@@ -1098,8 +1373,18 @@ INDEX_HTML = """<!DOCTYPE html>
     const statusLine = document.getElementById('status');
     const playerCover = document.getElementById('player-cover');
     const playerSubtitle = document.getElementById('player-subtitle');
+    const playerSeek = document.getElementById('player-seek');
+    const playerCurrentTime = document.getElementById('player-current-time');
+    const playerDurationLabel = document.getElementById('player-duration');
+    const playerTimeLeft = document.getElementById('player-time-left');
+    const playerPlayToggle = document.getElementById('player-toggle');
+    const playerRewindBtn = document.getElementById('player-rewind');
+    const playerForwardBtn = document.getElementById('player-forward');
+    const playerPrevBtn = document.getElementById('player-prev');
+    const playerNextBtn = document.getElementById('player-next');
+    const playerAirPlayBtn = document.getElementById('player-airplay');
+    const playerSpeedBtn = document.getElementById('player-speed');
     const lastPlayStatus = document.getElementById('last-play-status');
-    const bookmarkAddWrapper = document.querySelector('#player-dock .player-actions');
     const bookmarkAddBtn = document.getElementById('bookmark-add');
     const bookmarkList = document.getElementById('bookmark-list');
     const noteModal = document.getElementById('note-modal');
@@ -1107,6 +1392,12 @@ INDEX_HTML = """<!DOCTYPE html>
     const noteModalMeta = document.getElementById('note-modal-meta');
     const noteSaveBtn = document.getElementById('note-save');
     const noteCancelBtn = document.getElementById('note-cancel');
+    const PLAYER_SEEK_MAX = 1000;
+    const PLAYBACK_RATES = [0.75, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2];
+    const SPEED_STORAGE_KEY = 'nk-player-speed';
+    const SEEK_STEP = 15;
+    let isScrubbing = false;
+    let playbackRateIndex = PLAYBACK_RATES.indexOf(1);
     const voiceSpeakerInput = document.getElementById('voice-speaker');
     const voiceSpeedInput = document.getElementById('voice-speed');
     const voicePitchInput = document.getElementById('voice-pitch');
@@ -1335,6 +1626,26 @@ INDEX_HTML = """<!DOCTYPE html>
       const mm = hours ? String(minutes).padStart(2, '0') : String(minutes);
       const ss = String(secs).padStart(2, '0');
       return hours ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`;
+    }
+
+    function formatTimeLeft(seconds) {
+      if (!Number.isFinite(seconds)) return '--';
+      const total = Math.max(0, Math.floor(seconds));
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
+      if (hours > 0) {
+        return minutes > 0 ? `${hours}h ${minutes}m left` : `${hours}h left`;
+      }
+      if (minutes > 0) {
+        return `${minutes}m left`;
+      }
+      return `${total}s left`;
+    }
+
+    function formatSpeedLabel(rate) {
+      if (!Number.isFinite(rate) || rate <= 0) return '1x Speed';
+      const normalized = Number(rate.toFixed(2));
+      return `${normalized % 1 === 0 ? normalized.toFixed(0) : normalized}x Speed`;
     }
 
     function chapterDisplayTitle(chapter) {
@@ -1897,6 +2208,7 @@ INDEX_HTML = """<!DOCTYPE html>
           playerCover.classList.add('hidden');
           playerCover.removeAttribute('src');
         }
+        resetProgressUI();
         return;
       }
       const trackLabel = formatTrackNumber(chapter.track_number);
@@ -1927,6 +2239,102 @@ INDEX_HTML = """<!DOCTYPE html>
 
     updatePlayerDetails(null);
 
+    function adjacentPlayableIndex(direction) {
+      if (!state.chapters.length || state.currentChapterIndex < 0) return -1;
+      const step = direction < 0 ? -1 : 1;
+      for (
+        let idx = state.currentChapterIndex + step;
+        idx >= 0 && idx < state.chapters.length;
+        idx += step
+      ) {
+        const candidate = state.chapters[idx];
+        if (candidate && candidate.mp3_exists) {
+          return idx;
+        }
+      }
+      return -1;
+    }
+
+    function updateTransportAvailability() {
+      const current =
+        state.currentChapterIndex >= 0 ? state.chapters[state.currentChapterIndex] : null;
+      const hasChapter = Boolean(current && current.mp3_exists);
+      if (bookmarkAddBtn) {
+        bookmarkAddBtn.disabled = !hasChapter;
+      }
+      if (playerPlayToggle) {
+        playerPlayToggle.disabled = !hasChapter;
+      }
+      if (playerRewindBtn) {
+        playerRewindBtn.disabled = !hasChapter;
+      }
+      if (playerForwardBtn) {
+        playerForwardBtn.disabled = !hasChapter;
+      }
+      if (playerPrevBtn) {
+        playerPrevBtn.disabled = adjacentPlayableIndex(-1) === -1;
+      }
+      if (playerNextBtn) {
+        playerNextBtn.disabled = adjacentPlayableIndex(1) === -1;
+      }
+    }
+
+    updateTransportAvailability();
+    updatePlayToggleState();
+
+    function setPlaybackRate(rate) {
+      if (!player) return;
+      const normalized = Number.isFinite(rate) && rate > 0 ? rate : 1;
+      const idx = PLAYBACK_RATES.findIndex(value => Math.abs(value - normalized) < 0.001);
+      if (idx !== -1) {
+        playbackRateIndex = idx;
+      }
+      player.playbackRate = normalized;
+      if (playerSpeedBtn) {
+        playerSpeedBtn.textContent = formatSpeedLabel(normalized);
+      }
+      try {
+        localStorage.setItem(SPEED_STORAGE_KEY, String(normalized));
+      } catch {
+        // ignore persistence failures
+      }
+    }
+
+    function cyclePlaybackRate() {
+      playbackRateIndex = (playbackRateIndex + 1) % PLAYBACK_RATES.length;
+      setPlaybackRate(PLAYBACK_RATES[playbackRateIndex]);
+    }
+
+    (function initializePlaybackRate() {
+      let stored = 1;
+      try {
+        const fromStorage = localStorage.getItem(SPEED_STORAGE_KEY);
+        if (fromStorage) {
+          stored = parseFloat(fromStorage);
+        }
+      } catch {
+        stored = 1;
+      }
+      if (!Number.isFinite(stored) || stored <= 0) {
+        stored = 1;
+      }
+      setPlaybackRate(stored);
+    })();
+
+    function nudgePlayback(seconds) {
+      if (!player || !Number.isFinite(player.currentTime)) return;
+      const duration = Number.isFinite(player.duration) ? player.duration : null;
+      const target = duration
+        ? Math.max(0, Math.min(duration, player.currentTime + seconds))
+        : Math.max(0, player.currentTime + seconds);
+      try {
+        player.currentTime = target;
+      } catch {
+        return;
+      }
+      updateProgressUI();
+    }
+
     function updateMediaSession(chapter) {
       if (!('mediaSession' in navigator) || !chapter || !state.currentBook) return;
       const trackLabel = formatTrackNumber(chapter.track_number || chapter.index);
@@ -1950,6 +2358,100 @@ INDEX_HTML = """<!DOCTYPE html>
             ? [{ src: state.media.cover_url }]
             : [],
       });
+    }
+
+    function resetProgressUI() {
+      if (playerSeek) {
+        playerSeek.disabled = true;
+        playerSeek.value = '0';
+        playerSeek.style.setProperty('--progress', '0%');
+      }
+      if (playerCurrentTime) {
+        playerCurrentTime.textContent = '0:00';
+      }
+      if (playerDurationLabel) {
+        playerDurationLabel.textContent = '0:00';
+      }
+      if (playerTimeLeft) {
+        playerTimeLeft.textContent = '--';
+      }
+    }
+
+    function updateProgressUI() {
+      if (!player) return;
+      const duration = Number.isFinite(player.duration) ? player.duration : 0;
+      const current = Number.isFinite(player.currentTime) ? player.currentTime : 0;
+      if (playerSeek) {
+        if (duration > 0) {
+          playerSeek.disabled = false;
+          if (!isScrubbing) {
+            const nextValue = Math.round((current / duration) * PLAYER_SEEK_MAX);
+            playerSeek.value = String(Math.max(0, Math.min(PLAYER_SEEK_MAX, nextValue)));
+          }
+          const percent = Math.max(0, Math.min(100, (current / duration) * 100));
+          playerSeek.style.setProperty('--progress', `${percent}%`);
+        } else {
+          playerSeek.disabled = true;
+          if (!isScrubbing) {
+            playerSeek.value = '0';
+          }
+          playerSeek.style.setProperty('--progress', '0%');
+        }
+      }
+      if (!isScrubbing && playerCurrentTime) {
+        playerCurrentTime.textContent = formatTimecode(current);
+      }
+      if (playerDurationLabel) {
+        playerDurationLabel.textContent = duration > 0 ? formatTimecode(duration) : '0:00';
+      }
+      if (!isScrubbing && playerTimeLeft) {
+        playerTimeLeft.textContent = duration > 0 ? formatTimeLeft(duration - current) : '--';
+      }
+    }
+
+    function previewProgressFromValue(value) {
+      if (!player) return;
+      const duration = Number.isFinite(player.duration) ? player.duration : 0;
+      if (!duration) return;
+      const ratio = Math.min(1, Math.max(0, value / PLAYER_SEEK_MAX));
+      const preview = duration * ratio;
+      if (playerSeek) {
+        playerSeek.style.setProperty('--progress', `${ratio * 100}%`);
+      }
+      if (playerCurrentTime) {
+        playerCurrentTime.textContent = formatTimecode(preview);
+      }
+      if (playerTimeLeft) {
+        playerTimeLeft.textContent = formatTimeLeft(duration - preview);
+      }
+    }
+
+    function commitSeekFromValue(value) {
+      if (!player || !Number.isFinite(player.duration) || playerSeek?.disabled) {
+        isScrubbing = false;
+        updateProgressUI();
+        return;
+      }
+      const ratio = Math.min(1, Math.max(0, value / PLAYER_SEEK_MAX));
+      try {
+        player.currentTime = player.duration * ratio;
+      } catch {
+        // ignore assignment errors
+      }
+      isScrubbing = false;
+      updateProgressUI();
+    }
+
+    function updatePlayToggleState() {
+      if (!playerPlayToggle || !player) return;
+      const isPlaying = !player.paused && !player.ended;
+      playerPlayToggle.classList.toggle('playing', isPlaying);
+      const label = isPlaying ? 'Pause' : 'Play';
+      playerPlayToggle.setAttribute('aria-label', label);
+      const srOnly = playerPlayToggle.querySelector('.sr-only');
+      if (srOnly) {
+        srOnly.textContent = label;
+      }
     }
 
     function handlePromise(promise) {
@@ -2708,9 +3210,6 @@ INDEX_HTML = """<!DOCTYPE html>
               node.appendChild(playerDock);
             }
             playerDock.classList.remove('hidden');
-            if (bookmarkAddWrapper) {
-              bookmarkAddWrapper.classList.remove('hidden');
-            }
             docked = true;
           }
         } else {
@@ -2720,13 +3219,11 @@ INDEX_HTML = """<!DOCTYPE html>
       if (playerDock && !docked) {
         playerDock.classList.add('hidden');
         chaptersPanel.appendChild(playerDock);
-        if (bookmarkAddWrapper) {
-          bookmarkAddWrapper.classList.add('hidden');
-        }
       }
       if (state.currentChapterIndex < 0) {
         updatePlayerDetails(null);
       }
+      updateTransportAvailability();
     }
 
     function renderChapters(summary) {
@@ -2828,6 +3325,7 @@ INDEX_HTML = """<!DOCTYPE html>
       });
       updateChapterHighlight();
       updateChapterStatusUI();
+      updateTransportAvailability();
     }
 
     function summaryForChapters() {
@@ -3065,6 +3563,7 @@ INDEX_HTML = """<!DOCTYPE html>
       player.pause();
       player.src = playUrl;
       player.load();
+      resetProgressUI();
       updateMediaSession(chapter);
       if (Number.isFinite(resumeTime) && resumeTime >= 0) {
         ensureSeekAfterLoad(resumeTime, `Resumed at ${formatTimecode(resumeTime)}.`);
@@ -3148,6 +3647,9 @@ INDEX_HTML = """<!DOCTYPE html>
       statusLine.textContent = 'Idle';
       player.removeAttribute('src');
       player.load();
+      resetProgressUI();
+      updatePlayToggleState();
+      updateTransportAvailability();
       if (playerDock) {
         playerDock.classList.add('hidden');
         chaptersPanel.appendChild(playerDock);
@@ -3160,23 +3662,150 @@ INDEX_HTML = """<!DOCTYPE html>
       }
     }
 
+    if (playerSeek) {
+      const extractSeekValue = (event) => {
+        if (event && event.target && typeof event.target.value !== 'undefined') {
+          return Number(event.target.value);
+        }
+        return Number(playerSeek.value || 0);
+      };
+      const startScrub = () => {
+        if (!playerSeek.disabled) {
+          isScrubbing = true;
+        }
+      };
+      const finishScrub = (event) => {
+        if (playerSeek.disabled) return;
+        commitSeekFromValue(extractSeekValue(event));
+      };
+      playerSeek.addEventListener('input', (event) => {
+        if (playerSeek.disabled) return;
+        isScrubbing = true;
+        previewProgressFromValue(extractSeekValue(event));
+      });
+      playerSeek.addEventListener('change', (event) => {
+        if (playerSeek.disabled) return;
+        commitSeekFromValue(extractSeekValue(event));
+      });
+      if (typeof window !== 'undefined' && 'PointerEvent' in window) {
+        playerSeek.addEventListener('pointerdown', startScrub);
+        playerSeek.addEventListener('pointerup', finishScrub);
+        playerSeek.addEventListener('pointercancel', () => {
+          if (isScrubbing) {
+            isScrubbing = false;
+            updateProgressUI();
+          }
+        });
+      } else {
+        playerSeek.addEventListener('mousedown', startScrub);
+        playerSeek.addEventListener('mouseup', finishScrub);
+        playerSeek.addEventListener('touchstart', startScrub);
+        playerSeek.addEventListener('touchend', finishScrub);
+        playerSeek.addEventListener('touchcancel', () => {
+          if (isScrubbing) {
+            isScrubbing = false;
+            updateProgressUI();
+          }
+        });
+      }
+      playerSeek.addEventListener('blur', () => {
+        if (isScrubbing) {
+          isScrubbing = false;
+          updateProgressUI();
+        }
+      });
+    }
+
+    if (playerPlayToggle) {
+      playerPlayToggle.addEventListener('click', () => {
+        if (playerPlayToggle.disabled || !player) return;
+        if (!player.getAttribute('src')) return;
+        if (player.paused || player.ended) {
+          const attempt = player.play();
+          if (attempt && typeof attempt.catch === 'function') {
+            attempt.catch(() => {
+              statusLine.textContent = 'Tap play to start audio.';
+            });
+          }
+        } else {
+          player.pause();
+        }
+      });
+    }
+    if (playerRewindBtn) {
+      playerRewindBtn.addEventListener('click', () => {
+        if (playerRewindBtn.disabled) return;
+        nudgePlayback(-SEEK_STEP);
+        statusLine.textContent = `Rewound ${SEEK_STEP}s.`;
+      });
+    }
+    if (playerForwardBtn) {
+      playerForwardBtn.addEventListener('click', () => {
+        if (playerForwardBtn.disabled) return;
+        nudgePlayback(SEEK_STEP);
+        statusLine.textContent = `Skipped ${SEEK_STEP}s.`;
+      });
+    }
+    if (playerPrevBtn) {
+      playerPrevBtn.addEventListener('click', () => {
+        if (playerPrevBtn.disabled) return;
+        const prevIndex = adjacentPlayableIndex(-1);
+        if (prevIndex === -1) return;
+        handlePromise(playChapter(prevIndex));
+      });
+    }
+    if (playerNextBtn) {
+      playerNextBtn.addEventListener('click', () => {
+        if (playerNextBtn.disabled) return;
+        const nextIndex = adjacentPlayableIndex(1);
+        if (nextIndex === -1) return;
+        handlePromise(playChapter(nextIndex));
+      });
+    }
+    if (playerSpeedBtn) {
+      playerSpeedBtn.addEventListener('click', () => {
+        cyclePlaybackRate();
+      });
+    }
+    if (playerAirPlayBtn) {
+      const canAirPlay = Boolean(player && typeof player.webkitShowPlaybackTargetPicker === 'function');
+      if (!canAirPlay) {
+        playerAirPlayBtn.disabled = true;
+        playerAirPlayBtn.title = 'AirPlay is only available in Safari.';
+      } else {
+        playerAirPlayBtn.addEventListener('click', () => {
+          try {
+            player.webkitShowPlaybackTargetPicker();
+          } catch {
+            statusLine.textContent = 'Unable to open AirPlay picker.';
+          }
+        });
+      }
+    }
+
     player.addEventListener('playing', () => {
+      updatePlayToggleState();
       statusLine.textContent = 'Playing';
     });
     player.addEventListener('waiting', () => {
       statusLine.textContent = 'Buffering...';
     });
     player.addEventListener('timeupdate', () => {
+      updateProgressUI();
       if (player.paused || player.seeking) return;
       scheduleLastPlaySync(player.currentTime);
     });
     player.addEventListener('pause', () => {
+      updatePlayToggleState();
+      updateProgressUI();
       if (!player.ended) {
         scheduleLastPlaySync(player.currentTime);
         statusLine.textContent = 'Paused';
       }
     });
     player.addEventListener('ended', () => {
+      updatePlayToggleState();
+      updateProgressUI();
       statusLine.textContent = 'Finished';
       renderChapters(summaryForChapters());
       recordCompletionProgress();
@@ -3195,6 +3824,17 @@ INDEX_HTML = """<!DOCTYPE html>
     });
     player.addEventListener('error', () => {
       statusLine.textContent = 'Playback error';
+      updatePlayToggleState();
+    });
+    player.addEventListener('loadedmetadata', updateProgressUI);
+    player.addEventListener('durationchange', updateProgressUI);
+    player.addEventListener('seeked', () => {
+      isScrubbing = false;
+      updateProgressUI();
+    });
+    player.addEventListener('emptied', () => {
+      resetProgressUI();
+      updatePlayToggleState();
     });
 
     backButton.onclick = () => {
