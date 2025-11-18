@@ -871,28 +871,40 @@ INDEX_HTML = """<!DOCTYPE html>
     }
     @media (max-width: 680px) {
       .player-primary-controls {
-        grid-template-columns: repeat(5, minmax(0, 84px));
-        gap: 0.7rem;
-        justify-content: center;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-areas: "prev rew play fwd next";
+        gap: 0.65rem;
+        justify-items: center;
       }
       .control-btn {
-        width: 76x;
+        width: 76px;
+        height: 76px;
         min-width: 76px;
-        height: 68px;
+        min-height: 76px;
+        border-radius: 50%;
       }
       .control-btn.play-toggle {
-        width: 96px;
-        min-width:96px;
-        height: 96px;
-        min-height:96px;
+        width: 92px;
+        height: 92px;
+        min-width: 92px;
+        min-height: 92px;
+      }
+      #player-prev {
+        grid-area: prev;
       }
       #player-rewind {
         grid-area: rew;
         justify-self: flex-start;
       }
+      #player-toggle {
+        grid-area: play;
+      }
       #player-forward {
         grid-area: fwd;
         justify-self: flex-end;
+      }
+      #player-next {
+        grid-area: next;
       }
     }
     .control-btn.play-toggle::before,
