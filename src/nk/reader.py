@@ -856,6 +856,33 @@ INDEX_HTML = """<!DOCTYPE html>
       const originalPanel = document.getElementById('original-panel');
       const toggleTransformed = document.getElementById('toggle-transformed');
       const toggleOriginal = document.getElementById('toggle-original');
+      let preferTransformedView = false;
+      let hideOriginalView = false;
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const viewParam = params.get('view');
+        const transformedParam = params.get('transformed');
+        const originalParam = params.get('original');
+        const normalizedView = typeof viewParam === 'string' ? viewParam.trim().toLowerCase() : '';
+        const normalizedTransformed =
+          typeof transformedParam === 'string' ? transformedParam.trim().toLowerCase() : '';
+        const normalizedOriginal =
+          typeof originalParam === 'string' ? originalParam.trim().toLowerCase() : '';
+        if (normalizedView === 'transformed-only') {
+          preferTransformedView = true;
+          hideOriginalView = true;
+        } else if (normalizedView === 'transformed') {
+          preferTransformedView = true;
+        } else if (['1', 'true', 'yes', 'on'].includes(normalizedTransformed)) {
+          preferTransformedView = true;
+        }
+        if (['0', 'false', 'off', 'hide', 'no'].includes(normalizedOriginal)) {
+          hideOriginalView = true;
+        }
+      } catch (error) {
+        preferTransformedView = false;
+        hideOriginalView = false;
+      }
       const sidebarToggle = document.getElementById('sidebar-toggle');
       const mobileQuery = window.matchMedia('(max-width: 900px)');
       const bodyEl = document.body;
@@ -896,6 +923,12 @@ INDEX_HTML = """<!DOCTYPE html>
       if (initialHashPath) {
         state.selectedPath = initialHashPath;
         expandFoldersForPath(initialHashPath);
+      }
+      if (preferTransformedView && toggleTransformed) {
+        toggleTransformed.checked = true;
+      }
+      if (hideOriginalView && toggleOriginal) {
+        toggleOriginal.checked = false;
       }
       if (sortSelect) {
         sortSelect.value = state.sortOrder;

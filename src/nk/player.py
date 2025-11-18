@@ -2668,8 +2668,18 @@ INDEX_HTML = """<!DOCTYPE html>
       if (!relPath) {
         return;
       }
-      const base = state.readerUrl.endsWith('/') ? state.readerUrl : `${state.readerUrl}/`;
-      const target = `${base}#chapter=${encodeURIComponent(relPath)}`;
+      let target = null;
+      try {
+        const parsed = new URL(state.readerUrl, window.location.href);
+        parsed.searchParams.set('view', 'transformed-only');
+        parsed.searchParams.set('original', 'off');
+        parsed.hash = `chapter=${encodeURIComponent(relPath)}`;
+        target = parsed.toString();
+      } catch (error) {
+        const normalized = state.readerUrl.endsWith('/') ? state.readerUrl : `${state.readerUrl}/`;
+        const joiner = normalized.includes('?') ? '&' : '?';
+        target = `${normalized}${joiner}view=transformed-only&original=off#chapter=${encodeURIComponent(relPath)}`;
+      }
       window.open(target, '_blank', 'noopener');
     }
 
