@@ -458,6 +458,9 @@ INDEX_HTML = """<!DOCTYPE html>
       flex-wrap: wrap;
       margin-top: 0.5rem;
     }
+    .chapter-nav-bottom {
+      margin-top: 1rem;
+    }
     .chapter-nav button {
       border-radius: 999px;
       border: 1px solid var(--outline);
@@ -765,9 +768,9 @@ INDEX_HTML = """<!DOCTYPE html>
           </label>
         </div>
         <div class="chapter-nav" aria-label="Chapter navigation">
-          <button type="button" id="chapter-prev" aria-label="Previous chapter" disabled>&larr; Previous</button>
-          <div class="chapter-nav-status" id="chapter-nav-status">Select a chapter to preview.</div>
-          <button type="button" id="chapter-next" aria-label="Next chapter" disabled>Next &rarr;</button>
+          <button type="button" data-role="chapter-prev" aria-label="Previous chapter" disabled>&larr; Previous</button>
+          <div class="chapter-nav-status" data-role="chapter-nav-status">Select a chapter to preview.</div>
+          <button type="button" data-role="chapter-next" aria-label="Next chapter" disabled>Next &rarr;</button>
         </div>
         <div class="text-panel" id="original-panel">
           <header>
@@ -782,6 +785,11 @@ INDEX_HTML = """<!DOCTYPE html>
             <span id="transformed-meta" class="pill">—</span>
           </header>
           <div class="text-content empty" id="transformed-text">Select a chapter to preview.</div>
+        </div>
+        <div class="chapter-nav chapter-nav-bottom" aria-label="Chapter navigation">
+          <button type="button" data-role="chapter-prev" aria-label="Previous chapter" disabled>&larr; Previous</button>
+          <div class="chapter-nav-status" data-role="chapter-nav-status">Select a chapter to preview.</div>
+          <button type="button" data-role="chapter-next" aria-label="Next chapter" disabled>Next &rarr;</button>
         </div>
       </section>
       <section class="panel" id="meta-panel" hidden>
@@ -908,9 +916,15 @@ INDEX_HTML = """<!DOCTYPE html>
       const originalPanel = document.getElementById('original-panel');
       const toggleTransformed = document.getElementById('toggle-transformed');
       const toggleOriginal = document.getElementById('toggle-original');
-      const prevChapterBtn = document.getElementById('chapter-prev');
-      const nextChapterBtn = document.getElementById('chapter-next');
-      const chapterNavStatus = document.getElementById('chapter-nav-status');
+      const prevChapterButtons = Array.from(
+        document.querySelectorAll('[data-role="chapter-prev"]')
+      );
+      const nextChapterButtons = Array.from(
+        document.querySelectorAll('[data-role="chapter-next"]')
+      );
+      const chapterNavStatusNodes = Array.from(
+        document.querySelectorAll('[data-role="chapter-nav-status"]')
+      );
       let preferTransformedView = false;
       let hideOriginalView = false;
       try {
@@ -1163,11 +1177,10 @@ INDEX_HTML = """<!DOCTYPE html>
       }
 
       function setChapterNavLabel(label) {
-        if (!chapterNavStatus) {
-          return;
-        }
         const normalized = label && String(label).trim() ? String(label).trim() : CHAPTER_NAV_DEFAULT;
-        chapterNavStatus.textContent = normalized;
+        chapterNavStatusNodes.forEach((node) => {
+          node.textContent = normalized;
+        });
       }
 
       function adjacentChapterPath(direction) {
@@ -1193,12 +1206,14 @@ INDEX_HTML = """<!DOCTYPE html>
       }
 
       function updateChapterNavButtons() {
-        if (prevChapterBtn) {
-          prevChapterBtn.disabled = !adjacentChapterPath(-1);
-        }
-        if (nextChapterBtn) {
-          nextChapterBtn.disabled = !adjacentChapterPath(1);
-        }
+        const hasPrev = Boolean(adjacentChapterPath(-1));
+        const hasNext = Boolean(adjacentChapterPath(1));
+        prevChapterButtons.forEach((button) => {
+          button.disabled = !hasPrev;
+        });
+        nextChapterButtons.forEach((button) => {
+          button.disabled = !hasNext;
+        });
         if (!state.selectedPath) {
           setChapterNavLabel('');
         }
@@ -1487,12 +1502,12 @@ INDEX_HTML = """<!DOCTYPE html>
         }
       }
 
-      if (prevChapterBtn) {
-        prevChapterBtn.addEventListener('click', () => navigateAdjacentChapter(-1));
-      }
-      if (nextChapterBtn) {
-        nextChapterBtn.addEventListener('click', () => navigateAdjacentChapter(1));
-      }
+      prevChapterButtons.forEach((button) => {
+        button.addEventListener('click', () => navigateAdjacentChapter(-1));
+      });
+      nextChapterButtons.forEach((button) => {
+        button.addEventListener('click', () => navigateAdjacentChapter(1));
+      });
 
       let scrollSyncLock = false;
       function syncScroll(source, target) {
