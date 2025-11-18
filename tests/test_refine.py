@@ -41,7 +41,7 @@ def test_refine_applies_replacement_to_tokens(tmp_path: Path) -> None:
             }
         ]
     }
-    (book_dir / "custom_pitch.json").write_text(json.dumps(overrides, ensure_ascii=False), encoding="utf-8")
+    (book_dir / "custom_token.json").write_text(json.dumps(overrides, ensure_ascii=False), encoding="utf-8")
 
     rules = load_override_config(book_dir)
     updated = refine_book(book_dir, rules)
@@ -78,7 +78,7 @@ def test_refine_allows_token_only_override(tmp_path: Path) -> None:
             }
         ]
     }
-    (book_dir / "custom_pitch.json").write_text(json.dumps(overrides, ensure_ascii=False), encoding="utf-8")
+    (book_dir / "custom_token.json").write_text(json.dumps(overrides, ensure_ascii=False), encoding="utf-8")
     rules = load_override_config(book_dir)
     updated = refine_book(book_dir, rules)
     assert updated == 1
@@ -106,8 +106,21 @@ def test_refine_updates_sha_with_stripped_text(tmp_path: Path) -> None:
             {"pattern": "アメ", "reading": "アメ", "accent": 1},
         ]
     }
-    (book_dir / "custom_pitch.json").write_text(json.dumps(overrides, ensure_ascii=False), encoding="utf-8")
+    (book_dir / "custom_token.json").write_text(json.dumps(overrides, ensure_ascii=False), encoding="utf-8")
     rules = load_override_config(book_dir)
     refine_book(book_dir, rules)
     payload = json.loads(token_path.read_text(encoding="utf-8"))
     assert payload["text_sha1"] == hashlib.sha1("アメヲタベル。".encode("utf-8")).hexdigest()
+
+
+def test_refine_supports_legacy_custom_pitch_file(tmp_path: Path) -> None:
+    book_dir = tmp_path / "legacy"
+    book_dir.mkdir()
+    overrides = {"overrides": [{"pattern": "legacy", "reading": "legacy", "accent": 1}]}
+    legacy_path = book_dir / "custom_pitch.json"
+    new_path = book_dir / "custom_token.json"
+    legacy_path.write_text(json.dumps(overrides, ensure_ascii=False), encoding="utf-8")
+    rules = load_override_config(book_dir)
+    assert len(rules) == 1
+    assert new_path.exists()
+    assert not legacy_path.exists()

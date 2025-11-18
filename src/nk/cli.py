@@ -1177,7 +1177,7 @@ def _run_refine(args: argparse.Namespace) -> int:
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     if not overrides:
-        print(f"No overrides found in {book_dir / 'custom_pitch.json'}")
+        print(f"No overrides found in {book_dir / 'custom_token.json'}")
         return 0
     updated = refine_book(book_dir, overrides)
     if updated:

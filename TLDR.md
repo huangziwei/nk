@@ -138,7 +138,7 @@ nk drops two helper files next to every chapterized book:
 
 ### Manual pitch overrides
 
-If MeCab splits a word incorrectly or assigns the wrong accent, add a `custom_pitch.json` next to the book directory:
+If MeCab splits a word incorrectly or assigns the wrong accent, add a `custom_token.json` next to the book directory:
 
 ```json
 {

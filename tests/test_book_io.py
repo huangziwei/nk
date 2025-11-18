@@ -53,7 +53,7 @@ def test_write_book_package_emits_metadata_and_cover(tmp_path: Path) -> None:
     assert payload["chapters"][0]["original_title"] == "Chapter One"
     assert payload["chapters"][0]["source"] == "ch1.xhtml"
     assert package.m4b_manifest_path.exists()
-    assert (output_dir / "custom_pitch.json").exists()
+    assert (output_dir / "custom_token.json").exists()
     m4b_payload = json.loads(package.m4b_manifest_path.read_text(encoding="utf-8"))
     assert m4b_payload["name"] == "Book Title"
     assert m4b_payload["artist"] == "Author Name"

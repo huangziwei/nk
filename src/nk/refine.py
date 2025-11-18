@@ -10,6 +10,9 @@ from typing import Iterable
 from .book_io import TOKEN_METADATA_VERSION
 from .tokens import ChapterToken, deserialize_chapter_tokens, serialize_chapter_tokens
 
+PRIMARY_OVERRIDE_FILENAME = "custom_token.json"
+LEGACY_OVERRIDE_FILENAME = "custom_pitch.json"
+
 
 @dataclass
 class OverrideRule:
@@ -22,8 +25,29 @@ class OverrideRule:
     surface: str | None
 
 
+def _migrate_legacy_override_file(book_dir: Path) -> Path | None:
+    primary = book_dir / PRIMARY_OVERRIDE_FILENAME
+    if primary.exists():
+        return primary
+    legacy = book_dir / LEGACY_OVERRIDE_FILENAME
+    if not legacy.exists():
+        return None
+    try:
+        legacy.replace(primary)
+        return primary
+    except OSError:
+        try:
+            primary.write_text(legacy.read_text(encoding="utf-8"), encoding="utf-8")
+            legacy.unlink(missing_ok=True)
+            return primary
+        except OSError:
+            return legacy
+
+
 def load_override_config(book_dir: Path) -> list[OverrideRule]:
-    config_path = book_dir / "custom_pitch.json"
+    config_path = _migrate_legacy_override_file(book_dir) or (
+        book_dir / PRIMARY_OVERRIDE_FILENAME
+    )
     if not config_path.exists():
         return []
     try:
@@ -32,7 +56,7 @@ def load_override_config(book_dir: Path) -> list[OverrideRule]:
         raise ValueError(f"Failed to parse overrides file: {config_path}") from exc
     overrides_payload = raw.get("overrides")
     if not isinstance(overrides_payload, list):
-        raise ValueError("custom_pitch.json must contain an 'overrides' array.")
+        raise ValueError(f"{config_path.name} must contain an 'overrides' array.")
     overrides: list[OverrideRule] = []
     for entry in overrides_payload:
         if not isinstance(entry, dict):

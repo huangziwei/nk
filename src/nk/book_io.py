@@ -19,7 +19,8 @@ BOOK_METADATA_FILENAME = ".nk-book.json"
 M4B_MANIFEST_FILENAME = "m4b.json"
 RUBY_EVIDENCE_FILENAME = "ruby_evidence.json"
 _SUPPORTED_COVER_EXTS = (".jpg", ".jpeg", ".png")
-_CUSTOM_PITCH_FILENAME = "custom_pitch.json"
+_CUSTOM_TOKEN_FILENAME = "custom_token.json"
+_LEGACY_CUSTOM_PITCH_FILENAME = "custom_pitch.json"
 _TOKEN_SUFFIX = ".token.json"
 TOKEN_METADATA_VERSION = 2
 
@@ -310,9 +311,10 @@ def ensure_cover_is_square(cover_path: Path) -> None:
         return
 
 
-def _ensure_custom_pitch_template(output_dir: Path) -> None:
-    template_path = output_dir / _CUSTOM_PITCH_FILENAME
-    if template_path.exists():
+def _ensure_custom_token_template(output_dir: Path) -> None:
+    template_path = output_dir / _CUSTOM_TOKEN_FILENAME
+    legacy_path = output_dir / _LEGACY_CUSTOM_PITCH_FILENAME
+    if template_path.exists() or legacy_path.exists():
         return
     template = {
         "overrides": [
@@ -408,7 +410,7 @@ def write_book_package(
         cover_path,
     )
     ruby_evidence_path = _write_ruby_evidence(output_dir, ruby_evidence)
-    _ensure_custom_pitch_template(output_dir)
+    _ensure_custom_token_template(output_dir)
     return BookPackage(
         output_dir=output_dir,
         chapter_records=records,
