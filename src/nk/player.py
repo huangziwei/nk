@@ -905,10 +905,53 @@ INDEX_HTML = """<!DOCTYPE html>
       background: transparent;
       border: 1px solid rgba(255,255,255,0.2);
     }
-    .control-btn .rew-indicator,
-    .control-btn .fwd-indicator {
-      font-size: 0.95rem;
-      font-weight: 600;
+    .radial-skip {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+    }
+    .radial-skip svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      transform-origin: 50% 50%;
+    }
+    .radial-skip svg circle {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.6;
+      stroke-dasharray: 95 48;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+    .radial-skip svg .radial-tail {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.6;
+      stroke-linecap: round;
+    }
+    .radial-skip svg .radial-arrowhead {
+      fill: currentColor;
+      transform-origin: 32px 10px;
+    }
+    .radial-skip.fwd svg circle {
+      transform: rotate(-35deg);
+    }
+    .radial-skip .radial-value {
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
     }
     .skip-icon {
       width: 26px;
@@ -1358,13 +1401,25 @@ INDEX_HTML = """<!DOCTYPE html>
           <span class="skip-icon prev" aria-hidden="true"></span>
         </button>
         <button id="player-rewind" class="control-btn compact" type="button" aria-label="Rewind 15 seconds">
-          <span class="rew-indicator" aria-hidden="true">-15s</span>
+          <span class="radial-skip rew" aria-hidden="true">
+            <svg viewBox="0 0 64 64" role="presentation" focusable="false">
+              <circle class="radial-arc" cx="32" cy="32" r="18"></circle>
+              <path class="radial-arrowhead" d="M32 9.5L22.5 14.5L32 19.5Z"></path>
+            </svg>
+            <span class="radial-value">15</span>
+          </span>
         </button>
         <button id="player-toggle" class="control-btn play-toggle" type="button" aria-label="Play">
           <span class="sr-only">Play</span>
         </button>
         <button id="player-forward" class="control-btn compact" type="button" aria-label="Forward 15 seconds">
-          <span class="fwd-indicator" aria-hidden="true">+15s</span>
+          <span class="radial-skip fwd" aria-hidden="true">
+            <svg viewBox="0 0 64 64" role="presentation" focusable="false">
+              <circle class="radial-arc" cx="32" cy="32" r="18"></circle>
+              <path class="radial-arrowhead" d="M32 9.5L41.5 14.5L32 19.5Z"></path>
+            </svg>
+            <span class="radial-value">15</span>
+          </span>
         </button>
         <button id="player-next" class="control-btn compact" type="button" aria-label="Next chapter">
           <span class="skip-icon next" aria-hidden="true"></span>
