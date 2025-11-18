@@ -1269,6 +1269,9 @@ INDEX_HTML = """<!DOCTYPE html>
     if (libraryBackButton) {
       libraryBackButton.addEventListener('click', () => {
         if (!state.libraryPrefix) return;
+        if (state.currentBook) {
+          closeBookView({ skipHistory: true });
+        }
         handlePromise(loadBooks(state.parentPrefix || ''));
       });
     }
@@ -2159,6 +2162,9 @@ INDEX_HTML = """<!DOCTYPE html>
           if (!isLast) {
             node.type = 'button';
             node.addEventListener('click', () => {
+              if (state.currentBook) {
+                closeBookView({ skipHistory: true });
+              }
               handlePromise(loadBooks(crumb.path));
             });
           }
@@ -2237,6 +2243,9 @@ INDEX_HTML = """<!DOCTYPE html>
         card.appendChild(info);
         card.addEventListener('click', () => {
           const targetPath = typeof collection.path === 'string' ? collection.path : (collection.id || '');
+          if (state.currentBook) {
+            closeBookView({ skipHistory: true });
+          }
           handlePromise(loadBooks(targetPath || ''));
         });
         collectionsGrid.appendChild(card);
