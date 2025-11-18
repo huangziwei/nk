@@ -871,18 +871,28 @@ INDEX_HTML = """<!DOCTYPE html>
     }
     @media (max-width: 680px) {
       .player-primary-controls {
-        grid-template-columns: repeat(5, minmax(0, 68px));
+        grid-template-columns: repeat(5, minmax(0, 84px));
         gap: 0.7rem;
         justify-content: center;
       }
       .control-btn {
-        width: 68px;
-        min-width: 68px;
-        height: 54px;
+        width: 76x;
+        min-width: 76px;
+        height: 68px;
       }
       .control-btn.play-toggle {
-        width: 90px;
-        height: 90px;
+        width: 96px;
+        min-width:96px;
+        height: 96px;
+        min-height:96px;
+      }
+      #player-rewind {
+        grid-area: rew;
+        justify-self: flex-start;
+      }
+      #player-forward {
+        grid-area: fwd;
+        justify-self: flex-end;
       }
     }
     .control-btn.play-toggle::before,
