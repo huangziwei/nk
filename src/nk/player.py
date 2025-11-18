@@ -118,6 +118,15 @@ INDEX_HTML = """<!DOCTYPE html>
       font-weight: 700;
       letter-spacing: 0.01em;
     }
+    header h1 a {
+      color: inherit;
+      text-decoration: none;
+    }
+    header h1 a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 4px;
+      border-radius: 8px;
+    }
     header p {
       margin: 0.35rem 0 0;
       color: var(--muted);
@@ -955,7 +964,7 @@ INDEX_HTML = """<!DOCTYPE html>
 </head>
 <body>
   <header>
-    <h1>nk Player</h1>
+    <h1><a href="/" id="home-link">nk Player</a></h1>
     <p>Play chapterized TXT files with VoiceVox. Use Build to synthesize audio before playback.</p>
   </header>
   <main>
@@ -1067,6 +1076,7 @@ INDEX_HTML = """<!DOCTYPE html>
     const libraryBreadcrumb = document.getElementById('library-breadcrumb');
     const libraryBackButton = document.getElementById('library-back');
     const chaptersPanel = document.getElementById('chapters-panel');
+    const homeLink = document.getElementById('home-link');
     const chaptersList = document.getElementById('chapters-list');
     const chaptersTitle = document.getElementById('chapters-title');
     const chaptersMetrics = document.getElementById('chapters-metrics');
@@ -1277,6 +1287,15 @@ INDEX_HTML = """<!DOCTYPE html>
           closeBookView({ skipHistory: true });
         }
         handlePromise(loadBooks(state.parentPrefix || ''));
+      });
+    }
+    if (homeLink) {
+      homeLink.addEventListener('click', event => {
+        event.preventDefault();
+        if (state.currentBook) {
+          closeBookView({ skipHistory: true });
+        }
+        handlePromise(loadBooks('', { replaceHistory: true }));
       });
     }
 

@@ -69,6 +69,15 @@ INDEX_HTML = """<!DOCTYPE html>
       margin: 0;
       font-size: 1.25rem;
     }
+    aside h1 a {
+      color: inherit;
+      text-decoration: none;
+    }
+    aside h1 a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 4px;
+      border-radius: 6px;
+    }
     .filter {
       display: flex;
       gap: 0.5rem;
@@ -573,7 +582,7 @@ INDEX_HTML = """<!DOCTYPE html>
   <div class="app">
     <aside>
       <div>
-        <h1>nk Reader</h1>
+        <h1><a href="/" id="home-link">nk Reader</a></h1>
         <p style="margin:0.35rem 0 0;font-size:0.85rem;color:var(--muted);">
           Select a chapter and hover tokens to compare transformed vs original offsets.
         </p>
@@ -693,6 +702,7 @@ INDEX_HTML = """<!DOCTYPE html>
       }
 
       const listEl = document.getElementById('chapter-list');
+      const homeLink = document.getElementById('home-link');
       const filterEl = document.getElementById('chapter-filter');
       const refreshBtn = document.getElementById('refresh');
       const sortSelect = document.getElementById('sort-order');
@@ -748,6 +758,18 @@ INDEX_HTML = """<!DOCTYPE html>
             console.warn('Failed to persist sort order', error);
           }
           loadChapters();
+        });
+      }
+      if (homeLink) {
+        homeLink.addEventListener('click', (event) => {
+          event.preventDefault();
+          if (state.selectedPath) {
+            state.selectedPath = null;
+            renderChapterList();
+            clearSelection();
+          }
+          updateChapterHash(null);
+          renderStatus('Select a chapter to preview.');
         });
       }
 
