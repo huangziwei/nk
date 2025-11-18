@@ -850,9 +850,13 @@ INDEX_HTML = """<!DOCTYPE html>
       opacity: 0.4;
       cursor: not-allowed;
     }
-    .control-btn:not(:disabled):hover {
+    .control-btn:not(.play-toggle):not(:disabled):hover {
       transform: translateY(-1px);
       background: rgba(255,255,255,0.14);
+    }
+    .control-btn.play-toggle:not(:disabled):hover {
+      transform: translateY(-1px);
+      background: var(--text);
     }
     .control-btn.play-toggle {
       background: var(--text);
