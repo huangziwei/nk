@@ -9,7 +9,7 @@ from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from .library import list_books_sorted
-from .refine import append_override_entry, load_override_config, refine_book
+from .refine import append_override_entry, load_override_config, refine_book, refine_chapter
 from .uploads import UploadJob, UploadManager
 
 INDEX_HTML = """<!DOCTYPE html>
@@ -783,7 +783,12 @@ INDEX_HTML = """<!DOCTYPE html>
           <div class="modal-note" id="refine-error"></div>
           <div class="modal-button-group">
             <button type="button" class="secondary" id="refine-cancel">Cancel</button>
-            <button type="submit" id="refine-submit">Apply override</button>
+            <button type="button" data-scope="chapter" class="secondary" id="refine-submit-chapter">
+              Override chapter
+            </button>
+            <button type="button" data-scope="book" id="refine-submit-book">
+              Override book
+            </button>
           </div>
         </div>
       </form>
@@ -903,7 +908,9 @@ INDEX_HTML = """<!DOCTYPE html>
       const refineSurfaceInput = document.getElementById('refine-surface');
       const refinePosInput = document.getElementById('refine-pos');
       const refineRegexInput = document.getElementById('refine-regex');
-      const refineSubmit = document.getElementById('refine-submit');
+      const refineScopeButtons = Array.from(document.querySelectorAll('[data-scope]'));
+      const refineSubmitBook = document.getElementById('refine-submit-book');
+      const refineSubmitChapter = document.getElementById('refine-submit-chapter');
       const refineCancel = document.getElementById('refine-cancel');
       const refineError = document.getElementById('refine-error');
       const refineContextLabel = document.getElementById('refine-context');
@@ -963,9 +970,7 @@ INDEX_HTML = """<!DOCTYPE html>
           closeRefineModal();
         }
       });
-      if (refineForm) {
-        refineForm.addEventListener('submit', (event) => {
-          event.preventDefault();
+      function submitRefine(scope) {
           if (!state.selectedPath) {
             setRefineError('Select a chapter before applying overrides.');
             return;
@@ -980,6 +985,7 @@ INDEX_HTML = """<!DOCTYPE html>
           const surface = refineSurfaceInput ? refineSurfaceInput.value.trim() : '';
           const pos = refinePosInput ? refinePosInput.value.trim() : '';
           const accentRaw = refineAccentInput ? refineAccentInput.value.trim() : '';
+          const normalizedScope = scope === 'chapter' ? 'chapter' : 'book';
           let accentPayload = null;
           if (accentRaw) {
             const parsed = Number.parseInt(accentRaw, 10);
@@ -993,6 +999,7 @@ INDEX_HTML = """<!DOCTYPE html>
             path: state.selectedPath,
             pattern,
             regex: Boolean(refineRegexInput && refineRegexInput.checked),
+            scope: normalizedScope,
           };
           if (replacement) payload.replacement = replacement;
           if (reading) payload.reading = reading;
@@ -1008,8 +1015,29 @@ INDEX_HTML = """<!DOCTYPE html>
           })
             .then((result) => {
               const updated = result && typeof result.updated === 'number' ? result.updated : 0;
+              const scopeResult =
+                result && typeof result.scope === 'string' ? result.scope : normalizedScope;
               const chapterLabel = result && result.chapter ? result.chapter : state.selectedPath;
-              renderStatus(`Refined ${updated} chapter(s) for ${chapterLabel}.`);
+              const bookLabel =
+                (result && result.book) ||
+                (state.currentBook && (state.currentBook.title || state.currentBook.id)) ||
+                (state.currentBook && state.currentBook.id) ||
+                'book';
+              let statusMessage = '';
+              if (scopeResult === 'chapter') {
+                if (updated) {
+                  statusMessage = `Refined current chapter (${chapterLabel}).`;
+                } else {
+                  statusMessage = `No changes required for ${chapterLabel}.`;
+                }
+              } else {
+                if (updated) {
+                  statusMessage = `Refined ${updated} chapter(s) in ${bookLabel}.`;
+                } else {
+                  statusMessage = `No changes required in ${bookLabel}.`;
+                }
+              }
+              renderStatus(statusMessage);
               closeRefineModal();
               if (state.selectedPath) {
                 openChapter(state.selectedPath, { autoCollapse: false, preserveScroll: true });
@@ -1021,6 +1049,20 @@ INDEX_HTML = """<!DOCTYPE html>
             .finally(() => {
               setRefineBusy(false);
             });
+      }
+
+      if (refineForm) {
+        refineForm.addEventListener('submit', (event) => {
+          event.preventDefault();
+          submitRefine('book');
+        });
+      }
+      if (refineScopeButtons.length) {
+        refineScopeButtons.forEach((button) => {
+          button.addEventListener('click', (event) => {
+            event.preventDefault();
+            submitRefine(button.dataset.scope === 'chapter' ? 'chapter' : 'book');
+          });
         });
       }
       if (homeLink) {
@@ -1080,8 +1122,11 @@ INDEX_HTML = """<!DOCTYPE html>
             control.disabled = busy;
           }
         });
-        if (refineSubmit) {
-          refineSubmit.textContent = busy ? 'Saving…' : 'Apply override';
+        if (refineSubmitBook) {
+          refineSubmitBook.textContent = busy ? 'Overriding book…' : 'Override book';
+        }
+        if (refineSubmitChapter) {
+          refineSubmitChapter.textContent = busy ? 'Overriding chapter…' : 'Override chapter';
         }
       }
 
@@ -2590,18 +2635,29 @@ def create_reader_app(root: Path) -> FastAPI:
                 ) from None
         if accent is not None:
             entry["accent"] = accent
+        scope_value = payload.get("scope")
+        scope = "book"
+        if isinstance(scope_value, str) and scope_value.strip().lower() == "chapter":
+            scope = "chapter"
         try:
             override_path = append_override_entry(book_dir, entry)
             overrides = load_override_config(book_dir)
-            updated = refine_book(book_dir, overrides)
+            if scope == "chapter":
+                refined_value = refine_chapter(chapter_path, overrides)
+                updated = 1 if refined_value else 0
+            else:
+                updated = refine_book(book_dir, overrides)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         override_rel = _relative_to_root(resolved_root, override_path)
+        book_rel = _relative_to_root(resolved_root, book_dir)
         return JSONResponse(
             {
                 "updated": updated,
                 "override_path": override_rel.as_posix(),
                 "chapter": rel_path.as_posix(),
+                "book": book_rel.as_posix(),
+                "scope": scope,
             }
         )
 

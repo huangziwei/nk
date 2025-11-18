@@ -266,4 +266,4 @@ def _token_transformed_end(token: ChapterToken) -> int:
     return _token_transformed_start(token)
 
 
-__all__ = ["load_override_config", "refine_book"]
+__all__ = ["load_override_config", "refine_book", "refine_chapter"]

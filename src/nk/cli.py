@@ -61,7 +61,7 @@ from .tts import (
     synthesize_texts_to_mp3,
     set_debug_logging,
 )
-from .refine import load_override_config, refine_book
+from .refine import load_override_config, refine_book, refine_chapter
 from .reader import create_reader_app
 from .player import PlayerConfig, create_app
 from .logging_utils import build_uvicorn_log_config
@@ -573,6 +573,13 @@ def build_refine_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Apply custom pitch overrides to a chapterized book.")
     _add_version_flag(ap)
     ap.add_argument("book_dir", help="Path to the chapterized book directory.")
+    ap.add_argument(
+        "--chapter",
+        help=(
+            "Optional chapter filename (relative to the book directory) to refine. "
+            "When omitted, nk processes every chapter."
+        ),
+    )
     return ap
 
 
@@ -1336,12 +1343,36 @@ def _run_refine(args: argparse.Namespace) -> int:
     book_dir = Path(args.book_dir).expanduser()
     if not book_dir.is_dir():
         raise SystemExit(f"Book directory not found: {book_dir}")
+    chapter_path: Path | None = None
+    if args.chapter:
+        candidate = Path(args.chapter)
+        if not candidate.is_absolute():
+            candidate = (book_dir / candidate).resolve()
+        else:
+            candidate = candidate.resolve()
+        try:
+            candidate.relative_to(book_dir)
+        except ValueError as exc:
+            raise SystemExit("Chapter must be inside the provided book directory.") from exc
+        if candidate.suffix.lower() != ".txt":
+            raise SystemExit("Chapter must be a .txt file.")
+        if not candidate.exists():
+            raise SystemExit(f"Chapter file not found: {candidate}")
+        chapter_path = candidate
     try:
         overrides = load_override_config(book_dir)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     if not overrides:
         print(f"No overrides found in {book_dir / 'custom_token.json'}")
+        return 0
+    if chapter_path:
+        refined = refine_chapter(chapter_path, overrides)
+        rel = chapter_path.relative_to(book_dir)
+        if refined:
+            print(f"Refined {rel}")
+        else:
+            print(f"No changes required for {rel}")
         return 0
     updated = refine_book(book_dir, overrides)
     if updated:
