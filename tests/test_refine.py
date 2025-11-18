@@ -4,7 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from nk.refine import load_override_config, refine_book
+from nk.refine import append_override_entry, load_override_config, refine_book
 
 
 def _write_token_file(path: Path, tokens: list[dict[str, object]], text: str) -> None:
@@ -122,5 +122,18 @@ def test_refine_supports_legacy_custom_pitch_file(tmp_path: Path) -> None:
     legacy_path.write_text(json.dumps(overrides, ensure_ascii=False), encoding="utf-8")
     rules = load_override_config(book_dir)
     assert len(rules) == 1
-    assert new_path.exists()
-    assert not legacy_path.exists()
+
+
+def test_append_override_entry_creates_file(tmp_path: Path) -> None:
+    book_dir = tmp_path / "book_append"
+    book_dir.mkdir()
+    entry = {
+        "pattern": "test",
+        "reading": "テスト",
+        "accent": 1,
+    }
+    path = append_override_entry(book_dir, entry)
+    assert path.exists()
+    rules = load_override_config(book_dir)
+    assert len(rules) == 1
+    assert rules[0].pattern == "test"

@@ -44,10 +44,38 @@ def _migrate_legacy_override_file(book_dir: Path) -> Path | None:
             return legacy
 
 
-def load_override_config(book_dir: Path) -> list[OverrideRule]:
-    config_path = _migrate_legacy_override_file(book_dir) or (
-        book_dir / PRIMARY_OVERRIDE_FILENAME
+def ensure_override_file(book_dir: Path) -> Path:
+    path = _migrate_legacy_override_file(book_dir)
+    if path and path.exists():
+        return path
+    path = book_dir / PRIMARY_OVERRIDE_FILENAME
+    if path.exists():
+        return path
+    payload = {"overrides": []}
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
+
+
+def append_override_entry(book_dir: Path, entry: dict[str, object]) -> Path:
+    path = ensure_override_file(book_dir)
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        raw = {"overrides": []}
+    overrides = raw.get("overrides")
+    if not isinstance(overrides, list):
+        overrides = []
+        raw = {"overrides": overrides}
+    overrides.append(entry)
+    path.write_text(
+        json.dumps(raw, ensure_ascii=False, indent=2),
+        encoding="utf-8",
     )
+    return path
+
+
+def load_override_config(book_dir: Path) -> list[OverrideRule]:
+    config_path = ensure_override_file(book_dir)
     if not config_path.exists():
         return []
     try:

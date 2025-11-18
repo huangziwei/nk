@@ -5,10 +5,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from .library import list_books_sorted
+from .refine import append_override_entry, load_override_config, refine_book
 from .uploads import UploadJob, UploadManager
 
 INDEX_HTML = """<!DOCTYPE html>
@@ -54,6 +55,12 @@ INDEX_HTML = """<!DOCTYPE html>
       grid-template-columns: 320px 1fr;
       min-height: 100vh;
       position: relative;
+    }
+    .hidden {
+      display: none !important;
+    }
+    body.modal-open {
+      overflow: hidden;
     }
     aside {
       background: var(--sidebar);
@@ -531,6 +538,92 @@ INDEX_HTML = """<!DOCTYPE html>
       outline: 2px solid var(--token-active);
       background: rgba(249,115,22,0.25);
     }
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(5,6,11,0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      z-index: 2000;
+    }
+    .modal-card {
+      background: var(--panel-alt);
+      border: 1px solid var(--outline);
+      border-radius: 18px;
+      padding: 1.3rem 1.5rem;
+      width: min(480px, 95vw);
+      box-shadow: 0 25px 60px rgba(0,0,0,0.45);
+    }
+    .modal-card h3 {
+      margin: 0;
+      font-size: 1.2rem;
+    }
+    .modal-card p {
+      color: var(--muted);
+      margin: 0.3rem 0 1rem;
+      font-size: 0.9rem;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.9rem;
+    }
+    .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      font-size: 0.85rem;
+    }
+    .form-field input,
+    .form-field textarea {
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(0,0,0,0.25);
+      padding: 0.45rem 0.6rem;
+      font: inherit;
+      color: inherit;
+    }
+    .form-field textarea {
+      min-height: 4rem;
+      resize: vertical;
+    }
+    .form-field.checkbox {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .modal-actions {
+      margin-top: 1.2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+    }
+    .modal-button-group {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .modal-actions button {
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.25);
+      background: var(--accent-soft);
+      color: var(--text);
+      padding: 0.35rem 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .modal-actions button.secondary {
+      background: transparent;
+      color: var(--muted);
+    }
+    .modal-note {
+      color: var(--danger);
+      font-size: 0.85rem;
+      min-height: 1.2rem;
+    }
     .pill {
       display: inline-flex;
       align-items: center;
@@ -651,6 +744,51 @@ INDEX_HTML = """<!DOCTYPE html>
       </section>
     </main>
   </div>
+  <div id="refine-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="refine-title">
+      <h3 id="refine-title">Refine token</h3>
+      <p id="refine-context">Choose a token to begin.</p>
+      <form id="refine-form" class="modal-form">
+        <div class="form-grid">
+          <label class="form-field">
+            <span>Pattern *</span>
+            <input type="text" id="refine-pattern" required>
+          </label>
+          <label class="form-field">
+            <span>Replacement</span>
+            <input type="text" id="refine-replacement">
+          </label>
+          <label class="form-field">
+            <span>Reading</span>
+            <input type="text" id="refine-reading">
+          </label>
+          <label class="form-field">
+            <span>Accent</span>
+            <input type="number" id="refine-accent" inputmode="numeric" min="0">
+          </label>
+          <label class="form-field">
+            <span>Surface (kanji)</span>
+            <input type="text" id="refine-surface">
+          </label>
+          <label class="form-field">
+            <span>Part of speech</span>
+            <input type="text" id="refine-pos" placeholder="noun, verb...">
+          </label>
+          <label class="form-field checkbox">
+            <input type="checkbox" id="refine-regex">
+            <span>Use regular expression</span>
+          </label>
+        </div>
+        <div class="modal-actions">
+          <div class="modal-note" id="refine-error"></div>
+          <div class="modal-button-group">
+            <button type="button" class="secondary" id="refine-cancel">Cancel</button>
+            <button type="submit" id="refine-submit">Apply override</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
   <script>
     (() => {
       const state = {
@@ -729,6 +867,19 @@ INDEX_HTML = """<!DOCTYPE html>
         transformed: [],
         original: [],
       };
+      const refineModal = document.getElementById('refine-modal');
+      const refineForm = document.getElementById('refine-form');
+      const refinePatternInput = document.getElementById('refine-pattern');
+      const refineReplacementInput = document.getElementById('refine-replacement');
+      const refineReadingInput = document.getElementById('refine-reading');
+      const refineAccentInput = document.getElementById('refine-accent');
+      const refineSurfaceInput = document.getElementById('refine-surface');
+      const refinePosInput = document.getElementById('refine-pos');
+      const refineRegexInput = document.getElementById('refine-regex');
+      const refineSubmit = document.getElementById('refine-submit');
+      const refineCancel = document.getElementById('refine-cancel');
+      const refineError = document.getElementById('refine-error');
+      const refineContextLabel = document.getElementById('refine-context');
       let alignFrame = null;
       const SORT_STORAGE_KEY = 'nkReaderSortOrder';
       const SORT_OPTIONS = ['author', 'recent', 'played'];
@@ -738,6 +889,8 @@ INDEX_HTML = """<!DOCTYPE html>
       }
       let uploadPollTimer = null;
       let uploadDragDepth = 0;
+      let refineContext = null;
+      let refineBusy = false;
       const UPLOAD_POLL_INTERVAL = 4000;
       const initialHashPath = getChapterPathFromHash();
       if (initialHashPath) {
@@ -758,6 +911,83 @@ INDEX_HTML = """<!DOCTYPE html>
             console.warn('Failed to persist sort order', error);
           }
           loadChapters();
+        });
+      }
+      if (refineCancel) {
+        refineCancel.addEventListener('click', () => {
+          closeRefineModal();
+        });
+      }
+      if (refineModal) {
+        refineModal.addEventListener('click', (event) => {
+          if (event.target === refineModal) {
+            closeRefineModal();
+          }
+        });
+      }
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && refineModal && !refineModal.classList.contains('hidden')) {
+          closeRefineModal();
+        }
+      });
+      if (refineForm) {
+        refineForm.addEventListener('submit', (event) => {
+          event.preventDefault();
+          if (!state.selectedPath) {
+            setRefineError('Select a chapter before applying overrides.');
+            return;
+          }
+          const pattern = refinePatternInput ? refinePatternInput.value.trim() : '';
+          if (!pattern) {
+            setRefineError('Pattern is required.');
+            return;
+          }
+          const replacement = refineReplacementInput ? refineReplacementInput.value.trim() : '';
+          const reading = refineReadingInput ? refineReadingInput.value.trim() : '';
+          const surface = refineSurfaceInput ? refineSurfaceInput.value.trim() : '';
+          const pos = refinePosInput ? refinePosInput.value.trim() : '';
+          const accentRaw = refineAccentInput ? refineAccentInput.value.trim() : '';
+          let accentPayload = null;
+          if (accentRaw) {
+            const parsed = Number.parseInt(accentRaw, 10);
+            if (Number.isNaN(parsed)) {
+              setRefineError('Accent must be an integer.');
+              return;
+            }
+            accentPayload = parsed;
+          }
+          const payload = {
+            path: state.selectedPath,
+            pattern,
+            regex: Boolean(refineRegexInput && refineRegexInput.checked),
+          };
+          if (replacement) payload.replacement = replacement;
+          if (reading) payload.reading = reading;
+          if (surface) payload.surface = surface;
+          if (pos) payload.pos = pos;
+          if (accentPayload !== null) payload.accent = accentPayload;
+          setRefineBusy(true);
+          setRefineError('');
+          fetchJSON('/api/refine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+            .then((result) => {
+              const updated = result && typeof result.updated === 'number' ? result.updated : 0;
+              const chapterLabel = result && result.chapter ? result.chapter : state.selectedPath;
+              renderStatus(`Refined ${updated} chapter(s) for ${chapterLabel}.`);
+              closeRefineModal();
+              if (state.selectedPath) {
+                openChapter(state.selectedPath, { autoCollapse: false, preserveScroll: true });
+              }
+            })
+            .catch((error) => {
+              setRefineError(error.message || 'Failed to apply override.');
+            })
+            .finally(() => {
+              setRefineBusy(false);
+            });
         });
       }
       if (homeLink) {
@@ -800,10 +1030,113 @@ INDEX_HTML = """<!DOCTYPE html>
         statusEl.textContent = text;
       }
 
-      function fetchJSON(url) {
-        return fetch(url).then((res) => {
+      function setRefineError(message) {
+        if (refineError) {
+          refineError.textContent = message || '';
+        }
+      }
+
+      function setRefineBusy(busy) {
+        refineBusy = busy;
+        if (!refineForm) return;
+        const controls = refineForm.querySelectorAll('input, button, textarea');
+        controls.forEach((control) => {
+          if (control === refineCancel) {
+            control.disabled = false;
+          } else {
+            control.disabled = busy;
+          }
+        });
+        if (refineSubmit) {
+          refineSubmit.textContent = busy ? 'Saving…' : 'Apply override';
+        }
+      }
+
+      function closeRefineModal() {
+        if (!refineModal) return;
+        refineContext = null;
+        refineModal.classList.add('hidden');
+        bodyEl.classList.remove('modal-open');
+        setRefineError('');
+        setRefineBusy(false);
+      }
+
+      function openRefineModal(context) {
+        if (!refineModal || !refineForm) return;
+        if (!state.selectedPath) {
+          renderStatus('Open a chapter before refining tokens.');
+          return;
+        }
+        const token = (context && context.token) || {};
+        const chunk = typeof (context && context.text) === 'string' ? context.text : '';
+        const view = context && context.view ? context.view : 'transformed';
+        const defaultPattern =
+          view === 'transformed' && chunk
+            ? chunk
+            : (token.reading || chunk || token.surface || '');
+        const defaultReplacement = chunk || '';
+        const defaultReading = token.reading || chunk || '';
+        const accentValue =
+          typeof token.accent === 'number' && Number.isFinite(token.accent)
+            ? String(token.accent)
+            : '';
+        if (refinePatternInput) {
+          refinePatternInput.value = defaultPattern || '';
+        }
+        if (refineReplacementInput) {
+          refineReplacementInput.value = defaultReplacement;
+        }
+        if (refineReadingInput) {
+          refineReadingInput.value = defaultReading;
+        }
+        if (refineAccentInput) {
+          refineAccentInput.value = accentValue;
+        }
+        if (refineSurfaceInput) {
+          refineSurfaceInput.value = token.surface || '';
+        }
+        if (refinePosInput) {
+          refinePosInput.value = token.pos || '';
+        }
+        if (refineRegexInput) {
+          refineRegexInput.checked = Boolean(context && context.regex);
+        }
+        if (refineContextLabel) {
+          const parts = [];
+          if (state.selectedPath) {
+            parts.push(state.selectedPath);
+          }
+          const surfaceLabel = token.surface || chunk || '';
+          const readingLabel = token.reading || '';
+          if (surfaceLabel || readingLabel) {
+            parts.push(`${surfaceLabel || '—'} → ${readingLabel || '—'}`);
+          }
+          refineContextLabel.textContent = parts.join(' · ');
+        }
+        refineContext = { token, view, text: chunk };
+        setRefineError('');
+        setRefineBusy(false);
+        refineModal.classList.remove('hidden');
+        bodyEl.classList.add('modal-open');
+        if (refinePatternInput) {
+          refinePatternInput.focus();
+          refinePatternInput.select();
+        }
+      }
+
+      function fetchJSON(url, options = {}) {
+        return fetch(url, options).then(async (res) => {
           if (!res.ok) {
-            throw new Error(`Request failed: ${res.status}`);
+            let detail = '';
+            try {
+              detail = await res.text();
+            } catch (error) {
+              detail = '';
+            }
+            throw new Error(detail || `Request failed: ${res.status}`);
+          }
+          if (res.status === 204) {
+            return null;
           }
           return res.json();
         });
@@ -1129,6 +1462,7 @@ INDEX_HTML = """<!DOCTYPE html>
             span.className = 'token-chunk';
             span.dataset.tokenIndex = String(segment.index);
             span.title = `${segment.token.surface || ''} → ${segment.token.reading || ''}`;
+             span.tabIndex = 0;
             const annotation = isOriginalView ? (segment.token.reading || '') : (segment.token.surface || '');
             const trimmedAnnotation = annotation && annotation.trim();
             if (trimmedAnnotation) {
@@ -1144,6 +1478,24 @@ INDEX_HTML = """<!DOCTYPE html>
               span.textContent = chunk;
             }
             attachHighlightHandlers(span, segment.index);
+            span.addEventListener('click', (event) => {
+              event.preventDefault();
+              openRefineModal({
+                token: segment.token,
+                text: chunk,
+                view: isOriginalView ? 'original' : 'transformed',
+              });
+            });
+            span.addEventListener('keydown', (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openRefineModal({
+                  token: segment.token,
+                  text: chunk,
+                  view: isOriginalView ? 'original' : 'transformed',
+                });
+              }
+            });
             currentLineNodes.push(span);
           } else {
             currentLineNodes.push(document.createTextNode(chunk));
@@ -1629,6 +1981,7 @@ INDEX_HTML = """<!DOCTYPE html>
         setDocumentTitle(null);
         state.chapterPayload = null;
         state.tokens = [];
+        closeRefineModal();
         setHighlighted(null);
       }
 
@@ -2150,5 +2503,73 @@ def create_reader_app(root: Path) -> FastAPI:
             else None,
         }
         return JSONResponse(response)
+
+    @app.post("/api/refine")
+    def api_refine(payload: dict[str, object] = Body(...)) -> JSONResponse:
+        if not isinstance(payload, Mapping):
+            raise HTTPException(status_code=400, detail="Invalid payload.")
+        path_value = payload.get("path")
+        if not isinstance(path_value, str) or not path_value.strip():
+            raise HTTPException(status_code=400, detail="path is required.")
+        rel_path = Path(path_value)
+        if rel_path.is_absolute():
+            raise HTTPException(status_code=400, detail="path must be relative.")
+        chapter_path = (resolved_root / rel_path).resolve()
+        try:
+            chapter_path.relative_to(resolved_root)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Path escapes root.") from exc
+        if (
+            not chapter_path.exists()
+            or not chapter_path.is_file()
+            or chapter_path.suffix.lower() != ".txt"
+        ):
+            raise HTTPException(status_code=404, detail="Chapter not found.")
+        book_dir = chapter_path.parent
+        pattern = payload.get("pattern")
+        if not isinstance(pattern, str) or not pattern.strip():
+            raise HTTPException(status_code=400, detail="pattern is required.")
+        entry: dict[str, object] = {"pattern": pattern.strip()}
+        if payload.get("regex"):
+            entry["regex"] = True
+        replacement = payload.get("replacement")
+        if isinstance(replacement, str) and replacement.strip():
+            entry["replacement"] = replacement.strip()
+        reading = payload.get("reading")
+        if isinstance(reading, str) and reading.strip():
+            entry["reading"] = reading.strip()
+        surface = payload.get("surface")
+        if isinstance(surface, str) and surface.strip():
+            entry["surface"] = surface.strip()
+        pos = payload.get("pos")
+        if isinstance(pos, str) and pos.strip():
+            entry["pos"] = pos.strip()
+        accent_value = payload.get("accent")
+        accent: int | None = None
+        if isinstance(accent_value, int):
+            accent = accent_value
+        elif isinstance(accent_value, str) and accent_value.strip():
+            try:
+                accent = int(accent_value)
+            except ValueError:
+                raise HTTPException(
+                    status_code=400, detail="accent must be an integer."
+                ) from None
+        if accent is not None:
+            entry["accent"] = accent
+        try:
+            override_path = append_override_entry(book_dir, entry)
+            overrides = load_override_config(book_dir)
+            updated = refine_book(book_dir, overrides)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        override_rel = _relative_to_root(resolved_root, override_path)
+        return JSONResponse(
+            {
+                "updated": updated,
+                "override_path": override_rel.as_posix(),
+                "chapter": rel_path.as_posix(),
+            }
+        )
 
     return app
