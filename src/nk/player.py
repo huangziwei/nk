@@ -736,6 +736,14 @@ INDEX_HTML = """<!DOCTYPE html>
       color: var(--muted);
       font-size: 0.9rem;
     }
+    .player-actions {
+      margin-top: 0.45rem;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .player-actions button {
+      min-width: 140px;
+    }
     .player-meta {
       display: flex;
       gap: 0.8rem;
@@ -1051,10 +1059,10 @@ INDEX_HTML = """<!DOCTYPE html>
         </div>
       </div>
       <audio id="player" controls preload="none"></audio>
+      <div class="status-line" id="status">Idle</div>
       <div class="player-actions hidden">
         <button id="bookmark-add" class="secondary">Add bookmark</button>
       </div>
-      <div class="status-line" id="status">Idle</div>
     </div>
   </main>
 
@@ -1070,6 +1078,7 @@ INDEX_HTML = """<!DOCTYPE html>
     </div>
   </div>
 
+  <script type="application/json" id="nk-player-config">__NK_PLAYER_CONFIG__</script>
   <script>
     const booksGrid = document.getElementById('books-grid');
     const collectionsGrid = document.getElementById('collections-grid');
@@ -1109,6 +1118,18 @@ INDEX_HTML = """<!DOCTYPE html>
     const pendingEpubPanel = document.getElementById('pending-epubs');
     const pendingEpubList = document.getElementById('pending-epub-list');
     const pendingEpubAllBtn = document.getElementById('epub-chapterize-all');
+    const playerConfigNode = document.getElementById('nk-player-config');
+    let readerBaseUrl = null;
+    if (playerConfigNode && typeof playerConfigNode.textContent === 'string') {
+      try {
+        const payload = JSON.parse(playerConfigNode.textContent);
+        if (payload && typeof payload.reader_url === 'string' && payload.reader_url.trim()) {
+          readerBaseUrl = payload.reader_url.trim();
+        }
+      } catch (err) {
+        console.warn('Failed to parse nk player config:', err);
+      }
+    }
 
     const DEFAULT_VOICE = {
       speaker: 2,
@@ -1138,6 +1159,7 @@ INDEX_HTML = """<!DOCTYPE html>
       parentPrefix: '',
       pendingEpubs: [],
       epubBusy: new Set(),
+      readerUrl: readerBaseUrl,
     };
     const LAST_PLAY_THROTTLE_MS = 1000;
     const LAST_PLAY_MIN_DELTA = 1;
@@ -2621,6 +2643,36 @@ INDEX_HTML = """<!DOCTYPE html>
       return ch.mp3_exists ? 'Play' : 'Build';
     }
 
+    function chapterTextPath(chapter) {
+      if (!chapter) {
+        return null;
+      }
+      const chapterId = typeof chapter.id === 'string' ? chapter.id : null;
+      if (!chapterId) {
+        return null;
+      }
+      const bookId = state.currentBook && typeof state.currentBook.id === 'string'
+        ? state.currentBook.id
+        : '';
+      if (!bookId) {
+        return chapterId;
+      }
+      return `${bookId.replace(/\/+$/, '')}/${chapterId}`;
+    }
+
+    function openChapterInReader(chapter) {
+      if (!state.readerUrl) {
+        return;
+      }
+      const relPath = chapterTextPath(chapter);
+      if (!relPath) {
+        return;
+      }
+      const base = state.readerUrl.endsWith('/') ? state.readerUrl : `${state.readerUrl}/`;
+      const target = `${base}#chapter=${encodeURIComponent(relPath)}`;
+      window.open(target, '_blank', 'noopener');
+    }
+
     function setChapterStatusLabel(chapterId, label, className = '') {
       if (!chapterId) return;
       const wrapper = chaptersList.querySelector(`[data-chapter-id="${chapterId}"]`);
@@ -2743,6 +2795,15 @@ INDEX_HTML = """<!DOCTYPE html>
           handlePromise(buildChapter(index, { restart: true }));
         };
         buttons.appendChild(restartBtn);
+        const refineBtn = document.createElement('button');
+        refineBtn.textContent = 'Refine';
+        refineBtn.className = 'secondary';
+        refineBtn.disabled = !state.readerUrl;
+        refineBtn.title = state.readerUrl ? 'Open nk Reader for this chapter' : 'Reader unavailable';
+        refineBtn.onclick = () => {
+          openChapterInReader(ch);
+        };
+        buttons.appendChild(refineBtn);
         footer.appendChild(buttons);
 
         wrapper.appendChild(footer);
@@ -4002,7 +4063,7 @@ def _synthesize_sequence(
     return len(work_plan)
 
 
-def create_app(config: PlayerConfig) -> FastAPI:
+def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAPI:
     root = config.root.expanduser().resolve()
     if not root.exists():
         raise FileNotFoundError(f"Books root not found: {root}")
@@ -4010,6 +4071,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
     app = FastAPI(title="nk VoiceVox")
     app.state.config = config
     app.state.root = root
+    app.state.reader_url = reader_url
     app.state.voicevox_lock = threading.Lock()
     upload_manager = UploadManager(root)
     app.state.upload_manager = upload_manager
@@ -4191,8 +4253,10 @@ def create_app(config: PlayerConfig) -> FastAPI:
             )
 
     @app.get("/", response_class=HTMLResponse)
-    def index() -> str:
-        return INDEX_HTML
+    def index() -> HTMLResponse:
+        payload = {"reader_url": getattr(app.state, "reader_url", None)}
+        config_blob = json.dumps(payload, ensure_ascii=False)
+        return HTMLResponse(INDEX_HTML.replace("__NK_PLAYER_CONFIG__", config_blob))
 
     @app.get("/api/uploads")
     def api_uploads() -> JSONResponse:

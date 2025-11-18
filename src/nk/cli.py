@@ -7,9 +7,11 @@ import shutil
 import socket
 import sys
 import tempfile
-from importlib import metadata
-from pathlib import Path
 import threading
+import time
+from importlib import metadata
+from multiprocessing import Process
+from pathlib import Path
 from typing import Mapping
 
 import uvicorn
@@ -96,7 +98,11 @@ def _reader_reload_app():
     return create_reader_app(Path(root_value))
 
 
-def _serialize_player_reload_config(config: PlayerConfig) -> str:
+def _serialize_player_reload_config(
+    config: PlayerConfig,
+    *,
+    reader_url: str | None = None,
+) -> str:
     payload = {
         "root": str(config.root),
         "speaker": config.speaker,
@@ -111,12 +117,20 @@ def _serialize_player_reload_config(config: PlayerConfig) -> str:
         "intonation_scale": config.intonation_scale,
         "cache_dir": str(config.cache_dir) if config.cache_dir else None,
         "keep_cache": config.keep_cache,
+        "reader_url": reader_url,
     }
     return json.dumps(payload)
 
 
-def _set_player_reload_config(config: PlayerConfig) -> None:
-    os.environ[_PLAYER_RELOAD_ENV] = _serialize_player_reload_config(config)
+def _set_player_reload_config(
+    config: PlayerConfig,
+    *,
+    reader_url: str | None = None,
+) -> None:
+    os.environ[_PLAYER_RELOAD_ENV] = _serialize_player_reload_config(
+        config,
+        reader_url=reader_url,
+    )
 
 
 def _player_reload_app():
@@ -152,7 +166,47 @@ def _player_reload_app():
         cache_dir=_to_path(data.get("cache_dir")),
         keep_cache=bool(data.get("keep_cache", True)),
     )
-    return create_app(config)
+    reader_url = data.get("reader_url")
+    return create_app(config, reader_url=reader_url)
+
+
+def _reader_process_entry(host: str, port: int, log_config: dict[str, object] | None) -> None:
+    uvicorn.run(
+        "nk.cli:_reader_reload_app",
+        host=host,
+        port=port,
+        log_level="info",
+        log_config=log_config,
+        factory=True,
+    )
+
+
+def _start_reader_process(
+    root: Path,
+    host: str,
+    port: int,
+    log_config: dict[str, object] | None,
+) -> Process:
+    _set_reader_reload_root(root)
+    process = Process(
+        target=_reader_process_entry,
+        args=(host, port, log_config),
+        daemon=True,
+    )
+    process.start()
+    # Give the subprocess a moment to bind its socket or fail fast.
+    time.sleep(0.35)
+    if process.exitcode is not None:
+        raise RuntimeError("nk reader failed to start (see logs above for details).")
+    return process
+
+
+def _stop_reader_process(process: Process | None) -> None:
+    if not process:
+        return
+    if process.is_alive():
+        process.terminate()
+    process.join(timeout=5)
 
 
 def _read_local_version() -> str | None:
@@ -401,6 +455,16 @@ def build_play_parser() -> argparse.ArgumentParser:
         help="Port for the web server (default: 2046).",
     )
     ap.add_argument(
+        "--reader-port",
+        type=int,
+        default=2147,
+        help="Port for the companion reader server (default: 2147).",
+    )
+    ap.add_argument(
+        "--reader-host",
+        help="Host interface for the reader server (default: same as --host).",
+    )
+    ap.add_argument(
         "--speaker",
         type=int,
         default=2,
@@ -463,6 +527,11 @@ def build_play_parser() -> argparse.ArgumentParser:
         "--keep-cache",
         action="store_true",
         help="Retain cached WAV chunks after playback completes.",
+    )
+    ap.add_argument(
+        "--no-reader",
+        action="store_true",
+        help="Skip launching the nk Reader companion service.",
     )
     ap.add_argument(
         "--reload",
@@ -1333,33 +1402,60 @@ def _run_play(args: argparse.Namespace) -> None:
         intonation_scale=args.intonation,
     )
 
+    reader_process: Process | None = None
+    reader_url: str | None = None
+    reader_host = args.reader_host or args.host
+    if not reader_host:
+        reader_host = "127.0.0.1"
+    reader_port = args.reader_port
+    if not args.no_reader:
+        reader_log_config = build_uvicorn_log_config()
+        try:
+            reader_process = _start_reader_process(
+                root,
+                reader_host,
+                reader_port,
+                reader_log_config,
+            )
+        except Exception as exc:
+            raise SystemExit(
+                f"Failed to start nk reader companion on {reader_host}:{reader_port}: {exc}"
+            ) from exc
+        reader_public_ip = _resolve_local_ip(reader_host)
+        reader_url = f"http://{reader_public_ip}:{reader_port}/"
+
     public_ip = _resolve_local_ip(args.host)
     url = f"http://{public_ip}:{args.port}/"
     print(f"Serving nk play from {root}")
     print(f"Player URL: {url}")
+    if reader_url:
+        print(f"Reader URL: {reader_url}")
     print("Press Ctrl+C to stop.\n")
     log_config = build_uvicorn_log_config()
-    if args.reload:
-        _set_player_reload_config(config)
-        uvicorn.run(
-            "nk.cli:_player_reload_app",
-            host=args.host,
-            port=args.port,
-            log_level="info",
-            log_config=log_config,
-            reload=True,
-            reload_dirs=_reload_watch_dirs(),
-            factory=True,
-        )
-    else:
-        app = create_app(config)
-        uvicorn.run(
-            app,
-            host=args.host,
-            port=args.port,
-            log_level="info",
-            log_config=log_config,
-        )
+    try:
+        if args.reload:
+            _set_player_reload_config(config, reader_url=reader_url)
+            uvicorn.run(
+                "nk.cli:_player_reload_app",
+                host=args.host,
+                port=args.port,
+                log_level="info",
+                log_config=log_config,
+                reload=True,
+                reload_dirs=_reload_watch_dirs(),
+                factory=True,
+            )
+        else:
+            app = create_app(config, reader_url=reader_url)
+            uvicorn.run(
+                app,
+                host=args.host,
+                port=args.port,
+                log_level="info",
+                log_config=log_config,
+            )
+    finally:
+        _stop_reader_process(reader_process)
 
 
 def _run_read(args: argparse.Namespace) -> int:
