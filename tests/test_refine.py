@@ -25,8 +25,15 @@ def test_refine_applies_replacement_to_tokens(tmp_path: Path) -> None:
     _write_token_file(
         token_path,
         [
-            {"surface": "テイ", "reading": "テイ", "accent": 0, "start": 0, "end": 2, "transformed_start": 0, "transformed_end": 2},
-            {"surface": "アラ", "reading": "アラ", "accent": 0, "start": 2, "end": 4, "transformed_start": 2, "transformed_end": 4},
+            {
+                "surface": "天愛星",
+                "reading": "テイアラ",
+                "accent": 0,
+                "start": 0,
+                "end": 4,
+                "transformed_start": 0,
+                "transformed_end": 4,
+            },
         ],
         "テイアラが来た。",
     )
@@ -111,6 +118,87 @@ def test_refine_updates_sha_with_stripped_text(tmp_path: Path) -> None:
     refine_book(book_dir, rules)
     payload = json.loads(token_path.read_text(encoding="utf-8"))
     assert payload["text_sha1"] == hashlib.sha1("アメヲタベル。".encode("utf-8")).hexdigest()
+
+
+def test_refine_limits_matches_with_surface(tmp_path: Path) -> None:
+    book_dir = tmp_path / "surface"
+    book_dir.mkdir()
+    chapter = book_dir / "001.txt"
+    chapter.write_text("カミカミ", encoding="utf-8")
+    token_path = book_dir / "001.txt.token.json"
+    _write_token_file(
+        token_path,
+        [
+            {"surface": "神", "reading": "カミ", "accent": 0, "start": 0, "end": 1, "transformed_start": 0, "transformed_end": 2},
+            {"surface": "紙", "reading": "カミ", "accent": 0, "start": 1, "end": 2, "transformed_start": 2, "transformed_end": 4},
+        ],
+        "カミカミ",
+    )
+    overrides = {
+        "overrides": [
+            {
+                "pattern": "カミ",
+                "reading": "カミ",
+                "surface": "神",
+                "match_surface": "神",
+                "accent": 2,
+            }
+        ]
+    }
+    (book_dir / "custom_token.json").write_text(json.dumps(overrides, ensure_ascii=False), encoding="utf-8")
+    rules = load_override_config(book_dir)
+    updated = refine_book(book_dir, rules)
+    assert updated == 1
+    payload = json.loads(token_path.read_text(encoding="utf-8"))
+    tokens = payload["tokens"]
+    assert len(tokens) == 2
+    first, second = tokens
+    assert first["surface"] == "神"
+    assert first["accent"] == 2
+    assert second["surface"] == "紙"
+    assert second["accent"] == 0
+
+
+def test_refine_shifts_transformed_offsets(tmp_path: Path) -> None:
+    book_dir = tmp_path / "offsets"
+    book_dir.mkdir()
+    chapter = book_dir / "001.txt"
+    chapter.write_text("カナカナ", encoding="utf-8")
+    token_path = book_dir / "001.txt.token.json"
+    _write_token_file(
+        token_path,
+        [
+            {"surface": "仮名一", "reading": "カナ", "accent": 0, "start": 0, "end": 1, "transformed_start": 0, "transformed_end": 2},
+            {"surface": "仮名二", "reading": "カナ", "accent": 0, "start": 1, "end": 2, "transformed_start": 2, "transformed_end": 4},
+        ],
+        "カナカナ",
+    )
+    overrides = {
+        "overrides": [
+            {
+                "pattern": "カナ",
+                "replacement": "カーナ",
+                "reading": "カーナ",
+                "surface": "仮名一",
+                "match_surface": "仮名一",
+            }
+        ]
+    }
+    (book_dir / "custom_token.json").write_text(json.dumps(overrides, ensure_ascii=False), encoding="utf-8")
+    rules = load_override_config(book_dir)
+    updated = refine_book(book_dir, rules)
+    assert updated == 1
+    assert chapter.read_text(encoding="utf-8") == "カーナカナ"
+    payload = json.loads(token_path.read_text(encoding="utf-8"))
+    tokens = payload["tokens"]
+    assert len(tokens) == 2
+    first, second = tokens
+    assert first["surface"] == "仮名一"
+    assert first["transformed_start"] == 0
+    assert first["transformed_end"] == 3
+    assert second["surface"] == "仮名二"
+    assert second["transformed_start"] == 3
+    assert second["transformed_end"] == 5
 
 
 def test_refine_supports_legacy_custom_pitch_file(tmp_path: Path) -> None:

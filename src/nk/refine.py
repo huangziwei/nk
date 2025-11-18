@@ -23,6 +23,7 @@ class OverrideRule:
     accent: int | None
     pos: str | None
     surface: str | None
+    match_surface: str | None
 
 
 def _migrate_legacy_override_file(book_dir: Path) -> Path | None:
@@ -111,6 +112,9 @@ def load_override_config(book_dir: Path) -> list[OverrideRule]:
         surface = entry.get("surface")
         if surface is not None and not isinstance(surface, str):
             surface = None
+        match_surface = entry.get("match_surface")
+        if match_surface is not None and not isinstance(match_surface, str):
+            match_surface = None
         overrides.append(
             OverrideRule(
                 pattern=pattern,
@@ -120,6 +124,7 @@ def load_override_config(book_dir: Path) -> list[OverrideRule]:
                 accent=accent,
                 pos=pos,
                 surface=surface,
+                match_surface=match_surface,
             )
         )
     return overrides
@@ -139,14 +144,6 @@ def refine_book(book_dir: Path, overrides: Iterable[OverrideRule]) -> int:
 def refine_chapter(text_path: Path, overrides: Iterable[OverrideRule]) -> bool:
     text = text_path.read_text(encoding="utf-8")
     original_text = text
-    matches_for_tokens: list[tuple[int, int, OverrideRule]] = []
-    for rule in overrides:
-        text, positions = _apply_override_to_text(text, rule)
-        for start, end in positions:
-            matches_for_tokens.append((start, end, rule))
-    if text == original_text and not matches_for_tokens:
-        return False
-    text_path.write_text(text, encoding="utf-8")
     token_path = text_path.with_name(text_path.name + ".token.json")
     existing_tokens: list[ChapterToken] = []
     version = 1
@@ -159,7 +156,16 @@ def refine_chapter(text_path: Path, overrides: Iterable[OverrideRule]) -> bool:
                 existing_tokens = deserialize_chapter_tokens(tokens_payload)
         except (OSError, json.JSONDecodeError):
             existing_tokens = []
-    tokens = _merge_override_tokens(existing_tokens, matches_for_tokens, text)
+    tokens = [replace(token) for token in existing_tokens]
+    overrides_applied = False
+    for rule in overrides:
+        text, changed = _apply_override_rule(text, tokens, rule)
+        if changed:
+            overrides_applied = True
+    if text == original_text and not overrides_applied:
+        return False
+    text_path.write_text(text, encoding="utf-8")
+    tokens.sort(key=lambda token: (_token_transformed_start(token), _token_transformed_end(token)))
     normalized_for_hash = text.strip()
     sha1 = hashlib.sha1(normalized_for_hash.encode("utf-8")).hexdigest()
     payload = {
@@ -171,83 +177,105 @@ def refine_chapter(text_path: Path, overrides: Iterable[OverrideRule]) -> bool:
     return True
 
 
-def _apply_override_to_text(text: str, rule: OverrideRule) -> tuple[str, list[tuple[int, int]]]:
-    pattern = rule.pattern if rule.regex else re.escape(rule.pattern)
-    try:
-        regex = re.compile(pattern)
-    except re.error as exc:
-        raise ValueError(f"Invalid pattern '{rule.pattern}': {exc}") from exc
-    matches = list(regex.finditer(text))
-    if not matches:
-        return text, []
-    parts: list[str] = []
-    positions: list[tuple[int, int]] = []
-    cursor = 0
-    out_length = 0
-    for match in matches:
-        start, end = match.span()
-        parts.append(text[cursor:start])
-        out_length += len(text[cursor:start])
-        new_start = out_length
-        if rule.replacement is not None:
-            parts.append(rule.replacement)
-            out_length += len(rule.replacement)
-        else:
-            segment = text[start:end]
-            parts.append(segment)
-            out_length += len(segment)
-        new_end = out_length
-        positions.append((new_start, new_end))
-        cursor = end
-    parts.append(text[cursor:])
-    new_text = "".join(parts)
-    return new_text, positions
+def _apply_override_rule(
+    text: str, tokens: list[ChapterToken], rule: OverrideRule
+) -> tuple[str, bool]:
+    compiled: re.Pattern[str] | None = None
+    if rule.regex:
+        try:
+            compiled = re.compile(rule.pattern)
+        except re.error as exc:
+            raise ValueError(f"Invalid pattern '{rule.pattern}': {exc}") from exc
+    changed = False
+    for token in tokens:
+        bounds = _token_transformed_bounds(token)
+        if not bounds:
+            continue
+        start, end = bounds
+        if end <= start:
+            continue
+        segment = text[start:end]
+        if not _token_matches_rule(token, segment, rule, compiled):
+            continue
+        replacement_text = _resolve_replacement(rule)
+        token_changed = False
+        if replacement_text is not None and replacement_text != segment:
+            text = f"{text[:start]}{replacement_text}{text[end:]}"
+            delta = len(replacement_text) - len(segment)
+            _shift_tokens(tokens, end, delta, exclude=token)
+            token.transformed_start = start
+            token.transformed_end = start + len(replacement_text)
+            token_changed = True
+        new_reading = rule.reading
+        if new_reading is None and replacement_text is not None:
+            new_reading = replacement_text
+        if new_reading is not None and token.reading != new_reading:
+            token.reading = new_reading
+            token_changed = True
+        if token.reading_source != "override":
+            token.reading_source = "override"
+            token_changed = True
+        if rule.surface:
+            targeting_surface = rule.surface
+            if token.surface != targeting_surface:
+                token.surface = targeting_surface
+                token_changed = True
+        if rule.pos and token.pos != rule.pos:
+            token.pos = rule.pos
+            token_changed = True
+        if rule.accent is not None and token.accent_type != rule.accent:
+            token.accent_type = rule.accent
+            token_changed = True
+        if token_changed:
+            changed = True
+    return text, changed
 
 
-def _merge_override_tokens(
-    existing: list[ChapterToken],
-    overrides: list[tuple[int, int, OverrideRule]],
-    text: str,
-) -> list[ChapterToken]:
-    tokens = [replace(token) for token in existing]
-    for start, end, rule in overrides:
-        survivors: list[ChapterToken] = []
-        removed: list[ChapterToken] = []
-        for token in tokens:
-            token_start = _token_transformed_start(token)
-            token_end = _token_transformed_end(token)
-            if token_end <= start or token_start >= end:
-                survivors.append(token)
-            else:
-                removed.append(token)
-        tokens = survivors
-        reading = rule.reading or rule.replacement or text[start:end]
-        if not reading:
-            reading = text[start:end]
-        surface = rule.surface
-        if not surface:
-            pieces = [token.surface for token in removed if token.surface]
-            surface = "".join(pieces) if pieces else rule.pattern
-        original_start = removed[0].start if removed else None
-        original_end = removed[-1].end if removed else None
-        start_value = original_start if original_start is not None else start
-        end_value = original_end if original_end is not None else end
-        tokens.append(
-            ChapterToken(
-                surface=surface,
-                start=start_value,
-                end=end_value,
-                reading=reading,
-                reading_source="override",
-                accent_type=rule.accent,
-                accent_connection=None,
-                pos=rule.pos,
-                transformed_start=start,
-                transformed_end=end,
-            )
-        )
-    tokens.sort(key=lambda token: (_token_transformed_start(token), _token_transformed_end(token)))
-    return tokens
+def _token_transformed_bounds(token: ChapterToken) -> tuple[int, int] | None:
+    start = token.transformed_start
+    end = token.transformed_end
+    if isinstance(start, int) and isinstance(end, int):
+        return start, end
+    return None
+
+
+def _resolve_replacement(rule: OverrideRule) -> str | None:
+    if rule.replacement is not None:
+        return rule.replacement
+    if rule.reading is not None:
+        return rule.reading
+    return None
+
+
+def _token_matches_rule(
+    token: ChapterToken,
+    segment: str,
+    rule: OverrideRule,
+    compiled: re.Pattern[str] | None,
+) -> bool:
+    target_surface = rule.match_surface or rule.surface
+    if target_surface and (not token.surface or token.surface != target_surface):
+        return False
+    if rule.pos and token.pos != rule.pos:
+        return False
+    reading = token.reading or token.fallback_reading or segment
+    if compiled:
+        return bool(compiled.search(reading))
+    return reading == rule.pattern
+
+
+def _shift_tokens(
+    tokens: list[ChapterToken], cutoff: int, delta: int, exclude: ChapterToken | None = None
+) -> None:
+    if delta == 0:
+        return
+    for token in tokens:
+        if exclude is not None and token is exclude:
+            continue
+        if token.transformed_start is not None and token.transformed_start >= cutoff:
+            token.transformed_start += delta
+        if token.transformed_end is not None and token.transformed_end >= cutoff:
+            token.transformed_end += delta
 
 
 def _token_transformed_start(token: ChapterToken) -> int:

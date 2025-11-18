@@ -1047,6 +1047,8 @@ INDEX_HTML = """<!DOCTYPE html>
           const replacement = refineReplacementInput ? refineReplacementInput.value.trim() : '';
           const reading = refineReadingInput ? refineReadingInput.value.trim() : '';
           const surface = refineSurfaceInput ? refineSurfaceInput.value.trim() : '';
+          const matchSurface =
+            refineContext && refineContext.token ? (refineContext.token.surface || '') : '';
           const pos = refinePosInput ? refinePosInput.value.trim() : '';
           const accentRaw = refineAccentInput ? refineAccentInput.value.trim() : '';
           const normalizedScope = scope === 'chapter' ? 'chapter' : 'book';
@@ -1068,6 +1070,7 @@ INDEX_HTML = """<!DOCTYPE html>
           if (replacement) payload.replacement = replacement;
           if (reading) payload.reading = reading;
           if (surface) payload.surface = surface;
+          if (matchSurface) payload.match_surface = matchSurface;
           if (pos) payload.pos = pos;
           if (accentPayload !== null) payload.accent = accentPayload;
           setRefineBusy(true);
@@ -2766,6 +2769,9 @@ def create_reader_app(root: Path) -> FastAPI:
         surface = payload.get("surface")
         if isinstance(surface, str) and surface.strip():
             entry["surface"] = surface.strip()
+        match_surface = payload.get("match_surface")
+        if isinstance(match_surface, str) and match_surface.strip():
+            entry["match_surface"] = match_surface.strip()
         pos = payload.get("pos")
         if isinstance(pos, str) and pos.strip():
             entry["pos"] = pos.strip()
