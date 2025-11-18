@@ -965,7 +965,7 @@ INDEX_HTML = """<!DOCTYPE html>
 <body>
   <header>
     <h1><a href="/" id="home-link">nk Player</a></h1>
-    <p>Play chapterized TXT files with VoiceVox. Use Build to synthesize audio before playback.</p>
+    <p>Stream your EPUB chapter by chapter.</p>
   </header>
   <main>
     <section class="panel" id="books-panel">
@@ -4041,7 +4041,11 @@ def create_app(config: PlayerConfig) -> FastAPI:
             canonical = _relative_library_path(root, candidate)
         except ValueError as exc:
             raise HTTPException(status_code=404, detail="Book not found") from exc
-        if not candidate.exists() or not candidate.is_dir() or not _is_book_dir(candidate):
+        if (
+            not candidate.exists()
+            or not candidate.is_dir()
+            or not _is_book_dir(candidate)
+        ):
             raise HTTPException(status_code=404, detail="Book not found")
         return canonical, candidate
 
@@ -4075,9 +4079,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
                 chapter,
                 config,
                 idx + 1,
-                chapter_meta=metadata.chapters.get(chapter.name)
-                if metadata
-                else None,
+                chapter_meta=metadata.chapters.get(chapter.name) if metadata else None,
                 build_status=status_snapshot.get(chapter.name),
             )
             for idx, chapter in enumerate(chapters)
@@ -4247,9 +4249,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
         seen: set[str] = set()
         for raw_entry in paths_payload:
             if not isinstance(raw_entry, str):
-                skipped.append(
-                    {"path": raw_entry, "reason": "Invalid path entry."}
-                )
+                skipped.append({"path": raw_entry, "reason": "Invalid path entry."})
                 continue
             normalized = _normalize_library_path(raw_entry)
             if not normalized:
@@ -4260,23 +4260,15 @@ def create_app(config: PlayerConfig) -> FastAPI:
             seen.add(normalized)
             candidate = root / normalized
             try:
-                relative_path = _relative_library_path(
-                    root, candidate, allow_root=True
-                )
+                relative_path = _relative_library_path(root, candidate, allow_root=True)
             except ValueError:
-                skipped.append(
-                    {"path": normalized, "reason": "Path escapes root."}
-                )
+                skipped.append({"path": normalized, "reason": "Path escapes root."})
                 continue
             if candidate.suffix.lower() != ".epub":
-                skipped.append(
-                    {"path": relative_path, "reason": "Not an EPUB file."}
-                )
+                skipped.append({"path": relative_path, "reason": "Not an EPUB file."})
                 continue
             if not candidate.is_file():
-                skipped.append(
-                    {"path": relative_path, "reason": "File not found."}
-                )
+                skipped.append({"path": relative_path, "reason": "File not found."})
                 continue
             target_dir = _epub_target_dir(root, candidate)
             if target_dir.exists() and _is_book_dir(target_dir):
@@ -4288,9 +4280,7 @@ def create_app(config: PlayerConfig) -> FastAPI:
                 )
                 continue
             try:
-                target_rel = _relative_library_path(
-                    root, target_dir, allow_root=True
-                )
+                target_rel = _relative_library_path(root, target_dir, allow_root=True)
             except ValueError:
                 target_rel = target_dir.name
             job = UploadJob(

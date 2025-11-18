@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import socket
@@ -68,6 +69,90 @@ from .voice_defaults import (
     DEFAULT_SPEAKER_ID,
     DEFAULT_SPEED_SCALE,
 )
+
+
+_READER_RELOAD_ENV = "NK_READER_RELOAD_ROOT"
+_PLAYER_RELOAD_ENV = "NK_PLAYER_RELOAD_CONFIG"
+
+
+def _package_source_dir() -> Path:
+    return Path(__file__).resolve().parent
+
+
+def _reload_watch_dirs() -> list[str]:
+    return [str(_package_source_dir())]
+
+
+def _set_reader_reload_root(root: Path) -> None:
+    os.environ[_READER_RELOAD_ENV] = str(root)
+
+
+def _reader_reload_app():
+    root_value = os.environ.get(_READER_RELOAD_ENV)
+    if not root_value:
+        raise RuntimeError(
+            "nk reader reload context missing. Start the server via `nk read --reload`."
+        )
+    return create_reader_app(Path(root_value))
+
+
+def _serialize_player_reload_config(config: PlayerConfig) -> str:
+    payload = {
+        "root": str(config.root),
+        "speaker": config.speaker,
+        "engine_url": config.engine_url,
+        "engine_runtime": str(config.engine_runtime) if config.engine_runtime else None,
+        "engine_wait": config.engine_wait,
+        "engine_threads": config.engine_threads,
+        "ffmpeg_path": config.ffmpeg_path,
+        "pause": config.pause,
+        "speed_scale": config.speed_scale,
+        "pitch_scale": config.pitch_scale,
+        "intonation_scale": config.intonation_scale,
+        "cache_dir": str(config.cache_dir) if config.cache_dir else None,
+        "keep_cache": config.keep_cache,
+    }
+    return json.dumps(payload)
+
+
+def _set_player_reload_config(config: PlayerConfig) -> None:
+    os.environ[_PLAYER_RELOAD_ENV] = _serialize_player_reload_config(config)
+
+
+def _player_reload_app():
+    raw_config = os.environ.get(_PLAYER_RELOAD_ENV)
+    if not raw_config:
+        raise RuntimeError(
+            "nk player reload context missing. Start the server via `nk play --reload`."
+        )
+    try:
+        data = json.loads(raw_config)
+    except json.JSONDecodeError as exc:  # pragma: no cover - defensive
+        raise RuntimeError("Invalid nk player reload configuration.") from exc
+
+    def _to_path(value: str | None) -> Path | None:
+        if not value:
+            return None
+        return Path(value)
+
+    engine_threads_value = data.get("engine_threads")
+    engine_threads = int(engine_threads_value) if engine_threads_value is not None else None
+    config = PlayerConfig(
+        root=Path(data["root"]),
+        speaker=int(data["speaker"]),
+        engine_url=data["engine_url"],
+        engine_runtime=_to_path(data.get("engine_runtime")),
+        engine_wait=float(data["engine_wait"]),
+        engine_threads=engine_threads,
+        ffmpeg_path=data["ffmpeg_path"],
+        pause=float(data["pause"]),
+        speed_scale=data.get("speed_scale"),
+        pitch_scale=data.get("pitch_scale"),
+        intonation_scale=data.get("intonation_scale"),
+        cache_dir=_to_path(data.get("cache_dir")),
+        keep_cache=bool(data.get("keep_cache", True)),
+    )
+    return create_app(config)
 
 
 def _read_local_version() -> str | None:
@@ -379,6 +464,11 @@ def build_play_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Retain cached WAV chunks after playback completes.",
     )
+    ap.add_argument(
+        "--reload",
+        action="store_true",
+        help="Reload the server automatically when nk source files change.",
+    )
     return ap
 
 
@@ -401,6 +491,11 @@ def build_reader_parser() -> argparse.ArgumentParser:
         type=int,
         default=2047,
         help="Port for the reader (default: 2047).",
+    )
+    ap.add_argument(
+        "--reload",
+        action="store_true",
+        help="Reload the server automatically when nk source files change.",
     )
     return ap
 
@@ -1217,6 +1312,8 @@ def _run_deps(args: argparse.Namespace) -> int:
 
 def _run_play(args: argparse.Namespace) -> None:
     root = Path(args.root).expanduser().resolve()
+    if not root.exists() or not root.is_dir():
+        raise SystemExit(f"Books root not found: {root}")
     cache_dir = Path(args.cache_dir).expanduser().resolve() if args.cache_dir else None
     engine_runtime = Path(args.engine_runtime).expanduser().resolve() if args.engine_runtime else None
 
@@ -1236,26 +1333,66 @@ def _run_play(args: argparse.Namespace) -> None:
         intonation_scale=args.intonation,
     )
 
-    app = create_app(config)
     public_ip = _resolve_local_ip(args.host)
     url = f"http://{public_ip}:{args.port}/"
     print(f"Serving nk play from {root}")
     print(f"Player URL: {url}")
     print("Press Ctrl+C to stop.\n")
     log_config = build_uvicorn_log_config()
-    uvicorn.run(app, host=args.host, port=args.port, log_level="info", log_config=log_config)
+    if args.reload:
+        _set_player_reload_config(config)
+        uvicorn.run(
+            "nk.cli:_player_reload_app",
+            host=args.host,
+            port=args.port,
+            log_level="info",
+            log_config=log_config,
+            reload=True,
+            reload_dirs=_reload_watch_dirs(),
+            factory=True,
+        )
+    else:
+        app = create_app(config)
+        uvicorn.run(
+            app,
+            host=args.host,
+            port=args.port,
+            log_level="info",
+            log_config=log_config,
+        )
 
 
 def _run_read(args: argparse.Namespace) -> int:
     root = Path(args.root).expanduser().resolve()
-    app = create_reader_app(root)
+    if not root.exists() or not root.is_dir():
+        raise SystemExit(f"Reader root not found: {root}")
     public_ip = _resolve_local_ip(args.host)
     url = f"http://{public_ip}:{args.port}/"
     print(f"Serving nk read from {root}")
     print(f"Reader URL: {url}")
     print("Press Ctrl+C to stop.\n")
     log_config = build_uvicorn_log_config()
-    uvicorn.run(app, host=args.host, port=args.port, log_level="info", log_config=log_config)
+    if args.reload:
+        _set_reader_reload_root(root)
+        uvicorn.run(
+            "nk.cli:_reader_reload_app",
+            host=args.host,
+            port=args.port,
+            log_level="info",
+            log_config=log_config,
+            reload=True,
+            reload_dirs=_reload_watch_dirs(),
+            factory=True,
+        )
+    else:
+        app = create_reader_app(root)
+        uvicorn.run(
+            app,
+            host=args.host,
+            port=args.port,
+            log_level="info",
+            log_config=log_config,
+        )
     return 0
 
 
