@@ -63,6 +63,8 @@ COVER_EXTENSIONS = (".jpg", ".jpeg", ".png")
 BOOKMARKS_FILENAME = ".nk-player-bookmarks.json"
 BOOKMARK_STATE_VERSION = 1
 _SORT_MODES = {"author", "recent"}
+RECENTLY_PLAYED_PREFIX = "__nk_recently_played__"
+RECENTLY_PLAYED_LABEL = "Recently Played"
 
 
 def _normalize_sort_mode(value: str | None) -> str:
@@ -1126,6 +1128,8 @@ INDEX_HTML = """<!DOCTYPE html>
       pendingEpubs: [],
       epubBusy: new Set(),
     };
+    const LAST_PLAY_THROTTLE_MS = 1000;
+    const LAST_PLAY_MIN_DELTA = 1;
     const LIBRARY_SORT_KEY = 'nkPlayerSortOrder';
     const storedLibrarySort = window.localStorage.getItem(LIBRARY_SORT_KEY);
     if (storedLibrarySort === 'recent' || storedLibrarySort === 'author') {
@@ -1133,6 +1137,9 @@ INDEX_HTML = """<!DOCTYPE html>
     }
     const LOCATION_PREFIX_PARAM = 'folder';
     const LOCATION_BOOK_PARAM = 'book';
+    // Keep RECENTLY_PLAYED_PREFIX in sync with the backend constant.
+    const RECENTLY_PLAYED_PREFIX = '__nk_recently_played__';
+    const RECENTLY_PLAYED_LABEL = 'Recently Played';
 
     function normalizeLibraryPath(value) {
       if (typeof value !== 'string') {
@@ -1798,11 +1805,15 @@ INDEX_HTML = """<!DOCTYPE html>
       const chapter = currentChapter();
       if (!chapter || !Number.isFinite(time) || time < 5) return;
       const last = state.bookmarks.lastPlayed;
-      if (last && last.chapter === chapter.id && Math.abs(last.time - time) < 5) {
+      if (
+        last &&
+        last.chapter === chapter.id &&
+        Math.abs(last.time - time) < LAST_PLAY_MIN_DELTA
+      ) {
         return;
       }
       const now = Date.now();
-      if (lastPlayPending || now - lastPlaySyncAt < 5000) {
+      if (lastPlayPending || now - lastPlaySyncAt < LAST_PLAY_THROTTLE_MS) {
         return;
       }
       lastPlayPending = persistLastPlayed(chapter.id, time)
@@ -2142,7 +2153,9 @@ INDEX_HTML = """<!DOCTYPE html>
           const isLast = index === crumbs.length - 1;
           const node = document.createElement(isLast ? 'span' : 'button');
           node.className = isLast ? 'breadcrumb current' : 'breadcrumb';
-          node.textContent = crumb.label || 'Library';
+          const displayLabel =
+            crumb.path === RECENTLY_PLAYED_PREFIX ? RECENTLY_PLAYED_LABEL : (crumb.label || 'Library');
+          node.textContent = displayLabel;
           if (!isLast) {
             node.type = 'button';
             node.addEventListener('click', () => {
@@ -2362,7 +2375,11 @@ INDEX_HTML = """<!DOCTYPE html>
     function renderBooks() {
       if (!booksGrid) return;
       booksGrid.innerHTML = '';
-      const showUpload = !state.collections.length;
+      const isRecentView = state.libraryPrefix === RECENTLY_PLAYED_PREFIX;
+      const hasRealCollections = Array.isArray(state.collections)
+        ? state.collections.some(collection => collection && !collection.virtual)
+        : false;
+      const showUpload = !isRecentView && !hasRealCollections;
       const hasBooks = Array.isArray(state.books) && state.books.length > 0;
       if (!showUpload && !hasBooks) {
         booksGrid.classList.add('hidden');
@@ -2376,7 +2393,9 @@ INDEX_HTML = """<!DOCTYPE html>
       if (!hasBooks) {
         const empty = document.createElement('article');
         empty.className = 'card empty-card';
-        empty.textContent = 'No books in this folder yet. Choose a collection or upload a book.';
+        empty.textContent = isRecentView
+          ? 'No recently played books yet.'
+          : 'No books in this folder yet. Choose a collection or upload a book.';
         booksGrid.appendChild(empty);
         return;
       }
@@ -3330,6 +3349,48 @@ def _list_books(base_dir: Path, sort_mode: str) -> list[BookListing]:
     return books
 
 
+def _recently_played_books(
+    root: Path,
+    *,
+    limit: int | None = None,
+) -> list[tuple[Path, float]]:
+    stack: list[Path] = [root]
+    visited: set[Path] = set()
+    entries: list[tuple[Path, float]] = []
+    while stack:
+        current = stack.pop()
+        try:
+            resolved = current.resolve()
+        except OSError:
+            continue
+        if resolved in visited:
+            continue
+        visited.add(resolved)
+        try:
+            children = list(current.iterdir())
+        except OSError:
+            continue
+        for child in children:
+            if not child.is_dir():
+                continue
+            if _is_book_dir(child):
+                bookmark_path = _bookmark_file(child)
+                try:
+                    stat = bookmark_path.stat()
+                except OSError:
+                    continue
+                mtime = getattr(stat, "st_mtime", None)
+                if not isinstance(mtime, (int, float)):
+                    continue
+                entries.append((child, float(mtime)))
+                continue
+            stack.append(child)
+    entries.sort(key=lambda item: item[1], reverse=True)
+    if limit is not None:
+        return entries[:limit]
+    return entries
+
+
 def _epub_target_dir(root: Path, epub_path: Path) -> Path:
     parent = epub_path.parent
     try:
@@ -3958,6 +4019,55 @@ def create_app(config: PlayerConfig) -> FastAPI:
         except ValueError:
             return target.source.parent.name
 
+    def _book_payload(
+        book_dir: Path,
+        *,
+        metadata: LoadedBookMetadata | None = None,
+    ) -> dict[str, object] | None:
+        try:
+            book_id = _relative_library_path(root, book_dir)
+        except ValueError:
+            return None
+        (
+            metadata,
+            book_title,
+            book_author,
+            cover_path,
+            _,
+            _,
+        ) = _book_media_info(book_dir, config, metadata=metadata)
+        chapters = _list_chapters(book_dir)
+        status_snapshot = _status_snapshot(book_id)
+        states = [
+            _chapter_state(
+                chapter,
+                config,
+                idx + 1,
+                chapter_meta=metadata.chapters.get(chapter.name)
+                if metadata
+                else None,
+                build_status=status_snapshot.get(chapter.name),
+            )
+            for idx, chapter in enumerate(chapters)
+        ]
+        total = len(states)
+        completed = sum(1 for st in states if st["mp3_exists"])
+        pending = total - completed
+        payload: dict[str, object] = {
+            "id": book_id,
+            "path": book_id,
+            "title": book_title,
+            "total_chapters": total,
+            "completed_chapters": completed,
+            "pending_chapters": pending,
+        }
+        if book_author:
+            payload["author"] = book_author
+        cover_url = _cover_url(book_id, cover_path)
+        if cover_url:
+            payload["cover_url"] = cover_url
+        return payload
+
     def _set_chapter_status(
         book_id: str,
         chapter_id: str,
@@ -4171,7 +4281,24 @@ def create_app(config: PlayerConfig) -> FastAPI:
         sort: str | None = Query(None, description="Sort order: author or recent"),
     ) -> JSONResponse:
         sort_mode = _normalize_sort_mode(sort)
-        prefix_value, prefix_path = _resolve_prefix(prefix)
+        normalized_prefix = _normalize_library_path(prefix)
+        if normalized_prefix == RECENTLY_PLAYED_PREFIX:
+            recent_entries = _recently_played_books(root)
+            books_payload: list[dict[str, object]] = []
+            for book_dir, _ in recent_entries:
+                payload = _book_payload(book_dir)
+                if payload:
+                    books_payload.append(payload)
+            return JSONResponse(
+                {
+                    "prefix": RECENTLY_PLAYED_PREFIX,
+                    "parent_prefix": "",
+                    "collections": [],
+                    "books": books_payload,
+                    "pending_epubs": [],
+                }
+            )
+        prefix_value, prefix_path = _resolve_prefix(normalized_prefix)
         parent_prefix = ""
         if prefix_value:
             parent_prefix = (
@@ -4179,52 +4306,30 @@ def create_app(config: PlayerConfig) -> FastAPI:
             )
         collections_payload = _list_collections(root, prefix_path)
         pending_epubs = _list_pending_epubs(root, prefix_path)
+        if not prefix_value:
+            recent_entries = _recently_played_books(root)
+            if recent_entries:
+                cover_samples: list[str] = []
+                for book_dir, _ in recent_entries:
+                    if len(cover_samples) >= 9:
+                        break
+                    cover_url = _cover_url_for_book_dir(root, book_dir)
+                    if cover_url:
+                        cover_samples.append(cover_url)
+                recent_payload = {
+                    "id": RECENTLY_PLAYED_PREFIX,
+                    "name": RECENTLY_PLAYED_LABEL,
+                    "path": RECENTLY_PLAYED_PREFIX,
+                    "book_count": len(recent_entries),
+                    "cover_samples": cover_samples,
+                    "virtual": True,
+                }
+                collections_payload = [recent_payload, *collections_payload]
         books_payload = []
         for listing in _list_books(prefix_path, sort_mode):
-            book_dir = listing.path
-            try:
-                book_id = _relative_library_path(root, book_dir)
-            except ValueError:
-                continue
-            (
-                metadata,
-                book_title,
-                book_author,
-                cover_path,
-                saved_defaults,
-                effective_defaults,
-            ) = _book_media_info(book_dir, config, metadata=listing.metadata)
-            chapters = _list_chapters(book_dir)
-            status_snapshot = _status_snapshot(book_id)
-            states = [
-                _chapter_state(
-                    chapter,
-                    config,
-                    idx + 1,
-                    chapter_meta=metadata.chapters.get(chapter.name)
-                    if metadata
-                    else None,
-                    build_status=status_snapshot.get(chapter.name),
-                )
-                for idx, chapter in enumerate(chapters)
-            ]
-            total = len(states)
-            completed = sum(1 for st in states if st["mp3_exists"])
-            pending = total - completed
-            payload: dict[str, object] = {
-                "id": book_id,
-                "path": book_id,
-                "title": book_title,
-                "total_chapters": total,
-                "completed_chapters": completed,
-                "pending_chapters": pending,
-            }
-            if book_author:
-                payload["author"] = book_author
-            cover_url = _cover_url(book_id, cover_path)
-            if cover_url:
-                payload["cover_url"] = cover_url
-            books_payload.append(payload)
+            payload = _book_payload(listing.path, metadata=listing.metadata)
+            if payload:
+                books_payload.append(payload)
         return JSONResponse(
             {
                 "prefix": prefix_value,
