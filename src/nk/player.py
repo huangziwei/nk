@@ -40,6 +40,7 @@ from .voice_defaults import (
     DEFAULT_SPEAKER_ID,
     DEFAULT_SPEED_SCALE,
 )
+from .web_assets import NK_FAVICON_URL
 
 
 @dataclass(slots=True)
@@ -80,8 +81,9 @@ INDEX_HTML = """<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <title>nk Player</title>
+  <title>Player</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="__NK_FAVICON__">
   <style>
     :root {
       color-scheme: dark;
@@ -4970,7 +4972,10 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
     def index() -> HTMLResponse:
         payload = {"reader_url": getattr(app.state, "reader_url", None)}
         config_blob = json.dumps(payload, ensure_ascii=False)
-        return HTMLResponse(INDEX_HTML.replace("__NK_PLAYER_CONFIG__", config_blob))
+        html = INDEX_HTML.replace("__NK_PLAYER_CONFIG__", config_blob).replace(
+            "__NK_FAVICON__", NK_FAVICON_URL
+        )
+        return HTMLResponse(html)
 
     @app.get("/api/uploads")
     def api_uploads() -> JSONResponse:

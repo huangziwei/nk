@@ -9,15 +9,22 @@ from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from .library import list_books_sorted
-from .refine import append_override_entry, load_override_config, refine_book, refine_chapter
+from .refine import (
+    append_override_entry,
+    load_override_config,
+    refine_book,
+    refine_chapter,
+)
 from .uploads import UploadJob, UploadManager
+from .web_assets import NK_FAVICON_URL
 
 INDEX_HTML = """<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <title>nk Reader</title>
+  <title>Reader</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="__NK_FAVICON__">
   <style>
     :root {
       color-scheme: dark;
@@ -2478,7 +2485,7 @@ def create_reader_app(root: Path) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> HTMLResponse:
-        return HTMLResponse(INDEX_HTML)
+        return HTMLResponse(INDEX_HTML.replace("__NK_FAVICON__", NK_FAVICON_URL))
 
     @app.get("/api/chapters")
     def api_chapters(
