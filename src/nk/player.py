@@ -869,6 +869,22 @@ INDEX_HTML = """<!DOCTYPE html>
       justify-self: center;
       position: relative;
     }
+    @media (max-width: 680px) {
+      .player-primary-controls {
+        grid-template-columns: repeat(5, minmax(0, 68px));
+        gap: 0.7rem;
+        justify-content: center;
+      }
+      .control-btn {
+        width: 68px;
+        min-width: 68px;
+        height: 54px;
+      }
+      .control-btn.play-toggle {
+        width: 90px;
+        height: 90px;
+      }
+    }
     .control-btn.play-toggle::before,
     .control-btn.play-toggle::after {
       content: '';
