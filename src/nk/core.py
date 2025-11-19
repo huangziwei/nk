@@ -1727,7 +1727,11 @@ def _finalize_segment_text(
         preserve_unambiguous=True,
     )
     rendered_text, finalized_tokens = _trim_transformed_text_and_tokens(rendered_text, finalized_tokens)
+    rendered_text, finalized_tokens = _ensure_title_author_break_with_tokens(rendered_text, finalized_tokens)
+    rendered_text, finalized_tokens = _ensure_paragraph_spacing_with_tokens(rendered_text, finalized_tokens)
     partial_text, finalized_partial = _trim_transformed_text_and_tokens(partial_text, finalized_partial)
+    partial_text, finalized_partial = _ensure_title_author_break_with_tokens(partial_text, finalized_partial)
+    partial_text, finalized_partial = _ensure_paragraph_spacing_with_tokens(partial_text, finalized_partial)
     rendered_text = _normalize_ellipsis(rendered_text)
     partial_text = _normalize_ellipsis(partial_text)
     pitch_tokens = tokens_to_pitch_tokens(finalized_tokens or [])
@@ -1893,6 +1897,7 @@ def _normalize_ellipsis_with_offsets(text: str, tokens: list[ChapterToken] | Non
 
 
 _SAFE_SURFACE_SOURCES = {"unidic", "unidic-gap", "nhk"}
+_SINGLE_NEWLINE_PATTERN = re.compile(r"(?<=\S)\n(?=\S)")
 
 
 def _token_should_preserve_surface(token: ChapterToken) -> bool:
@@ -2794,6 +2799,8 @@ def epub_to_chapter_texts(
             processing_basis = original_basis
             if not chapters:
                 processing_basis = _ensure_title_author_break(processing_basis)
+            processing_basis = _ensure_paragraph_spacing_plain(processing_basis)
+            normalized_original = processing_basis
             _emit_progress(
                 {
                     "event": "chapter_start",
@@ -2832,7 +2839,7 @@ def epub_to_chapter_texts(
                     }
                 )
                 continue
-            original_title = _first_non_blank_line(original_basis)
+            original_title = _first_non_blank_line(normalized_original)
             processed_title = _first_non_blank_line(finalized_text)
             title = processed_title or pending.title_hint
             original_title = original_title or pending.title_hint or title
@@ -2841,7 +2848,7 @@ def epub_to_chapter_texts(
                     source=pending.source,
                     title=title,
                     text=finalized_text,
-                    original_text=original_basis,
+                    original_text=normalized_original,
                     original_title=original_title,
                     book_title=book_title,
                     book_author=book_author,
@@ -2865,3 +2872,75 @@ def epub_to_chapter_texts(
 
 
 __all__ = ["ChapterText", "CoverImage", "epub_to_chapter_texts", "get_epub_cover"]
+def _insert_text_gap(text: str, insert_at: int, tokens: list[ChapterToken] | None, delta: int = 1) -> tuple[str, list[ChapterToken] | None]:
+    if delta == 0:
+        return text, tokens
+    updated_text = text[:insert_at] + ("\n" * delta) + text[insert_at:]
+    if tokens:
+        for token in tokens:
+            if token.transformed_start is not None and token.transformed_start >= insert_at:
+                token.transformed_start += delta
+            if token.transformed_end is not None and token.transformed_end >= insert_at:
+                token.transformed_end += delta
+    return updated_text, tokens
+
+
+def _ensure_title_author_break_with_tokens(
+    text: str, tokens: list[ChapterToken] | None
+) -> tuple[str, list[ChapterToken] | None]:
+    if not text:
+        return text, tokens
+    lines: list[tuple[int, str]] = []
+    start = 0
+    length = len(text)
+    while start <= length:
+        end = text.find("\n", start)
+        if end == -1:
+            lines.append((start, text[start:]))
+            break
+        lines.append((start, text[start:end]))
+        start = end + 1
+        if start >= length:
+            break
+    first_idx = second_idx = -1
+    for idx, (_, line) in enumerate(lines):
+        if line.strip():
+            if first_idx == -1:
+                first_idx = idx
+            else:
+                second_idx = idx
+                break
+    if first_idx == -1 or second_idx == -1:
+        return text, tokens
+    if not (
+        _line_looks_like_title_or_author(lines[first_idx][1])
+        and _line_looks_like_title_or_author(lines[second_idx][1])
+    ):
+        return text, tokens
+    has_blank = any(not lines[idx][1].strip() for idx in range(first_idx + 1, second_idx))
+    if has_blank:
+        return text, tokens
+    insert_at = lines[second_idx][0]
+    return _insert_text_gap(text, insert_at, tokens, delta=1)
+
+
+def _ensure_paragraph_spacing_plain(text: str) -> str:
+    if not text:
+        return text
+    return _SINGLE_NEWLINE_PATTERN.sub("\n\n", text)
+
+
+def _ensure_paragraph_spacing_with_tokens(
+    text: str, tokens: list[ChapterToken] | None
+) -> tuple[str, list[ChapterToken] | None]:
+    if not text:
+        return text, tokens
+    cursor = 0
+    while True:
+        match = _SINGLE_NEWLINE_PATTERN.search(text, cursor)
+        if not match:
+            break
+        insert_at = match.start(0) + 1
+        text, tokens = _insert_text_gap(text, insert_at, tokens, delta=1)
+        cursor = insert_at + 1
+    return text, tokens

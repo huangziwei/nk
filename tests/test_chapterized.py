@@ -11,6 +11,8 @@ from nk.core import (
     epub_to_chapter_texts,
     _fill_missing_accent_on_chapter_tokens,
     _token_should_preserve_surface,
+    _ensure_title_author_break_with_tokens,
+    _ensure_paragraph_spacing_with_tokens,
 )
 from nk.nlp import NLPBackend
 from nk.tokens import ChapterToken
@@ -329,6 +331,32 @@ def test_fill_missing_accent_on_chapter_tokens_sets_accent(backend: NLPBackend) 
     token = ChapterToken(surface="漢字", start=0, end=2, reading="カンジ", reading_source="nhk")
     _fill_missing_accent_on_chapter_tokens([token], backend)
     assert token.accent_type is not None
+
+
+def test_ensure_title_author_break_with_tokens_shifts_offsets() -> None:
+    tokens = [
+        ChapterToken(surface="A", start=0, end=1, reading="A", transformed_start=0, transformed_end=1),
+        ChapterToken(surface="B", start=2, end=3, reading="B", transformed_start=2, transformed_end=3),
+    ]
+    text = "A\nB"
+    updated, shifted = _ensure_title_author_break_with_tokens(text, tokens)
+    assert updated == "A\n\nB"
+    assert shifted is not None
+    assert shifted[1].transformed_start == 3
+    assert shifted[1].transformed_end == 4
+
+
+def test_ensure_paragraph_spacing_with_tokens_inserts_blank_lines() -> None:
+    tokens = [
+        ChapterToken(surface="A", start=0, end=1, reading="A", transformed_start=0, transformed_end=1),
+        ChapterToken(surface="B", start=2, end=3, reading="B", transformed_start=2, transformed_end=3),
+    ]
+    text = "A\nB"
+    updated, shifted = _ensure_paragraph_spacing_with_tokens(text, tokens)
+    assert updated == "A\n\nB"
+    assert shifted is not None
+    assert shifted[1].transformed_start == 3
+    assert shifted[1].transformed_end == 4
 
 
 def test_chapter_title_preserves_original_text(tmp_path: Path, backend: NLPBackend) -> None:
