@@ -216,7 +216,7 @@ def test_ascii_ruby_is_propagated(tmp_path: Path, backend: NLPBackend) -> None:
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ch1_html)
 
-    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend, transform="full")
     assert len(chapters) == 1
     text = chapters[0].text
     assert "JUN" not in text
@@ -264,7 +264,7 @@ def test_pitch_tokens_capture_transformation_sources(tmp_path: Path, backend: NL
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ch1_html)
 
-    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend, transform="full")
     assert len(chapters) == 1
     tokens = chapters[0].pitch_data
     assert tokens is not None
@@ -274,7 +274,7 @@ def test_pitch_tokens_capture_transformation_sources(tmp_path: Path, backend: NL
     assert any("unidic" in source for source in sources)
 
 
-def test_partial_text_preserves_dictionary_kanji(tmp_path: Path, backend: NLPBackend) -> None:
+def test_transform_modes_control_output(tmp_path: Path, backend: NLPBackend) -> None:
     epub_path = tmp_path / "partial.epub"
     mimetype = "application/epub+zip"
     container_xml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -312,15 +312,18 @@ def test_partial_text_preserves_dictionary_kanji(tmp_path: Path, backend: NLPBac
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ch1_html)
 
-    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
-    assert len(chapters) == 1
-    full_text = chapters[0].text
-    partial_text = chapters[0].partial_text
-    assert partial_text is not None
-    assert "アメ" in full_text
-    assert "雨" not in full_text
+    partial_chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend, transform="partial")
+    assert len(partial_chapters) == 1
+    partial_text = partial_chapters[0].text
     assert "雨" in partial_text
     assert "アシタ" in partial_text
+
+    full_chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend, transform="full")
+    assert len(full_chapters) == 1
+    full_text = full_chapters[0].text
+    assert "アメ" in full_text
+    assert "雨" not in full_text
+    assert "アシタ" in full_text
 
 
 def test_token_should_preserve_surface_accepts_nhk_source() -> None:
@@ -409,7 +412,7 @@ def test_chapter_title_preserves_original_text(tmp_path: Path, backend: NLPBacke
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ch1_html)
 
-    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend, transform="full")
     assert len(chapters) == 1
     assert chapters[0].title == "Interlude Melancholic ハイドランジア"
 
@@ -496,7 +499,7 @@ def test_compound_ruby_prefers_multi_kanji_mapping(tmp_path: Path, backend: NLPB
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ch1_html)
 
-    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend, transform="full")
     assert chapters
     chapter = chapters[0]
     assert "シンチョウ" in chapter.text
@@ -577,7 +580,7 @@ def test_toc_splits_shared_spine_item(tmp_path: Path, backend: NLPBackend) -> No
         zf.writestr("OEBPS/nav.xhtml", nav_html)
         zf.writestr("OEBPS/text.xhtml", text_html)
 
-    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend, transform="full")
     assert len(chapters) == 3
     assert chapters[0].title == "ジョ"
     expected_first = backend.to_reading_text("第一夜").strip()
@@ -627,7 +630,7 @@ def test_first_chapter_inserts_break_between_title_and_author(tmp_path: Path, ba
         zf.writestr("content.opf", opf_xml)
         zf.writestr("ch1.xhtml", ch1_html)
 
-    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend, transform="full")
     assert len(chapters) == 1
     lines = chapters[0].text.splitlines()
     assert lines[0] == "ユメジュウヤ"
@@ -651,7 +654,7 @@ def _assert_token_offsets_match(text: str | None, tokens: list, *, use_original:
 
 def test_pitch_tokens_align_with_example_text(backend: NLPBackend) -> None:
     epub_path = Path("example/[夏目漱石] 夢十夜.epub")
-    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend, transform="full")
     assert chapters
     for chapter in chapters[:3]:
         tokens = chapter.pitch_data or []

@@ -85,10 +85,9 @@ def _reload_watch_dirs() -> list[str]:
     return [str(_package_source_dir())]
 
 
-def _set_reader_reload_config(root: Path, text_variant: str) -> None:
+def _set_reader_reload_config(root: Path) -> None:
     payload = {
         "root": str(root),
-        "text_variant": text_variant,
     }
     os.environ[_READER_RELOAD_ENV] = json.dumps(payload)
 
@@ -99,7 +98,6 @@ def _reader_reload_app():
         raise RuntimeError(
             "nk reader reload context missing. Start the server via `nk read --reload`."
         )
-    text_variant = "full"
     root_value = raw_value
     try:
         payload = json.loads(raw_value)
@@ -107,8 +105,7 @@ def _reader_reload_app():
         payload = None
     if isinstance(payload, dict) and payload.get("root"):
         root_value = payload["root"]
-        text_variant = payload.get("text_variant", "full")
-    return create_reader_app(Path(root_value), text_variant=text_variant)
+    return create_reader_app(Path(root_value))
 
 
 def _serialize_player_reload_config(
@@ -130,7 +127,6 @@ def _serialize_player_reload_config(
         "intonation_scale": config.intonation_scale,
         "cache_dir": str(config.cache_dir) if config.cache_dir else None,
         "keep_cache": config.keep_cache,
-        "text_variant": config.text_variant,
         "reader_url": reader_url,
     }
     return json.dumps(payload)
@@ -179,7 +175,6 @@ def _player_reload_app():
         intonation_scale=data.get("intonation_scale"),
         cache_dir=_to_path(data.get("cache_dir")),
         keep_cache=bool(data.get("keep_cache", True)),
-        text_variant=data.get("text_variant", "auto"),
     )
     reader_url = data.get("reader_url")
     return create_app(config, reader_url=reader_url)
@@ -201,10 +196,8 @@ def _start_reader_process(
     host: str,
     port: int,
     log_config: dict[str, object] | None,
-    *,
-    text_variant: str,
 ) -> Process:
-    _set_reader_reload_config(root, text_variant)
+    _set_reader_reload_config(root)
     process = Process(
         target=_reader_process_entry,
         args=(host, port, log_config),
@@ -263,6 +256,15 @@ def build_parser() -> argparse.ArgumentParser:
         "input_path",
         help="Path to input .epub or a directory containing .epub files",
     )
+    ap.add_argument(
+        "--transform",
+        choices=("partial", "full"),
+        default="partial",
+        help=(
+            "Choose which transform to write into .txt files: 'partial' keeps safe kanji (default), "
+            "'full' converts everything to kana."
+        ),
+    )
     return ap
 
 
@@ -311,15 +313,6 @@ def build_tts_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--output-dir",
         help="Optional output directory for generated .mp3 files (defaults to input location).",
-    )
-    ap.add_argument(
-        "--text-variant",
-        choices=("auto", "full", "partial"),
-        default="auto",
-        help=(
-            "Which nk text files to synthesize: 'full' forces all-kana text, 'partial' preserves safe kanji, "
-            "and 'auto' prefers partial files when present (default)."
-        ),
     )
     ap.add_argument(
         "--speaker",
@@ -555,15 +548,6 @@ def build_play_parser() -> argparse.ArgumentParser:
         help="Retain cached WAV chunks after playback completes.",
     )
     ap.add_argument(
-        "--text-variant",
-        choices=("auto", "full", "partial"),
-        default="auto",
-        help=(
-            "Choose which transformed text to synthesize: 'full' for all-kana, 'partial' keeps safe kanji, "
-            "and 'auto' prefers partial when available (default)."
-        ),
-    )
-    ap.add_argument(
         "--no-reader",
         action="store_true",
         help="Skip launching the nk Reader companion service.",
@@ -595,15 +579,6 @@ def build_reader_parser() -> argparse.ArgumentParser:
         type=int,
         default=2047,
         help="Port for the reader (default: 2047).",
-    )
-    ap.add_argument(
-        "--text-variant",
-        choices=("full", "partial", "auto"),
-        default="full",
-        help=(
-            "Choose which transformed text to display: 'full' for kana, 'partial' keeps safe kanji, "
-            "and 'auto' prefers partial when available (default: full)."
-        ),
     )
     ap.add_argument(
         "--reload",
@@ -690,7 +665,11 @@ def _ensure_tts_source_ready(
                     backend = NLPBackend()
                 except NLPBackendUnavailableError as exc:
                     raise SystemExit(str(exc)) from exc
-            chapters, ruby_evidence = epub_to_chapter_texts(str(input_path), nlp=backend)
+            chapters, ruby_evidence = epub_to_chapter_texts(
+                str(input_path),
+                nlp=backend,
+                transform="partial",
+            )
             cover = get_epub_cover(str(input_path))
             write_book_package(
                 target_dir,
@@ -730,6 +709,7 @@ def _chapterize_epub(
     *,
     progress_display: Progress | None,
     console: Console,
+    transform: str,
 ) -> None:
     book_label = epub_path.name
     output_dir = epub_path.with_suffix("")
@@ -780,6 +760,7 @@ def _chapterize_epub(
         str(epub_path),
         nlp=backend,
         progress=_progress_callback,
+        transform=transform,
     )
     if progress_display and task_id is not None:
         progress_display.update(task_id, description=f"{book_label} · writing…")
@@ -1110,7 +1091,7 @@ def _run_tts(args: argparse.Namespace) -> int:
 
     output_dir = Path(args.output_dir) if args.output_dir else None
     try:
-        targets = resolve_text_targets(input_path, output_dir, text_variant=args.text_variant)
+        targets = resolve_text_targets(input_path, output_dir)
     except (FileNotFoundError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
 
@@ -1475,7 +1456,6 @@ def _run_play(args: argparse.Namespace) -> None:
         speed_scale=args.speed,
         pitch_scale=args.pitch,
         intonation_scale=args.intonation,
-        text_variant=args.text_variant,
     )
 
     reader_process: Process | None = None
@@ -1490,7 +1470,6 @@ def _run_play(args: argparse.Namespace) -> None:
                 reader_host,
                 reader_port,
                 reader_log_config,
-                text_variant=config.text_variant,
             )
         except Exception as exc:
             raise SystemExit(
@@ -1544,7 +1523,7 @@ def _run_read(args: argparse.Namespace) -> int:
     print("Press Ctrl+C to stop.\n")
     log_config = build_uvicorn_log_config()
     if args.reload:
-        _set_reader_reload_config(root, args.text_variant)
+        _set_reader_reload_config(root)
         uvicorn.run(
             "nk.cli:_reader_reload_app",
             host=args.host,
@@ -1556,7 +1535,7 @@ def _run_read(args: argparse.Namespace) -> int:
             factory=True,
         )
     else:
-        app = create_reader_app(root, text_variant=args.text_variant)
+        app = create_reader_app(root)
         uvicorn.run(
             app,
             host=args.host,
@@ -1639,10 +1618,22 @@ def main(argv: list[str] | None = None) -> int:
         )
         with chapter_progress:
             for epub_path in epubs:
-                _chapterize_epub(epub_path, backend, progress_display=chapter_progress, console=console)
+                _chapterize_epub(
+                    epub_path,
+                    backend,
+                    progress_display=chapter_progress,
+                    console=console,
+                    transform=args.transform,
+                )
     else:
         for epub_path in epubs:
-            _chapterize_epub(epub_path, backend, progress_display=None, console=console)
+            _chapterize_epub(
+                epub_path,
+                backend,
+                progress_display=None,
+                console=console,
+                transform=args.transform,
+            )
     return 0
 
 

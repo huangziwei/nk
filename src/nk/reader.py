@@ -8,7 +8,7 @@ from typing import Iterable, Mapping
 from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from .book_io import is_original_text_file, is_partial_text_file, select_text_variant_path
+from .book_io import is_original_text_file
 from .library import list_books_sorted
 from .refine import (
     append_override_entry,
@@ -2487,7 +2487,7 @@ def _iter_chapter_files(root: Path, sort_mode: str) -> Iterable[Path]:
         for path in sorted(book_path.rglob("*.txt")):
             if not path.is_file():
                 continue
-            if is_original_text_file(path) or is_partial_text_file(path):
+            if is_original_text_file(path) or path.name.endswith(".partial.txt"):
                 continue
             yield path
     # Include any loose .txt files directly under the root (rare).
@@ -2495,7 +2495,7 @@ def _iter_chapter_files(root: Path, sort_mode: str) -> Iterable[Path]:
         if (
             not path.is_file()
             or is_original_text_file(path)
-            or is_partial_text_file(path)
+            or path.name.endswith(".partial.txt")
         ):
             continue
         yield path
@@ -2628,26 +2628,23 @@ def _load_token_payload(
     return converted, raw_payload, None
 
 
-def create_reader_app(root: Path, text_variant: str = "full") -> FastAPI:
+def create_reader_app(root: Path) -> FastAPI:
     resolved_root = root.expanduser().resolve()
     if not resolved_root.exists() or not resolved_root.is_dir():
         raise FileNotFoundError(f"Root not found: {resolved_root}")
-    variant = (text_variant or "full").strip().lower()
 
     app = FastAPI(title="nk Reader")
     app.state.root = resolved_root
-    app.state.text_variant = variant
     upload_manager = UploadManager(resolved_root)
     app.state.upload_manager = upload_manager
     app.add_event_handler("shutdown", upload_manager.shutdown)
 
     def _chapter_text_path(chapter_path: Path) -> Path:
-        try:
-            return select_text_variant_path(chapter_path, variant, strict=False)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not chapter_path.exists():
+            raise HTTPException(status_code=404, detail="Chapter not found")
+        if chapter_path.name.endswith(".partial.txt"):
+            raise HTTPException(status_code=400, detail="Partial text files are no longer supported.")
+        return chapter_path
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> HTMLResponse:

@@ -269,8 +269,6 @@ class ChapterText:
     pitch_data: list[PitchToken] | None = None
     book_author: str | None = None
     tokens: list[ChapterToken] | None = None
-    partial_text: str | None = None
-    partial_tokens: list[ChapterToken] | None = None
 
 
 @dataclass
@@ -1694,20 +1692,23 @@ def _finalize_segment_text(
     unique_sources: Mapping[str, str] | None = None,
     common_sources: Mapping[str, str] | None = None,
     context_rules: Mapping[str, _ContextRule] | None = None,
+    *,
+    transform: str = "partial",
 ) -> tuple[
     str,
     list[PitchToken] | None,
-    list[ChapterToken] | None,
-    str | None,
     list[ChapterToken] | None,
 ]:
     del preset_tokens  # legacy parameter
     token_basis = original_text if original_text is not None else raw_text
     if not token_basis:
-        return "", None, None, "", None
+        return "", None, None
+    normalized_transform = (transform or "partial").strip().lower()
+    if normalized_transform not in {"partial", "full"}:
+        raise ValueError("transform must be 'partial' or 'full'")
     if backend is None:
         normalized = _normalize_ellipsis(_normalize_katakana(_hiragana_to_katakana(token_basis)))
-        return normalized, None, None, normalized, None
+        return normalized, None, None
     tokens = _build_chapter_tokens_from_original(
         token_basis,
         backend,
@@ -1718,24 +1719,19 @@ def _finalize_segment_text(
         common_sources or {},
         context_rules or {},
     )
-    full_tokens = [replace(token) for token in tokens]
-    partial_tokens = [replace(token) for token in tokens]
-    rendered_text, finalized_tokens = _render_text_from_tokens(token_basis, full_tokens)
-    partial_text, finalized_partial = _render_text_from_tokens(
+    render_tokens = [replace(token) for token in tokens]
+    preserve_surface = normalized_transform == "partial"
+    rendered_text, finalized_tokens = _render_text_from_tokens(
         token_basis,
-        partial_tokens,
-        preserve_unambiguous=True,
+        render_tokens,
+        preserve_unambiguous=preserve_surface,
     )
     rendered_text, finalized_tokens = _trim_transformed_text_and_tokens(rendered_text, finalized_tokens)
     rendered_text, finalized_tokens = _ensure_title_author_break_with_tokens(rendered_text, finalized_tokens)
     rendered_text, finalized_tokens = _ensure_paragraph_spacing_with_tokens(rendered_text, finalized_tokens)
-    partial_text, finalized_partial = _trim_transformed_text_and_tokens(partial_text, finalized_partial)
-    partial_text, finalized_partial = _ensure_title_author_break_with_tokens(partial_text, finalized_partial)
-    partial_text, finalized_partial = _ensure_paragraph_spacing_with_tokens(partial_text, finalized_partial)
     rendered_text = _normalize_ellipsis(rendered_text)
-    partial_text = _normalize_ellipsis(partial_text)
     pitch_tokens = tokens_to_pitch_tokens(finalized_tokens or [])
-    return rendered_text, pitch_tokens, finalized_tokens, partial_text, finalized_partial
+    return rendered_text, pitch_tokens, finalized_tokens
 
 
 def _extract_cover_image(zf: zipfile.ZipFile) -> CoverImage | None:
@@ -2566,6 +2562,8 @@ def epub_to_chapter_texts(
     inp_epub: str,
     nlp: "NLPBackend" | None = None,
     progress: Callable[[dict[str, object]], None] | None = None,
+    *,
+    transform: str = "partial",
 ) -> tuple[list[ChapterText], list[dict[str, object]]]:
     """
     Convert an EPUB into chapterized text segments with ruby expansion.
@@ -2573,6 +2571,9 @@ def epub_to_chapter_texts(
     Returns the processed spine items in order as ChapterText objects.
     """
     backend = nlp
+    transform_mode = (transform or "partial").strip().lower()
+    if transform_mode not in {"partial", "full"}:
+        raise ValueError("transform must be 'partial' or 'full'")
     def _emit_progress(payload: dict[str, object]) -> None:
         if progress:
             try:
@@ -2810,13 +2811,7 @@ def epub_to_chapter_texts(
                     "title_hint": pending.title_hint,
                 }
             )
-            (
-                finalized_text,
-                pitch_tokens,
-                chapter_tokens,
-                partial_text,
-                partial_tokens,
-            ) = _finalize_segment_text(
+            finalized_text, pitch_tokens, chapter_tokens = _finalize_segment_text(
                 pending.raw_text,
                 backend,
                 preset_tokens=pending.tokens,
@@ -2827,6 +2822,7 @@ def epub_to_chapter_texts(
                 unique_sources=unique_sources,
                 common_sources=common_sources,
                 context_rules=context_rules,
+                transform=transform_mode,
             )
             if not finalized_text:
                 _emit_progress(
@@ -2854,8 +2850,6 @@ def epub_to_chapter_texts(
                     book_author=book_author,
                     pitch_data=pitch_tokens,
                     tokens=chapter_tokens,
-                    partial_text=partial_text,
-                    partial_tokens=partial_tokens,
                 )
             )
             _emit_progress(

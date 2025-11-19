@@ -23,13 +23,10 @@ import requests
 
 from .book_io import (
     LoadedBookMetadata,
-    canonical_text_path,
     ensure_cover_is_square,
     is_original_text_file,
-    is_partial_text_file,
     load_book_metadata,
     load_token_metadata,
-    select_text_variant_path,
 )
 from .pitch import PitchToken
 from .tokens import tokens_to_pitch_tokens
@@ -131,18 +128,9 @@ def _parse_track_number_from_name(stem: str) -> int | None:
         return None
 
 
-def _normalize_text_variant(value: str | None) -> str:
-    normalized = (value or "auto").strip().lower()
-    if normalized not in {"auto", "full", "partial"}:
-        raise ValueError("text_variant must be one of: auto, full, partial")
-    return normalized
-
-
 def resolve_text_targets(
     input_path: Path,
     output_dir: Path | None = None,
-    *,
-    text_variant: str = "auto",
 ) -> list[TTSTarget]:
     """
     Determine which .txt files should be synthesized and their destination MP3 paths.
@@ -150,10 +138,6 @@ def resolve_text_targets(
     path = input_path
     if not path.exists():
         raise FileNotFoundError(f"Input path not found: {path}")
-    variant = (text_variant or "auto").strip().lower()
-    if variant not in {"auto", "full", "partial"}:
-        raise ValueError("text_variant must be one of: auto, full, partial")
-
     targets: list[TTSTarget] = []
     if path.is_dir():
         canonical_files = sorted(
@@ -162,7 +146,7 @@ def resolve_text_targets(
             if p.is_file()
             and p.suffix.lower() == ".txt"
             and not is_original_text_file(p)
-            and not is_partial_text_file(p)
+            and not p.name.endswith(".partial.txt")
         )
         if not canonical_files:
             raise FileNotFoundError(f"No .txt files found in directory: {path}")
@@ -173,10 +157,6 @@ def resolve_text_targets(
         cover_path = _cover_path_for_book(path, metadata)
         track_total = len(canonical_files)
         for idx, base_path in enumerate(canonical_files):
-            try:
-                variant_path = select_text_variant_path(base_path, variant)
-            except FileNotFoundError as exc:
-                raise FileNotFoundError(f"Partial text not found for {base_path.name}") from exc
             chapter_meta = metadata.chapters.get(base_path.name) if metadata else None
             original_title = (
                 chapter_meta.original_title if chapter_meta and chapter_meta.original_title else None
@@ -193,7 +173,7 @@ def resolve_text_targets(
             targets.append(
                 TTSTarget(
                     source=base_path,
-                    text_path=variant_path if variant_path != base_path else None,
+                    text_path=None,
                     output=base_output / (base_path.stem + ".mp3"),
                     book_title=book_title,
                     book_author=book_author,
@@ -207,13 +187,15 @@ def resolve_text_targets(
     else:
         if path.suffix.lower() != ".txt" or is_original_text_file(path):
             raise ValueError("TTS input must be a .txt file or a directory of .txt files.")
-        base_path = canonical_text_path(path)
+        base_path = path
+        if (
+            is_original_text_file(base_path)
+            or base_path.suffix.lower() != ".txt"
+            or base_path.name.endswith(".partial.txt")
+        ):
+            raise ValueError("TTS input must be a .txt file or a directory of .txt files.")
         if not base_path.exists():
             raise FileNotFoundError(f"Chapter not found: {base_path}")
-        try:
-            variant_path = select_text_variant_path(base_path, variant)
-        except FileNotFoundError as exc:
-            raise FileNotFoundError(f"Partial text not found for {base_path.name}") from exc
         base_output = output_dir or base_path.parent
         book_dir = base_path.parent
         metadata = load_book_metadata(book_dir) if book_dir.exists() else None
@@ -239,7 +221,7 @@ def resolve_text_targets(
         targets.append(
             TTSTarget(
                 source=base_path,
-                text_path=variant_path if variant_path != base_path else None,
+                text_path=None,
                 output=base_output / (base_path.stem + ".mp3"),
                 book_title=book_title,
                 book_author=book_author,

@@ -22,46 +22,11 @@ _SUPPORTED_COVER_EXTS = (".jpg", ".jpeg", ".png")
 _CUSTOM_TOKEN_FILENAME = "custom_token.json"
 _LEGACY_CUSTOM_PITCH_FILENAME = "custom_pitch.json"
 _TOKEN_SUFFIX = ".token.json"
-PARTIAL_TEXT_SUFFIX = ".partial.txt"
 TOKEN_METADATA_VERSION = 2
 
 
 def is_original_text_file(path: Path) -> bool:
     return path.name.endswith(".original.txt")
-
-
-def is_partial_text_file(path: Path) -> bool:
-    return path.name.endswith(PARTIAL_TEXT_SUFFIX)
-
-
-def canonical_text_path(path: Path) -> Path:
-    if not is_partial_text_file(path):
-        return path
-    base_name = path.name[: -len(PARTIAL_TEXT_SUFFIX)] + ".txt"
-    return path.with_name(base_name)
-
-
-def partial_text_path(path: Path) -> Path:
-    base = canonical_text_path(path)
-    return base.with_name(f"{base.stem}{PARTIAL_TEXT_SUFFIX}")
-
-
-def select_text_variant_path(path: Path, variant: str, *, strict: bool = True) -> Path:
-    normalized = (variant or "auto").strip().lower()
-    if normalized not in {"auto", "full", "partial"}:
-        raise ValueError("text_variant must be one of: auto, full, partial")
-    base = canonical_text_path(path)
-    partial_path = partial_text_path(base)
-    has_partial = partial_path.exists()
-    if normalized == "partial":
-        if not has_partial:
-            if strict:
-                raise FileNotFoundError(f"Partial text not found for {base.name}")
-            return base
-        return partial_path
-    if normalized == "auto" and has_partial:
-        return partial_path
-    return base
 
 
 @dataclass
@@ -215,13 +180,9 @@ def _write_chapter_texts(output_dir: Path, chapters: Iterable[ChapterText]) -> l
         else:
             original_path.unlink(missing_ok=True)
         _maybe_write_token_metadata(path, chapter.text, chapter.tokens)
-        partial_path = partial_text_path(path)
-        if chapter.partial_text is not None:
-            partial_path.write_text(chapter.partial_text, encoding="utf-8")
-            _maybe_write_token_metadata(partial_path, chapter.partial_text, chapter.partial_tokens)
-        else:
-            partial_path.unlink(missing_ok=True)
-            _token_metadata_path(partial_path).unlink(missing_ok=True)
+        legacy_partial_path = path.with_name(f"{path.stem}.partial.txt")
+        legacy_partial_path.unlink(missing_ok=True)
+        _token_metadata_path(legacy_partial_path).unlink(missing_ok=True)
         records.append(ChapterFileRecord(chapter=chapter, path=path, index=index + 1))
     return records
 
@@ -500,7 +461,7 @@ def regenerate_m4b_manifest(
         txt_files = sorted(
             p
             for p in book_dir.glob("*.txt")
-            if not p.name.endswith(".original.txt") and not p.name.endswith(PARTIAL_TEXT_SUFFIX)
+            if not p.name.endswith(".original.txt") and not p.name.endswith(".partial.txt")
         )
         for idx, txt in enumerate(txt_files, start=1):
             metadata.chapters.setdefault(
@@ -683,12 +644,7 @@ __all__ = [
     "BOOK_METADATA_FILENAME",
     "M4B_MANIFEST_FILENAME",
     "TOKEN_METADATA_VERSION",
-    "PARTIAL_TEXT_SUFFIX",
     "is_original_text_file",
-    "is_partial_text_file",
-    "canonical_text_path",
-    "partial_text_path",
-    "select_text_variant_path",
     "ensure_cover_is_square",
     "regenerate_m4b_manifest",
     "load_book_metadata",

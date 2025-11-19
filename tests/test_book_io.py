@@ -10,7 +10,6 @@ pytest.importorskip("PIL")
 from PIL import Image
 
 from nk.book_io import (
-    PARTIAL_TEXT_SUFFIX,
     TOKEN_METADATA_VERSION,
     load_book_metadata,
     load_token_metadata,
@@ -134,53 +133,27 @@ def test_write_book_package_writes_token_metadata(tmp_path: Path) -> None:
     assert len(loaded.tokens) == 2
 
 
-def test_write_book_package_writes_partial_variants(tmp_path: Path) -> None:
+def test_write_book_package_removes_legacy_partial_files(tmp_path: Path) -> None:
     output_dir = tmp_path / "PartialBook"
-    full_tokens = [
-        ChapterToken(
-            surface="雨",
-            start=0,
-            end=1,
-            reading="アメ",
-            reading_source="ruby",
-            transformed_start=0,
-            transformed_end=2,
-        )
-    ]
-    partial_tokens = [
-        ChapterToken(
-            surface="雨",
-            start=0,
-            end=1,
-            reading="アメ",
-            reading_source="unidic",
-            transformed_start=0,
-            transformed_end=1,
-        )
-    ]
     chapters = [
         ChapterText(
             source="c.xhtml",
             title="Reading",
             text="アメ",
-            tokens=full_tokens,
-            partial_text="雨",
-            partial_tokens=partial_tokens,
         )
     ]
 
     package = write_book_package(output_dir, chapters)
     base_path = package.chapter_records[0].path
-    partial_path = base_path.with_name(f"{base_path.stem}{PARTIAL_TEXT_SUFFIX}")
-    assert partial_path.exists()
-    assert partial_path.read_text(encoding="utf-8") == "雨"
-    token_path = partial_path.with_name(partial_path.name + ".token.json")
-    assert token_path.exists()
-    payload = json.loads(token_path.read_text(encoding="utf-8"))
-    expected_sha1 = hashlib.sha1("雨".encode("utf-8")).hexdigest()
-    assert payload["text_sha1"] == expected_sha1
-    assert len(payload["tokens"]) == 1
-    assert payload["tokens"][0]["surface"] == "雨"
+    legacy_partial = base_path.with_name(f"{base_path.stem}.partial.txt")
+    legacy_partial.write_text("legacy", encoding="utf-8")
+    legacy_token = legacy_partial.with_name(legacy_partial.name + ".token.json")
+    legacy_token.write_text("{}", encoding="utf-8")
+
+    package = write_book_package(output_dir, chapters)
+    assert not legacy_partial.exists()
+    assert not legacy_token.exists()
+    assert package.chapter_records[0].path.read_text(encoding="utf-8") == "アメ"
 
 
 def test_write_book_package_preserves_tts_defaults(tmp_path: Path) -> None:
