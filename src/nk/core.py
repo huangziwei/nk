@@ -1559,9 +1559,9 @@ def _trim_transformed_text_and_tokens(
         return "", tokens
     left = 0
     right = len(text)
-    while left < right and text[left].isspace():
+    while left < right and text[left] in "\r\n":
         left += 1
-    while right > left and text[right - 1].isspace():
+    while right > left and text[right - 1] in "\r\n":
         right -= 1
     if left == 0 and right == len(text):
         return text, tokens

@@ -13,6 +13,7 @@ from nk.core import (
     _token_should_preserve_surface,
     _ensure_title_author_break_with_tokens,
     _ensure_paragraph_spacing_with_tokens,
+    _trim_transformed_text_and_tokens,
 )
 from nk.nlp import NLPBackend
 from nk.tokens import ChapterToken
@@ -357,6 +358,17 @@ def test_ensure_paragraph_spacing_with_tokens_inserts_blank_lines() -> None:
     assert shifted is not None
     assert shifted[1].transformed_start == 3
     assert shifted[1].transformed_end == 4
+
+
+def test_trim_transformed_text_preserves_leading_spaces() -> None:
+    tokens = [
+        ChapterToken(surface="  A", start=0, end=3, reading="A", transformed_start=0, transformed_end=3)
+    ]
+    text = "  A\n"
+    trimmed, adjusted = _trim_transformed_text_and_tokens(text, tokens)
+    assert trimmed == "  A"
+    assert adjusted is not None
+    assert adjusted[0].transformed_start == 0
 
 
 def test_chapter_title_preserves_original_text(tmp_path: Path, backend: NLPBackend) -> None:
