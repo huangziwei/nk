@@ -12,6 +12,7 @@ from .book_io import is_original_text_file
 from .library import list_books_sorted
 from .refine import (
     append_override_entry,
+    edit_single_token,
     load_override_config,
     refine_book,
     refine_chapter,
@@ -838,6 +839,9 @@ INDEX_HTML = """<!DOCTYPE html>
           <div class="modal-note" id="refine-error"></div>
           <div class="modal-button-group">
             <button type="button" class="secondary" id="refine-cancel">Cancel</button>
+            <button type="button" data-scope="token" class="secondary" id="refine-submit-token">
+              Save token
+            </button>
             <button type="button" data-scope="chapter" class="secondary" id="refine-submit-chapter">
               Override chapter
             </button>
@@ -976,6 +980,7 @@ INDEX_HTML = """<!DOCTYPE html>
       const refineScopeButtons = Array.from(document.querySelectorAll('[data-scope]'));
       const refineSubmitBook = document.getElementById('refine-submit-book');
       const refineSubmitChapter = document.getElementById('refine-submit-chapter');
+      const refineSubmitToken = document.getElementById('refine-submit-token');
       const refineCancel = document.getElementById('refine-cancel');
       const refineError = document.getElementById('refine-error');
       const refineContextLabel = document.getElementById('refine-context');
@@ -1036,51 +1041,67 @@ INDEX_HTML = """<!DOCTYPE html>
         }
       });
       function submitRefine(scope) {
-          if (!state.selectedPath) {
-            setRefineError('Select a chapter before applying overrides.');
+        if (!state.selectedPath) {
+          setRefineError('Select a chapter before applying overrides.');
+          return;
+        }
+        const normalizedScope =
+          scope === 'chapter' ? 'chapter' : (scope === 'token' ? 'token' : 'book');
+        const pattern = refinePatternInput ? refinePatternInput.value.trim() : '';
+        if (normalizedScope !== 'token' && !pattern) {
+          setRefineError('Pattern is required.');
+          return;
+        }
+        const replacement = refineReplacementInput ? refineReplacementInput.value.trim() : '';
+        const reading = refineReadingInput ? refineReadingInput.value.trim() : '';
+        const surface = refineSurfaceInput ? refineSurfaceInput.value.trim() : '';
+        const matchSurface =
+          refineContext && refineContext.token ? (refineContext.token.surface || '') : '';
+        const pos = refinePosInput ? refinePosInput.value.trim() : '';
+        const accentRaw = refineAccentInput ? refineAccentInput.value.trim() : '';
+        let accentPayload = null;
+        if (accentRaw) {
+          const parsed = Number.parseInt(accentRaw, 10);
+          if (Number.isNaN(parsed)) {
+            setRefineError('Accent must be an integer.');
             return;
           }
-          const pattern = refinePatternInput ? refinePatternInput.value.trim() : '';
-          if (!pattern) {
-            setRefineError('Pattern is required.');
-            return;
-          }
-          const replacement = refineReplacementInput ? refineReplacementInput.value.trim() : '';
-          const reading = refineReadingInput ? refineReadingInput.value.trim() : '';
-          const surface = refineSurfaceInput ? refineSurfaceInput.value.trim() : '';
-          const matchSurface =
-            refineContext && refineContext.token ? (refineContext.token.surface || '') : '';
-          const pos = refinePosInput ? refinePosInput.value.trim() : '';
-          const accentRaw = refineAccentInput ? refineAccentInput.value.trim() : '';
-          const normalizedScope = scope === 'chapter' ? 'chapter' : 'book';
-          let accentPayload = null;
-          if (accentRaw) {
-            const parsed = Number.parseInt(accentRaw, 10);
-            if (Number.isNaN(parsed)) {
-              setRefineError('Accent must be an integer.');
-              return;
-            }
-            accentPayload = parsed;
-          }
-          const payload = {
-            path: state.selectedPath,
-            pattern,
-            regex: Boolean(refineRegexInput && refineRegexInput.checked),
-            scope: normalizedScope,
-          };
-          if (replacement) payload.replacement = replacement;
-          if (reading) payload.reading = reading;
-          if (surface) payload.surface = surface;
-          if (matchSurface) payload.match_surface = matchSurface;
-          if (pos) payload.pos = pos;
-          if (accentPayload !== null) payload.accent = accentPayload;
-          setRefineBusy(true);
-          setRefineError('');
-          fetchJSON('/api/refine', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          })
+          accentPayload = parsed;
+        }
+        if (
+          normalizedScope === 'token' &&
+          (!refineContext || typeof refineContext.index !== 'number')
+        ) {
+          setRefineError('Select a token to edit.');
+          return;
+        }
+        const payload = {
+          path: state.selectedPath,
+          scope: normalizedScope,
+        };
+        if (normalizedScope !== 'token') {
+          payload.pattern = pattern;
+          payload.regex = Boolean(refineRegexInput && refineRegexInput.checked);
+        } else if (refineContext && typeof refineContext.index === 'number') {
+          payload.token_index = refineContext.index;
+        }
+        if (normalizedScope !== 'token' && replacement) {
+          payload.replacement = replacement;
+        }
+        if (reading) payload.reading = reading;
+        if (surface) payload.surface = surface;
+        if (normalizedScope !== 'token' && matchSurface) {
+          payload.match_surface = matchSurface;
+        }
+        if (pos) payload.pos = pos;
+        if (accentPayload !== null) payload.accent = accentPayload;
+        setRefineBusy(true);
+        setRefineError('');
+        fetchJSON('/api/refine', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
             .then((result) => {
               const updated = result && typeof result.updated === 'number' ? result.updated : 0;
               const scopeResult =
@@ -1092,7 +1113,11 @@ INDEX_HTML = """<!DOCTYPE html>
                 (state.currentBook && state.currentBook.id) ||
                 'book';
               let statusMessage = '';
-              if (scopeResult === 'chapter') {
+              if (scopeResult === 'token') {
+                statusMessage = updated
+                  ? `Updated token in ${chapterLabel}.`
+                  : `No changes applied to token in ${chapterLabel}.`;
+              } else if (scopeResult === 'chapter') {
                 if (updated) {
                   statusMessage = `Refined current chapter (${chapterLabel}).`;
                 } else {
@@ -1129,7 +1154,8 @@ INDEX_HTML = """<!DOCTYPE html>
         refineScopeButtons.forEach((button) => {
           button.addEventListener('click', (event) => {
             event.preventDefault();
-            submitRefine(button.dataset.scope === 'chapter' ? 'chapter' : 'book');
+            const scopeValue = (button.dataset.scope || 'book').toLowerCase();
+            submitRefine(scopeValue);
           });
         });
       }
@@ -1261,6 +1287,9 @@ INDEX_HTML = """<!DOCTYPE html>
         if (refineSubmitChapter) {
           refineSubmitChapter.textContent = busy ? 'Overriding chapter…' : 'Override chapter';
         }
+        if (refineSubmitToken) {
+          refineSubmitToken.textContent = busy ? 'Saving token…' : 'Save token';
+        }
       }
 
       function closeRefineModal() {
@@ -1281,6 +1310,10 @@ INDEX_HTML = """<!DOCTYPE html>
         const token = (context && context.token) || {};
         const chunk = typeof (context && context.text) === 'string' ? context.text : '';
         const view = context && context.view ? context.view : 'transformed';
+        const tokenIndex =
+          context && typeof context.index === 'number' && Number.isFinite(context.index)
+            ? context.index
+            : null;
         const defaultPattern =
           view === 'transformed' && chunk
             ? chunk
@@ -1322,9 +1355,12 @@ INDEX_HTML = """<!DOCTYPE html>
           if (surfaceLabel || readingLabel) {
             parts.push(`${surfaceLabel || '—'} → ${readingLabel || '—'}`);
           }
+          if (tokenIndex !== null) {
+            parts.push(`Token #${tokenIndex}`);
+          }
           refineContextLabel.textContent = parts.join(' · ');
         }
-        refineContext = { token, view, text: chunk };
+        refineContext = { token, view, text: chunk, index: tokenIndex };
         setRefineError('');
         setRefineBusy(false);
         refineModal.classList.remove('hidden');
@@ -1747,6 +1783,7 @@ INDEX_HTML = """<!DOCTYPE html>
                 token: segment.token,
                 text: chunk,
                 view: isOriginalView ? 'original' : 'transformed',
+                index: segment.index,
               });
             });
             span.addEventListener('keydown', (event) => {
@@ -1756,6 +1793,7 @@ INDEX_HTML = """<!DOCTYPE html>
                   token: segment.token,
                   text: chunk,
                   view: isOriginalView ? 'original' : 'transformed',
+                  index: segment.index,
                 });
               }
             });
@@ -2813,27 +2851,29 @@ def create_reader_app(root: Path) -> FastAPI:
         ):
             raise HTTPException(status_code=404, detail="Chapter not found.")
         book_dir = chapter_path.parent
-        pattern = payload.get("pattern")
-        if not isinstance(pattern, str) or not pattern.strip():
-            raise HTTPException(status_code=400, detail="pattern is required.")
-        entry: dict[str, object] = {"pattern": pattern.strip()}
-        if payload.get("regex"):
-            entry["regex"] = True
-        replacement = payload.get("replacement")
-        if isinstance(replacement, str) and replacement.strip():
-            entry["replacement"] = replacement.strip()
-        reading = payload.get("reading")
-        if isinstance(reading, str) and reading.strip():
-            entry["reading"] = reading.strip()
-        surface = payload.get("surface")
-        if isinstance(surface, str) and surface.strip():
-            entry["surface"] = surface.strip()
-        match_surface = payload.get("match_surface")
-        if isinstance(match_surface, str) and match_surface.strip():
-            entry["match_surface"] = match_surface.strip()
-        pos = payload.get("pos")
-        if isinstance(pos, str) and pos.strip():
-            entry["pos"] = pos.strip()
+
+        def _trim(value: object) -> str | None:
+            if isinstance(value, str):
+                stripped = value.strip()
+                if stripped:
+                    return stripped
+            return None
+
+        scope_value = payload.get("scope")
+        scope = "book"
+        if isinstance(scope_value, str):
+            normalized_scope = scope_value.strip().lower()
+            if normalized_scope in {"book", "chapter", "token"}:
+                scope = normalized_scope
+
+        pattern = _trim(payload.get("pattern"))
+        replacement = _trim(payload.get("replacement"))
+        reading = _trim(payload.get("reading"))
+        surface = _trim(payload.get("surface"))
+        match_surface = _trim(payload.get("match_surface"))
+        pos = _trim(payload.get("pos"))
+        regex_flag = bool(payload.get("regex"))
+
         accent_value = payload.get("accent")
         accent: int | None = None
         if isinstance(accent_value, int):
@@ -2845,11 +2885,58 @@ def create_reader_app(root: Path) -> FastAPI:
                 raise HTTPException(
                     status_code=400, detail="accent must be an integer."
                 ) from None
+
+        if scope == "token":
+            token_index = payload.get("token_index")
+            if not isinstance(token_index, int) or token_index < 0:
+                raise HTTPException(
+                    status_code=400, detail="token_index is required for token updates."
+                )
+            if not any(value is not None for value in (reading, surface, pos, accent)):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Provide at least one editable field (reading, surface, pos, accent).",
+                )
+            try:
+                changed = edit_single_token(
+                    chapter_path,
+                    token_index,
+                    reading=reading,
+                    surface=surface,
+                    pos=pos,
+                    accent=accent,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            book_rel = _relative_to_root(resolved_root, book_dir)
+            return JSONResponse(
+                {
+                    "updated": 1 if changed else 0,
+                    "scope": "token",
+                    "chapter": rel_path.as_posix(),
+                    "book": book_rel.as_posix(),
+                    "token_index": token_index,
+                }
+            )
+
+        if not pattern:
+            raise HTTPException(status_code=400, detail="pattern is required.")
+        entry: dict[str, object] = {"pattern": pattern}
+        if regex_flag:
+            entry["regex"] = True
+        if replacement:
+            entry["replacement"] = replacement
+        if reading:
+            entry["reading"] = reading
+        if surface:
+            entry["surface"] = surface
+        if match_surface:
+            entry["match_surface"] = match_surface
+        if pos:
+            entry["pos"] = pos
         if accent is not None:
             entry["accent"] = accent
-        scope_value = payload.get("scope")
-        scope = "book"
-        if isinstance(scope_value, str) and scope_value.strip().lower() == "chapter":
+        if scope == "chapter":
             scope = "chapter"
         try:
             override_path = append_override_entry(book_dir, entry)

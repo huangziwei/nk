@@ -4,7 +4,9 @@ import hashlib
 import json
 from pathlib import Path
 
-from nk.refine import append_override_entry, load_override_config, refine_book
+import pytest
+
+from nk.refine import append_override_entry, edit_single_token, load_override_config, refine_book
 
 
 def _write_token_file(path: Path, tokens: list[dict[str, object]], text: str) -> None:
@@ -14,6 +16,56 @@ def _write_token_file(path: Path, tokens: list[dict[str, object]], text: str) ->
         "tokens": tokens,
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def test_edit_single_token_updates_token_file(tmp_path: Path) -> None:
+    book_dir = tmp_path / "book_manual"
+    book_dir.mkdir()
+    chapter = book_dir / "001.txt"
+    chapter.write_text("アメが降る。", encoding="utf-8")
+    token_path = book_dir / "001.txt.token.json"
+    _write_token_file(
+        token_path,
+        [
+            {
+                "surface": "雨",
+                "reading": "アメ",
+                "accent": 0,
+                "start": 0,
+                "end": 1,
+                "transformed_start": 0,
+                "transformed_end": 2,
+            }
+        ],
+        "アメが降る。",
+    )
+
+    updated = edit_single_token(chapter, 0, reading="アマ", accent=2, pos="名詞")
+    assert updated
+    payload = json.loads(token_path.read_text(encoding="utf-8"))
+    tokens = payload["tokens"]
+    assert len(tokens) == 1
+    token = tokens[0]
+    assert token["reading"] == "アマ"
+    assert token["fallback_reading"] == "アマ"
+    assert token["accent"] == 2
+    assert token["pos"] == "名詞"
+    assert token["reading_source"] == "manual"
+
+
+def test_edit_single_token_validates_index(tmp_path: Path) -> None:
+    book_dir = tmp_path / "book_manual_invalid"
+    book_dir.mkdir()
+    chapter = book_dir / "001.txt"
+    chapter.write_text("アメ", encoding="utf-8")
+    token_path = book_dir / "001.txt.token.json"
+    _write_token_file(
+        token_path,
+        [{"surface": "雨", "reading": "アメ", "accent": 0, "start": 0, "end": 1, "transformed_start": 0, "transformed_end": 2}],
+        "アメ",
+    )
+    with pytest.raises(ValueError):
+        edit_single_token(chapter, 5, reading="アマ")
 
 
 def test_refine_applies_replacement_to_tokens(tmp_path: Path) -> None:

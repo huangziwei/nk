@@ -179,6 +179,82 @@ def refine_chapter(text_path: Path, overrides: Iterable[OverrideRule]) -> bool:
     return True
 
 
+def edit_single_token(
+    text_path: Path,
+    token_index: int,
+    *,
+    reading: str | None = None,
+    surface: str | None = None,
+    pos: str | None = None,
+    accent: int | None = None,
+) -> bool:
+    if token_index < 0:
+        raise ValueError("token_index must be non-negative.")
+    token_path = text_path.with_name(text_path.name + ".token.json")
+    if not token_path.exists():
+        raise ValueError("Token metadata not found for this chapter.")
+    try:
+        payload = json.loads(token_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Failed to parse token metadata: {token_path}") from exc
+    tokens_payload = payload.get("tokens")
+    if not isinstance(tokens_payload, list):
+        raise ValueError("Token file is missing a 'tokens' array.")
+    tokens = deserialize_chapter_tokens(tokens_payload)
+    if token_index >= len(tokens):
+        raise ValueError("token_index is out of range for this chapter.")
+    target = tokens[token_index]
+    changed = False
+
+    def _normalize(value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed:
+            return None
+        return trimmed
+
+    normalized_surface = _normalize(surface)
+    if normalized_surface and normalized_surface != target.surface:
+        target.surface = normalized_surface
+        changed = True
+
+    normalized_reading = _normalize(reading)
+    if normalized_reading and normalized_reading != target.reading:
+        target.reading = normalized_reading
+        target.fallback_reading = normalized_reading
+        target.reading_source = "manual"
+        changed = True
+    elif normalized_reading and target.reading_source != "manual":
+        target.reading_source = "manual"
+        changed = True
+
+    normalized_pos = _normalize(pos)
+    if normalized_pos and normalized_pos != target.pos:
+        target.pos = normalized_pos
+        changed = True
+
+    if accent is not None and target.accent_type != accent:
+        target.accent_type = accent
+        changed = True
+
+    if not changed:
+        return False
+
+    tokens.sort(key=lambda token: (_token_transformed_start(token), _token_transformed_end(token)))
+    text = text_path.read_text(encoding="utf-8")
+    normalized_for_hash = text.strip()
+    sha1 = hashlib.sha1(normalized_for_hash.encode("utf-8")).hexdigest()
+    version = payload.get("version", 1)
+    new_payload = {
+        "version": max(version, TOKEN_METADATA_VERSION),
+        "text_sha1": sha1,
+        "tokens": serialize_chapter_tokens(tokens),
+    }
+    token_path.write_text(json.dumps(new_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return True
+
+
 def _apply_override_rule(
     text: str, tokens: list[ChapterToken], rule: OverrideRule
 ) -> tuple[str, bool]:
