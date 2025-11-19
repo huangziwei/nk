@@ -7,7 +7,11 @@ import pytest
 
 pytest.importorskip("fugashi")
 
-from nk.core import epub_to_chapter_texts, _token_should_preserve_surface
+from nk.core import (
+    epub_to_chapter_texts,
+    _fill_missing_accent_on_chapter_tokens,
+    _token_should_preserve_surface,
+)
 from nk.nlp import NLPBackend
 from nk.tokens import ChapterToken
 
@@ -319,6 +323,12 @@ def test_partial_text_preserves_dictionary_kanji(tmp_path: Path, backend: NLPBac
 def test_token_should_preserve_surface_accepts_nhk_source() -> None:
     token = ChapterToken(surface="漢字", start=0, end=2, reading="カンジ", reading_source="nhk")
     assert _token_should_preserve_surface(token)
+
+
+def test_fill_missing_accent_on_chapter_tokens_sets_accent(backend: NLPBackend) -> None:
+    token = ChapterToken(surface="漢字", start=0, end=2, reading="カンジ", reading_source="nhk")
+    _fill_missing_accent_on_chapter_tokens([token], backend)
+    assert token.accent_type is not None
 
 
 def test_chapter_title_preserves_original_text(tmp_path: Path, backend: NLPBackend) -> None:

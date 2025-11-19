@@ -690,6 +690,44 @@ def _fill_missing_pitch_from_surface(tokens: list[PitchToken], backend: "NLPBack
             token.pos = source_token.pos
 
 
+def _fill_missing_accent_on_chapter_tokens(tokens: list[ChapterToken], backend: "NLPBackend") -> None:
+    if not tokens:
+        return
+    cache = getattr(backend, _SURFACE_PITCH_CACHE_ATTR, None)
+    if cache is None:
+        cache = {}
+        setattr(backend, _SURFACE_PITCH_CACHE_ATTR, cache)
+    sentinel = object()
+    for token in tokens:
+        surface = token.surface
+        reading = token.reading or token.fallback_reading
+        if not surface or not reading:
+            continue
+        source = (token.reading_source or "").lower()
+        if source in _SURFACE_PITCH_SKIP_SOURCES:
+            token.reading_validated = True
+            continue
+        normalized_reading = _normalize_katakana(reading)
+        if not normalized_reading:
+            continue
+        cache_key = unicodedata.normalize("NFKC", surface)
+        cached = cache.get(cache_key, sentinel)
+        if cached is sentinel:
+            cached = _lookup_surface_pitch(surface, backend)
+            cache[cache_key] = cached
+        if not cached:
+            continue
+        cached_reading, source_token = cached
+        if cached_reading != normalized_reading:
+            continue
+        token.reading_validated = True
+        if token.accent_type is None and source_token.accent_type is not None:
+            token.accent_type = source_token.accent_type
+            token.accent_connection = source_token.accent_connection
+            if not token.pos and source_token.pos:
+                token.pos = source_token.pos
+
+
 def _align_pitch_tokens(text: str, tokens: list[PitchToken]) -> list[PitchToken]:
     if not text or not tokens:
         return []
@@ -1077,6 +1115,7 @@ def _build_chapter_tokens_from_original(
         _fill_gaps_with_backend(last_end, len(text))
 
     _harmonize_small_kana(tokens, backend)
+    _fill_missing_accent_on_chapter_tokens(tokens, backend)
     tokens.sort(key=lambda token: (token.start, token.end))
     return tokens
 
@@ -1862,7 +1901,9 @@ def _token_should_preserve_surface(token: ChapterToken) -> bool:
     if not _contains_cjk(token.surface):
         return False
     source = (token.reading_source or "").lower()
-    return source in _SAFE_SURFACE_SOURCES
+    if source in _SAFE_SURFACE_SOURCES:
+        return True
+    return token.reading_validated
 
 
 def _contains_cjk(s: str) -> bool:
