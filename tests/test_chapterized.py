@@ -7,8 +7,9 @@ import pytest
 
 pytest.importorskip("fugashi")
 
-from nk.core import epub_to_chapter_texts
+from nk.core import epub_to_chapter_texts, _token_should_preserve_surface
 from nk.nlp import NLPBackend
+from nk.tokens import ChapterToken
 
 
 @pytest.fixture(scope="module")
@@ -313,6 +314,11 @@ def test_partial_text_preserves_dictionary_kanji(tmp_path: Path, backend: NLPBac
     assert "雨" not in full_text
     assert "雨" in partial_text
     assert "アシタ" in partial_text
+
+
+def test_token_should_preserve_surface_accepts_nhk_source() -> None:
+    token = ChapterToken(surface="漢字", start=0, end=2, reading="カンジ", reading_source="nhk")
+    assert _token_should_preserve_surface(token)
 
 
 def test_chapter_title_preserves_original_text(tmp_path: Path, backend: NLPBackend) -> None:

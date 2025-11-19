@@ -1853,13 +1853,16 @@ def _normalize_ellipsis_with_offsets(text: str, tokens: list[ChapterToken] | Non
     return normalized
 
 
+_SAFE_SURFACE_SOURCES = {"unidic", "unidic-gap", "nhk"}
+
+
 def _token_should_preserve_surface(token: ChapterToken) -> bool:
     if not token.surface:
         return False
     if not _contains_cjk(token.surface):
         return False
     source = (token.reading_source or "").lower()
-    return source in {"unidic", "unidic-gap"}
+    return source in _SAFE_SURFACE_SOURCES
 
 
 def _contains_cjk(s: str) -> bool:
