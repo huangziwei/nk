@@ -1619,14 +1619,15 @@ INDEX_HTML = """<!DOCTYPE html>
           }
         };
         const pushTokenSegment = (value, entry) => {
-          if (value) {
-            segments.push({
-              type: 'token',
-              text: value,
-              token: entry.token,
-              index: entry.index,
-            });
+          if (!value) {
+            return;
           }
+          segments.push({
+            type: 'token',
+            text: value,
+            token: entry.token,
+            index: entry.index,
+          });
         };
 
         ordered.forEach((entry) => {
@@ -1676,6 +1677,13 @@ INDEX_HTML = """<!DOCTYPE html>
             return;
           }
           if (segment.type === 'token') {
+            if (key === 'transformed') {
+              const originalSurface = segment.token.surface || '';
+              if (originalSurface && chunk === originalSurface) {
+                currentLineNodes.push(document.createTextNode(chunk));
+                return;
+              }
+            }
             const span = document.createElement('span');
             span.className = 'token-chunk';
             span.dataset.tokenIndex = String(segment.index);
