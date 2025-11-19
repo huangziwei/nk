@@ -37,6 +37,7 @@ class ChapterToken:
     transformed_start: int | None = None
     transformed_end: int | None = None
     reading_validated: bool = False
+    block_surface_preservation: bool = False
 
     def to_pitch_token(self) -> PitchToken:
         sources: tuple[str, ...] | None = None
@@ -74,6 +75,7 @@ def serialize_chapter_tokens(tokens: Iterable[ChapterToken]) -> list[dict[str, o
             "transformed_start": token.transformed_start,
             "transformed_end": token.transformed_end,
             "validated": token.reading_validated,
+            "block_surface_preservation": token.block_surface_preservation,
         }
         payload.append(entry)
     return payload
@@ -120,6 +122,8 @@ def deserialize_chapter_tokens(data: Iterable[Mapping[str, object]]) -> list[Cha
             transformed_end = None
         validated = entry.get("validated")
         reading_validated = bool(validated) if isinstance(validated, bool) else False
+        block_surface = entry.get("block_surface_preservation")
+        block_surface_preservation = bool(block_surface) if isinstance(block_surface, bool) else False
         tokens.append(
             ChapterToken(
                 surface=surface,
@@ -136,6 +140,7 @@ def deserialize_chapter_tokens(data: Iterable[Mapping[str, object]]) -> list[Cha
                 transformed_start=transformed_start,
                 transformed_end=transformed_end,
                 reading_validated=reading_validated,
+                block_surface_preservation=block_surface_preservation,
             )
         )
     return tokens

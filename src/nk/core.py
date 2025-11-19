@@ -1113,6 +1113,7 @@ def _build_chapter_tokens_from_original(
         _fill_gaps_with_backend(last_end, len(text))
 
     _harmonize_small_kana(tokens, backend)
+    _flag_unidic_ambiguous_tokens(tokens)
     _fill_missing_accent_on_chapter_tokens(tokens, backend)
     tokens.sort(key=lambda token: (token.start, token.end))
     return tokens
@@ -1179,6 +1180,33 @@ def _render_text_from_tokens(
             output.append(chunk)
     rendered = _normalize_ellipsis_with_offsets("".join(output), tokens)
     return rendered, tokens
+
+
+def _flag_unidic_ambiguous_tokens(tokens: list[ChapterToken]) -> None:
+    if not tokens:
+        return
+    readings_by_surface: dict[str, set[str]] = defaultdict(set)
+    for token in tokens:
+        source = (token.reading_source or "").lower()
+        if not source.startswith("unidic"):
+            continue
+        reading = token.reading or token.fallback_reading
+        if not reading:
+            continue
+        normalized_surface = unicodedata.normalize("NFKC", token.surface)
+        normalized_reading = _normalize_katakana(reading)
+        reading_key = _strip_small_kana_variants(normalized_reading)
+        readings_by_surface[normalized_surface].add(reading_key)
+    ambiguous_surfaces = {surface for surface, variants in readings_by_surface.items() if len(variants) > 1}
+    if not ambiguous_surfaces:
+        return
+    for token in tokens:
+        source = (token.reading_source or "").lower()
+        if not source.startswith("unidic"):
+            continue
+        normalized_surface = unicodedata.normalize("NFKC", token.surface)
+        if normalized_surface in ambiguous_surfaces:
+            token.block_surface_preservation = True
 
 
 def _hiragana_to_katakana(text: str) -> str:
@@ -1900,6 +1928,8 @@ def _token_should_preserve_surface(token: ChapterToken) -> bool:
     if not token.surface:
         return False
     if not _contains_cjk(token.surface):
+        return False
+    if getattr(token, "block_surface_preservation", False):
         return False
     source = (token.reading_source or "").lower()
     if source in _SAFE_SURFACE_SOURCES:

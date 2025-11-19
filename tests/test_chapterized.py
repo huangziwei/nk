@@ -10,6 +10,7 @@ pytest.importorskip("fugashi")
 from nk.core import (
     epub_to_chapter_texts,
     _fill_missing_accent_on_chapter_tokens,
+    _flag_unidic_ambiguous_tokens,
     _token_should_preserve_surface,
     _ensure_title_author_break_with_tokens,
     _ensure_paragraph_spacing_with_tokens,
@@ -329,6 +330,18 @@ def test_transform_modes_control_output(tmp_path: Path, backend: NLPBackend) -> 
 def test_token_should_preserve_surface_accepts_nhk_source() -> None:
     token = ChapterToken(surface="漢字", start=0, end=2, reading="カンジ", reading_source="nhk")
     assert _token_should_preserve_surface(token)
+
+
+def test_unidic_ambiguous_tokens_force_reading() -> None:
+    tokens = [
+        ChapterToken(surface="君", start=0, end=1, reading="キミ", reading_source="unidic"),
+        ChapterToken(surface="君", start=2, end=3, reading="クン", reading_source="unidic"),
+    ]
+    _flag_unidic_ambiguous_tokens(tokens)
+    assert tokens[0].block_surface_preservation
+    assert tokens[1].block_surface_preservation
+    assert not _token_should_preserve_surface(tokens[0])
+    assert not _token_should_preserve_surface(tokens[1])
 
 
 def test_fill_missing_accent_on_chapter_tokens_sets_accent(backend: NLPBackend) -> None:
