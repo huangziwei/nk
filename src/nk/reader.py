@@ -539,7 +539,7 @@ INDEX_HTML = """<!DOCTYPE html>
     }
     .line-number {
       min-width: 3rem;
-      font-family: "SFMono-Regular", Consolas, "Hiragino Sans", monospace;
+      font-family: "Hiragino Sans", "Yu Gothic", "Meiryo", "Noto Sans CJK JP", "Noto Sans JP", "Source Han Sans JP", "Source Han Serif JP", "Noto Serif CJK JP", "HanaMinA", "HanaMinB", "BabelStone Han", "SimSun-ExtB", "MingLiU-ExtB", "PMingLiU-ExtB", "MS Mincho", "MS Gothic", "Songti SC", "STHeiti", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", serif;
       color: var(--muted);
       text-align: right;
       padding-right: 0.4rem;
@@ -552,7 +552,7 @@ INDEX_HTML = """<!DOCTYPE html>
     .line-body {
       display: block;
       width: 100%;
-      font-family: "SFMono-Regular", Consolas, "Hiragino Sans", monospace;
+      font-family: "Hiragino Sans", "Yu Gothic", "Meiryo", "Noto Sans CJK JP", "Noto Sans JP", "Source Han Sans JP", "Source Han Serif JP", "Noto Serif CJK JP", "HanaMinA", "HanaMinB", "BabelStone Han", "SimSun-ExtB", "MingLiU-ExtB", "PMingLiU-ExtB", "MS Mincho", "MS Gothic", "Songti SC", "STHeiti", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", serif;
       white-space: pre-wrap;
       word-break: break-word;
       overflow-wrap: anywhere;
@@ -1568,6 +1568,42 @@ INDEX_HTML = """<!DOCTYPE html>
         element.addEventListener('blur', () => setHighlighted(null));
       }
 
+      function createOffsetConverter(text) {
+        if (!text) {
+          return () => null;
+        }
+        let hasSurrogates = false;
+        for (let i = 0; i < text.length; i += 1) {
+          const code = text.charCodeAt(i);
+          if (code >= 0xD800 && code <= 0xDBFF) {
+            hasSurrogates = true;
+            break;
+          }
+        }
+        if (!hasSurrogates) {
+          return (value) => (typeof value === 'number' ? value : null);
+        }
+        const offsets = [0];
+        let codeUnitIndex = 0;
+        for (const char of text) {
+          codeUnitIndex += char.length;
+          offsets.push(codeUnitIndex);
+        }
+        const maxIndex = offsets.length - 1;
+        return (value) => {
+          if (typeof value !== 'number' || !Number.isFinite(value)) {
+            return null;
+          }
+          if (value <= 0) {
+            return 0;
+          }
+          if (value >= maxIndex) {
+            return offsets[maxIndex];
+          }
+          return offsets[value];
+        };
+      }
+
       function offsetValue(entry, key) {
         if (typeof entry === 'number') {
           return entry;
@@ -1593,14 +1629,15 @@ INDEX_HTML = """<!DOCTYPE html>
         }
         container.classList.remove('empty');
         const length = text.length;
+        const convertOffset = createOffsetConverter(text);
         let cursor = 0;
         const segments = [];
         const ordered = tokens
           .map((token, index) => ({
             token,
             index,
-            start: offsetValue(token.start, key),
-            end: offsetValue(token.end, key),
+            start: convertOffset(offsetValue(token.start, key)),
+            end: convertOffset(offsetValue(token.end, key)),
           }))
           .filter((entry) => Number.isFinite(entry.start) && Number.isFinite(entry.end))
           .map((entry) => ({
