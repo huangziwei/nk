@@ -245,12 +245,75 @@ INDEX_HTML = """<!DOCTYPE html>
       min-height: 160px;
       width: 100%;
       max-width: 420px;
+      position: relative;
     }
     .card.empty-card {
       justify-content: center;
       text-align: center;
       color: var(--muted);
       border: 1px dashed rgba(255,255,255,0.08);
+    }
+    .card-menu-button {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      font-size: 1.2rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 3;
+    }
+    .card-menu-button:hover:not(:disabled),
+    .card-menu-button:focus-visible {
+      background: rgba(59,130,246,0.35);
+      outline: none;
+    }
+    .card-menu {
+      position: absolute;
+      bottom: 2.5rem;
+      right: 0.5rem;
+      min-width: 160px;
+      background: rgba(10,12,20,0.95);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      box-shadow: 0 18px 35px rgba(0,0,0,0.55);
+      padding: 0.4rem 0;
+      z-index: 5;
+    }
+    .card-menu.hidden {
+      display: none;
+    }
+    .card-menu button {
+      width: 100%;
+      text-align: left;
+      padding: 0.45rem 1rem;
+      background: transparent;
+      border: none;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+    }
+    .card-menu button:hover:not(:disabled),
+    .card-menu button:focus-visible {
+      background: rgba(59,130,246,0.12);
+      outline: none;
+    }
+    .card-menu button.danger {
+      background: transparent;
+      color: var(--danger);
+    }
+    .card-menu button.danger:hover:not(:disabled),
+    .card-menu button.danger:focus-visible {
+      background: rgba(248,113,113,0.18);
+      color: #fee2e2;
     }
     .collection-card {
       cursor: pointer;
@@ -1488,6 +1551,16 @@ INDEX_HTML = """<!DOCTYPE html>
       </div>
     </div>
   </div>
+  <div id="delete-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+      <h3 id="delete-modal-title">Delete book</h3>
+      <p class="modal-meta" id="delete-modal-message"></p>
+      <div class="modal-actions">
+        <button type="button" class="secondary" id="delete-cancel">Cancel</button>
+        <button type="button" class="danger" id="delete-confirm">Delete</button>
+      </div>
+    </div>
+  </div>
 
   <script type="application/json" id="nk-player-config">__NK_PLAYER_CONFIG__</script>
   <script>
@@ -1528,6 +1601,10 @@ INDEX_HTML = """<!DOCTYPE html>
     const noteModalMeta = document.getElementById('note-modal-meta');
     const noteSaveBtn = document.getElementById('note-save');
     const noteCancelBtn = document.getElementById('note-cancel');
+    const deleteModal = document.getElementById('delete-modal');
+    const deleteModalMessage = document.getElementById('delete-modal-message');
+    const deleteConfirmBtn = document.getElementById('delete-confirm');
+    const deleteCancelBtn = document.getElementById('delete-cancel');
     const PLAYER_SEEK_MAX = 1000;
     const PLAYBACK_RATES = [0.75, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2];
     const SPEED_STORAGE_KEY = 'nk-player-speed';
@@ -1589,6 +1666,8 @@ INDEX_HTML = """<!DOCTYPE html>
       epubBusy: new Set(),
       readerUrl: readerBaseUrl,
     };
+    let deleteContext = null;
+    let activeCardMenu = null;
     const LAST_PLAY_THROTTLE_MS = 1000;
     const LAST_PLAY_MIN_DELTA = 1;
     const LIBRARY_SORT_KEY = 'nkPlayerSortOrder';
@@ -2612,13 +2691,46 @@ INDEX_HTML = """<!DOCTYPE html>
       });
     }
 
+    function closeCardMenu() {
+      if (!activeCardMenu) return;
+      activeCardMenu.menu.classList.add('hidden');
+      activeCardMenu.button.setAttribute('aria-expanded', 'false');
+      activeCardMenu = null;
+    }
+
+    function toggleCardMenu(button, menu) {
+      if (!button || !menu) return;
+      if (activeCardMenu && activeCardMenu.menu === menu) {
+        closeCardMenu();
+        return;
+      }
+      closeCardMenu();
+      menu.classList.remove('hidden');
+      button.setAttribute('aria-expanded', 'true');
+      activeCardMenu = { button, menu };
+    }
+
     function isNoteModalActive() {
       return noteModal && !noteModal.classList.contains('hidden');
+    }
+
+    function isDeleteModalActive() {
+      return deleteModal && !deleteModal.classList.contains('hidden');
     }
 
     function setNoteModalDisabled(disabled) {
       if (noteSaveBtn) noteSaveBtn.disabled = disabled;
       if (noteCancelBtn) noteCancelBtn.disabled = disabled;
+    }
+
+    function setDeleteModalBusy(busy) {
+      if (deleteConfirmBtn) {
+        deleteConfirmBtn.disabled = busy;
+        deleteConfirmBtn.textContent = busy ? 'Deleting…' : 'Delete';
+      }
+      if (deleteCancelBtn) {
+        deleteCancelBtn.disabled = busy;
+      }
     }
 
     function closeNoteEditor() {
@@ -2630,6 +2742,66 @@ INDEX_HTML = """<!DOCTYPE html>
       noteModalContext = null;
       if (noteTextarea) {
         noteTextarea.value = '';
+      }
+    }
+
+    function closeDeleteModal() {
+      if (!deleteModal) return;
+      deleteModal.classList.add('hidden');
+      deleteModal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('modal-open');
+      setDeleteModalBusy(false);
+      deleteContext = null;
+    }
+
+    function openDeleteModal(book) {
+      if (!deleteModal) return;
+      const bookId = book?.id || book?.path;
+      if (!bookId) return;
+      deleteContext = {
+        id: bookId,
+        title: book?.title || bookId,
+        path: book?.path || '',
+      };
+      const name = deleteContext.title || deleteContext.id;
+      const relPath = deleteContext.path && deleteContext.path !== deleteContext.title
+        ? deleteContext.path
+        : '';
+      if (deleteModalMessage) {
+        const suffix = relPath && relPath !== name ? ` (${relPath})` : '';
+        deleteModalMessage.textContent = `This will permanently delete "${name}"${suffix}. All chapters, audio, and bookmarks for this book will be removed.`;
+      }
+      document.body.classList.add('modal-open');
+      deleteModal.classList.remove('hidden');
+      deleteModal.setAttribute('aria-hidden', 'false');
+      setDeleteModalBusy(false);
+      if (deleteConfirmBtn) {
+        deleteConfirmBtn.focus();
+      }
+    }
+
+    async function confirmDeleteBook() {
+      if (!deleteContext) return;
+      setDeleteModalBusy(true);
+      const target = { ...deleteContext };
+      try {
+        const response = await fetch(`/api/books/${encodeURIComponent(target.id)}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) {
+          const detail = await readErrorResponse(response);
+          throw new Error(detail);
+        }
+        closeDeleteModal();
+        if (state.currentBook && state.currentBook.id === target.id) {
+          closeBookView({ replaceHistory: true });
+        }
+        statusLine.textContent = `Deleted ${target.title || target.id}.`;
+        await loadBooks(state.libraryPrefix || '', { skipHistory: true, replaceHistory: true });
+      } catch (error) {
+        setDeleteModalBusy(false);
+        const message = error?.message || String(error);
+        alert(`Failed to delete book: ${message}`);
       }
     }
 
@@ -2703,6 +2875,13 @@ INDEX_HTML = """<!DOCTYPE html>
         }
       });
     }
+    if (deleteModal) {
+      deleteModal.addEventListener('click', (event) => {
+        if (event.target === deleteModal && (!deleteConfirmBtn || !deleteConfirmBtn.disabled)) {
+          closeDeleteModal();
+        }
+      });
+    }
     if (noteTextarea) {
       noteTextarea.addEventListener('keydown', (event) => {
         if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
@@ -2711,11 +2890,57 @@ INDEX_HTML = """<!DOCTYPE html>
         }
       });
     }
+    if (deleteCancelBtn) {
+      deleteCancelBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (deleteConfirmBtn && deleteConfirmBtn.disabled) return;
+        closeDeleteModal();
+      });
+    }
+    if (deleteConfirmBtn) {
+      deleteConfirmBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        confirmDeleteBook();
+      });
+    }
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && isNoteModalActive()) {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      if (isNoteModalActive()) {
         event.preventDefault();
         closeNoteEditor();
+        return;
       }
+      if (isDeleteModalActive()) {
+        event.preventDefault();
+        if (!deleteConfirmBtn || !deleteConfirmBtn.disabled) {
+          closeDeleteModal();
+        }
+        return;
+      }
+      if (activeCardMenu) {
+        event.preventDefault();
+        closeCardMenu();
+      }
+    });
+    document.addEventListener('click', (event) => {
+      if (!activeCardMenu) return;
+      const path = typeof event.composedPath === 'function' ? event.composedPath() : null;
+      if (path) {
+        if (path.includes(activeCardMenu.menu) || path.includes(activeCardMenu.button)) {
+          return;
+        }
+      } else {
+        const target = event.target;
+        if (
+          (target && activeCardMenu.menu.contains(target)) ||
+          (target && activeCardMenu.button.contains(target))
+        ) {
+          return;
+        }
+      }
+      closeCardMenu();
     });
 
     async function fetchJSON(url, options = {}) {
@@ -3081,6 +3306,7 @@ INDEX_HTML = """<!DOCTYPE html>
     function renderBooks() {
       if (!booksGrid) return;
       booksGrid.innerHTML = '';
+      closeCardMenu();
       const isRecentView = state.libraryPrefix === RECENTLY_PLAYED_PREFIX;
       const hasRealCollections = Array.isArray(state.collections)
         ? state.collections.some(collection => collection && !collection.virtual)
@@ -3112,6 +3338,34 @@ INDEX_HTML = """<!DOCTYPE html>
         if (bookId) {
           card.dataset.bookId = bookId;
         }
+
+        const menuButton = document.createElement('button');
+        menuButton.type = 'button';
+        menuButton.className = 'card-menu-button';
+        const bookLabel = book.title || book.path || 'book';
+        menuButton.setAttribute('aria-label', `Options for ${bookLabel}`);
+        menuButton.setAttribute('aria-haspopup', 'true');
+        menuButton.setAttribute('aria-expanded', 'false');
+        menuButton.innerText = '⋯';
+        const menu = document.createElement('div');
+        menu.className = 'card-menu hidden';
+        menuButton.addEventListener('click', (event) => {
+          event.stopPropagation();
+          toggleCardMenu(menuButton, menu);
+        });
+        const deleteAction = document.createElement('button');
+        deleteAction.type = 'button';
+        deleteAction.className = 'danger';
+        deleteAction.textContent = 'Delete';
+        deleteAction.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          closeCardMenu();
+          openDeleteModal(book);
+        });
+        menu.appendChild(deleteAction);
+        card.appendChild(menuButton);
+        card.appendChild(menu);
 
         if (book.cover_url) {
           const coverWrapper = document.createElement('div');
@@ -4959,7 +5213,9 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
                     chapter,
                     config,
                     idx + 1,
-                    chapter_meta=metadata.chapters.get(chapter.name) if metadata else None,
+                    chapter_meta=metadata.chapters.get(chapter.name)
+                    if metadata
+                    else None,
                     build_status=status_snapshot.get(chapter.name),
                 )
             )
@@ -5268,7 +5524,9 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
                     chapter,
                     config,
                     idx + 1,
-                    chapter_meta=metadata.chapters.get(chapter.name) if metadata else None,
+                    chapter_meta=metadata.chapters.get(chapter.name)
+                    if metadata
+                    else None,
                     build_status=status_snapshot.get(chapter.name),
                 )
             )
@@ -5303,6 +5561,30 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         canonical_id, _ = _resolve_book(book_id)
         statuses = _status_snapshot(canonical_id)
         return JSONResponse({"status": statuses})
+
+    @app.delete("/api/books/{book_id:path}")
+    def api_delete_book(book_id: str) -> JSONResponse:
+        canonical_id, book_path = _resolve_book(book_id)
+        with build_lock:
+            in_progress = any(
+                key[0] == canonical_id for key in active_build_jobs.keys()
+            )
+        if in_progress:
+            raise HTTPException(
+                status_code=409,
+                detail="Cannot delete this book while chapters are building.",
+            )
+        with status_lock:
+            chapter_status.pop(canonical_id, None)
+        try:
+            shutil.rmtree(book_path)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Book not found.")
+        except OSError as exc:
+            raise HTTPException(
+                status_code=500, detail=f"Failed to delete book: {exc}"
+            ) from exc
+        return JSONResponse({"deleted": True, "book": canonical_id})
 
     @app.get("/api/books/{book_id:path}/bookmarks")
     def api_bookmarks(book_id: str) -> JSONResponse:
