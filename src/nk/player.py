@@ -1666,6 +1666,9 @@ INDEX_HTML = """<!DOCTYPE html>
       epubBusy: new Set(),
       readerUrl: readerBaseUrl,
     };
+    const libraryCache = new Map();
+    const LIBRARY_CACHE_LIMIT = 10;
+    let libraryRequestToken = 0;
     let deleteContext = null;
     let activeCardMenu = null;
     const LAST_PLAY_THROTTLE_MS = 1000;
@@ -3742,27 +3745,55 @@ INDEX_HTML = """<!DOCTYPE html>
       };
     }
 
-    async function loadBooks(nextPrefix = undefined, options = {}) {
-      const navOptions =
+    function normalizedSortMode(mode) {
+      return LIBRARY_SORT_OPTIONS.includes(mode) ? mode : 'author';
+    }
+
+    function libraryCacheKey(prefix, sortMode) {
+      return `${normalizeLibraryPath(prefix)}::${normalizedSortMode(sortMode)}`;
+    }
+
+    function normalizeLibraryPayload(payload, fallbackPrefix = '') {
+      const canonicalPrefix = normalizeLibraryPath(
+        typeof payload?.prefix === 'string' ? payload.prefix : fallbackPrefix
+      );
+      return {
+        prefix: canonicalPrefix,
+        parent_prefix: normalizeLibraryPath(payload?.parent_prefix),
+        collections: Array.isArray(payload?.collections) ? payload.collections : [],
+        books: Array.isArray(payload?.books) ? payload.books : [],
+        pending_epubs: Array.isArray(payload?.pending_epubs) ? payload.pending_epubs : [],
+      };
+    }
+
+    function readLibraryCache(prefix, sortMode) {
+      return libraryCache.get(libraryCacheKey(prefix, sortMode)) || null;
+    }
+
+    function rememberLibraryPayload(payload, sortMode, fallbackPrefix = '') {
+      if (!payload) return null;
+      const entry = normalizeLibraryPayload(payload, fallbackPrefix);
+      const key = libraryCacheKey(entry.prefix, sortMode);
+      libraryCache.set(key, entry);
+      if (libraryCache.size > LIBRARY_CACHE_LIMIT) {
+        const oldest = libraryCache.keys().next();
+        if (!oldest.done) {
+          libraryCache.delete(oldest.value);
+        }
+      }
+      return entry;
+    }
+
+    function applyLibraryPayload(payload, options = {}) {
+      if (!payload) return;
+      const historyOptions =
         options && typeof options === 'object' ? options : {};
-      const { skipHistory = false, replaceHistory = false } = navOptions;
-      const params = new URLSearchParams();
-      params.set('sort', state.librarySortOrder || 'author');
-      let targetPrefix = '';
-      if (typeof nextPrefix === 'string') {
-        targetPrefix = nextPrefix;
-      } else if (typeof state.libraryPrefix === 'string') {
-        targetPrefix = state.libraryPrefix;
-      }
-      if (targetPrefix) {
-        params.set('prefix', targetPrefix);
-      }
-      const data = await fetchJSON(`/api/books?${params.toString()}`);
-      state.libraryPrefix = typeof data.prefix === 'string' ? data.prefix : '';
-      state.parentPrefix = typeof data.parent_prefix === 'string' ? data.parent_prefix : '';
-      state.collections = Array.isArray(data.collections) ? data.collections : [];
-      state.books = Array.isArray(data.books) ? data.books : [];
-      state.pendingEpubs = Array.isArray(data.pending_epubs) ? data.pending_epubs : [];
+      const { skipHistory = false, replaceHistory = false } = historyOptions;
+      state.libraryPrefix = payload.prefix || '';
+      state.parentPrefix = payload.parent_prefix || '';
+      state.collections = Array.isArray(payload.collections) ? payload.collections : [];
+      state.books = Array.isArray(payload.books) ? payload.books : [];
+      state.pendingEpubs = Array.isArray(payload.pending_epubs) ? payload.pending_epubs : [];
       syncPendingEpubBusy();
       renderLibraryNav();
       renderCollections();
@@ -3771,6 +3802,46 @@ INDEX_HTML = """<!DOCTYPE html>
       if (!skipHistory) {
         updateLocationFromState({ replace: replaceHistory });
       }
+    }
+
+    async function loadBooks(nextPrefix = undefined, options = {}) {
+      const navOptions =
+        options && typeof options === 'object' ? options : {};
+      const { skipHistory = false, replaceHistory = false } = navOptions;
+      let targetPrefix = '';
+      if (typeof nextPrefix === 'string') {
+        targetPrefix = nextPrefix;
+      } else if (typeof state.libraryPrefix === 'string') {
+        targetPrefix = state.libraryPrefix;
+      }
+      const sortMode = normalizedSortMode(state.librarySortOrder || 'author');
+      const cachedEntry = readLibraryCache(targetPrefix, sortMode);
+      if (cachedEntry) {
+        applyLibraryPayload(cachedEntry, { skipHistory, replaceHistory });
+      }
+      const params = new URLSearchParams();
+      params.set('sort', sortMode);
+      if (targetPrefix) {
+        params.set('prefix', targetPrefix);
+      }
+      const requestId = ++libraryRequestToken;
+      let data;
+      try {
+        data = await fetchJSON(`/api/books?${params.toString()}`);
+      } catch (err) {
+        if (requestId !== libraryRequestToken) {
+          return;
+        }
+        throw err;
+      }
+      if (requestId !== libraryRequestToken) {
+        return;
+      }
+      const entry = rememberLibraryPayload(data, sortMode, targetPrefix);
+      const historyOptions = cachedEntry
+        ? { skipHistory: true }
+        : { skipHistory, replaceHistory };
+      applyLibraryPayload(entry, historyOptions);
     }
 
     async function openBook(book, options = {}) {
