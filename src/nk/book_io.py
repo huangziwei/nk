@@ -22,6 +22,7 @@ _SUPPORTED_COVER_EXTS = (".jpg", ".jpeg", ".png")
 _CUSTOM_TOKEN_FILENAME = "custom_token.json"
 _LEGACY_CUSTOM_PITCH_FILENAME = "custom_pitch.json"
 _TOKEN_SUFFIX = ".token.json"
+PARTIAL_TEXT_SUFFIX = ".partial.txt"
 TOKEN_METADATA_VERSION = 2
 
 
@@ -175,7 +176,14 @@ def _write_chapter_texts(output_dir: Path, chapters: Iterable[ChapterText]) -> l
             original_path.write_text(chapter.original_text, encoding="utf-8")
         else:
             original_path.unlink(missing_ok=True)
-        _maybe_write_token_metadata(path, chapter)
+        _maybe_write_token_metadata(path, chapter.text, chapter.tokens)
+        partial_path = path.with_name(f"{path.stem}{PARTIAL_TEXT_SUFFIX}")
+        if chapter.partial_text is not None:
+            partial_path.write_text(chapter.partial_text, encoding="utf-8")
+            _maybe_write_token_metadata(partial_path, chapter.partial_text, chapter.partial_tokens)
+        else:
+            partial_path.unlink(missing_ok=True)
+            _token_metadata_path(partial_path).unlink(missing_ok=True)
         records.append(ChapterFileRecord(chapter=chapter, path=path, index=index + 1))
     return records
 
@@ -184,15 +192,19 @@ def _token_metadata_path(chapter_path: Path) -> Path:
     return chapter_path.with_name(chapter_path.name + _TOKEN_SUFFIX)
 
 
-def _maybe_write_token_metadata(chapter_path: Path, chapter: ChapterText) -> None:
+def _maybe_write_token_metadata(
+    chapter_path: Path,
+    text: str | None,
+    tokens: list[ChapterToken] | None,
+) -> None:
     token_path = _token_metadata_path(chapter_path)
-    if not chapter.tokens:
+    if not text or not tokens:
         token_path.unlink(missing_ok=True)
         return
     payload = {
         "version": TOKEN_METADATA_VERSION,
-        "text_sha1": hashlib.sha1(chapter.text.encode("utf-8")).hexdigest(),
-        "tokens": serialize_chapter_tokens(chapter.tokens),
+        "text_sha1": hashlib.sha1(text.encode("utf-8")).hexdigest(),
+        "tokens": serialize_chapter_tokens(tokens),
     }
     token_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -447,7 +459,11 @@ def regenerate_m4b_manifest(
         ),
     )
     if not chapters:
-        txt_files = sorted(book_dir.glob("*.txt"))
+        txt_files = sorted(
+            p
+            for p in book_dir.glob("*.txt")
+            if not p.name.endswith(".original.txt") and not p.name.endswith(PARTIAL_TEXT_SUFFIX)
+        )
         for idx, txt in enumerate(txt_files, start=1):
             metadata.chapters.setdefault(
                 txt.name,
@@ -629,6 +645,7 @@ __all__ = [
     "BOOK_METADATA_FILENAME",
     "M4B_MANIFEST_FILENAME",
     "TOKEN_METADATA_VERSION",
+    "PARTIAL_TEXT_SUFFIX",
     "ensure_cover_is_square",
     "regenerate_m4b_manifest",
     "load_book_metadata",

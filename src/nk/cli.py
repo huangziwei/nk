@@ -296,6 +296,15 @@ def build_tts_parser() -> argparse.ArgumentParser:
         help="Optional output directory for generated .mp3 files (defaults to input location).",
     )
     ap.add_argument(
+        "--text-variant",
+        choices=("auto", "full", "partial"),
+        default="auto",
+        help=(
+            "Which nk text files to synthesize: 'full' forces all-kana text, 'partial' preserves safe kanji, "
+            "and 'auto' prefers partial files when present (default)."
+        ),
+    )
+    ap.add_argument(
         "--speaker",
         type=int,
         default=None,
@@ -1066,7 +1075,7 @@ def _run_tts(args: argparse.Namespace) -> int:
 
     output_dir = Path(args.output_dir) if args.output_dir else None
     try:
-        targets = resolve_text_targets(input_path, output_dir)
+        targets = resolve_text_targets(input_path, output_dir, text_variant=args.text_variant)
     except (FileNotFoundError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
 

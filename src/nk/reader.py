@@ -8,6 +8,7 @@ from typing import Iterable, Mapping
 from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from .book_io import PARTIAL_TEXT_SUFFIX
 from .library import list_books_sorted
 from .refine import (
     append_override_entry,
@@ -2478,12 +2479,16 @@ def _iter_chapter_files(root: Path, sort_mode: str) -> Iterable[Path]:
         for path in sorted(book_path.rglob("*.txt")):
             if not path.is_file():
                 continue
-            if path.name.endswith(".original.txt"):
+            if path.name.endswith(".original.txt") or path.name.endswith(PARTIAL_TEXT_SUFFIX):
                 continue
             yield path
     # Include any loose .txt files directly under the root (rare).
     for path in sorted(root.glob("*.txt")):
-        if not path.is_file() or path.name.endswith(".original.txt"):
+        if (
+            not path.is_file()
+            or path.name.endswith(".original.txt")
+            or path.name.endswith(PARTIAL_TEXT_SUFFIX)
+        ):
             continue
         yield path
 

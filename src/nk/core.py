@@ -269,6 +269,8 @@ class ChapterText:
     pitch_data: list[PitchToken] | None = None
     book_author: str | None = None
     tokens: list[ChapterToken] | None = None
+    partial_text: str | None = None
+    partial_tokens: list[ChapterToken] | None = None
 
 
 @dataclass
@@ -1103,7 +1105,12 @@ def _harmonize_small_kana(tokens: list[ChapterToken], backend: "NLPBackend") -> 
             token.fallback_reading = canonical_reading
 
 
-def _render_text_from_tokens(text: str, tokens: list[ChapterToken]) -> tuple[str, list[ChapterToken]]:
+def _render_text_from_tokens(
+    text: str,
+    tokens: list[ChapterToken],
+    *,
+    preserve_unambiguous: bool = False,
+) -> tuple[str, list[ChapterToken]]:
     if not text:
         return "", []
     if not tokens:
@@ -1121,9 +1128,12 @@ def _render_text_from_tokens(text: str, tokens: list[ChapterToken]) -> tuple[str
         reading = token.reading or token.fallback_reading or token.surface
         normalized_reading = _normalize_katakana(reading)
         token.reading = normalized_reading
+        render_segment = normalized_reading
+        if preserve_unambiguous and _token_should_preserve_surface(token):
+            render_segment = token.surface or normalized_reading
         token.transformed_start = out_pos
-        output.append(normalized_reading)
-        out_pos += len(normalized_reading)
+        output.append(render_segment)
+        out_pos += len(render_segment)
         token.transformed_end = out_pos
         cursor = token.end
     if cursor < len(text):
@@ -1645,14 +1655,20 @@ def _finalize_segment_text(
     unique_sources: Mapping[str, str] | None = None,
     common_sources: Mapping[str, str] | None = None,
     context_rules: Mapping[str, _ContextRule] | None = None,
-) -> tuple[str, list[PitchToken] | None, list[ChapterToken] | None]:
+) -> tuple[
+    str,
+    list[PitchToken] | None,
+    list[ChapterToken] | None,
+    str | None,
+    list[ChapterToken] | None,
+]:
     del preset_tokens  # legacy parameter
     token_basis = original_text if original_text is not None else raw_text
     if not token_basis:
-        return "", None, None
+        return "", None, None, "", None
     if backend is None:
         normalized = _normalize_ellipsis(_normalize_katakana(_hiragana_to_katakana(token_basis)))
-        return normalized, None, None
+        return normalized, None, None, normalized, None
     tokens = _build_chapter_tokens_from_original(
         token_basis,
         backend,
@@ -1663,11 +1679,20 @@ def _finalize_segment_text(
         common_sources or {},
         context_rules or {},
     )
-    rendered_text, finalized_tokens = _render_text_from_tokens(token_basis, tokens)
+    full_tokens = [replace(token) for token in tokens]
+    partial_tokens = [replace(token) for token in tokens]
+    rendered_text, finalized_tokens = _render_text_from_tokens(token_basis, full_tokens)
+    partial_text, finalized_partial = _render_text_from_tokens(
+        token_basis,
+        partial_tokens,
+        preserve_unambiguous=True,
+    )
     rendered_text, finalized_tokens = _trim_transformed_text_and_tokens(rendered_text, finalized_tokens)
+    partial_text, finalized_partial = _trim_transformed_text_and_tokens(partial_text, finalized_partial)
     rendered_text = _normalize_ellipsis(rendered_text)
-    pitch_tokens = tokens_to_pitch_tokens(finalized_tokens)
-    return rendered_text, pitch_tokens, finalized_tokens
+    partial_text = _normalize_ellipsis(partial_text)
+    pitch_tokens = tokens_to_pitch_tokens(finalized_tokens or [])
+    return rendered_text, pitch_tokens, finalized_tokens, partial_text, finalized_partial
 
 
 def _extract_cover_image(zf: zipfile.ZipFile) -> CoverImage | None:
@@ -1826,6 +1851,15 @@ def _normalize_ellipsis_with_offsets(text: str, tokens: list[ChapterToken] | Non
             if token.transformed_end is not None and 0 <= token.transformed_end <= len(text):
                 token.transformed_end = mapping[token.transformed_end]
     return normalized
+
+
+def _token_should_preserve_surface(token: ChapterToken) -> bool:
+    if not token.surface:
+        return False
+    if not _contains_cjk(token.surface):
+        return False
+    source = (token.reading_source or "").lower()
+    return source in {"unidic", "unidic-gap"}
 
 
 def _contains_cjk(s: str) -> bool:
@@ -2725,7 +2759,13 @@ def epub_to_chapter_texts(
                     "title_hint": pending.title_hint,
                 }
             )
-            finalized_text, pitch_tokens, chapter_tokens = _finalize_segment_text(
+            (
+                finalized_text,
+                pitch_tokens,
+                chapter_tokens,
+                partial_text,
+                partial_tokens,
+            ) = _finalize_segment_text(
                 pending.raw_text,
                 backend,
                 preset_tokens=pending.tokens,
@@ -2763,6 +2803,8 @@ def epub_to_chapter_texts(
                     book_author=book_author,
                     pitch_data=pitch_tokens,
                     tokens=chapter_tokens,
+                    partial_text=partial_text,
+                    partial_tokens=partial_tokens,
                 )
             )
             _emit_progress(

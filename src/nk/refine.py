@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Iterable
 
-from .book_io import TOKEN_METADATA_VERSION
+from .book_io import PARTIAL_TEXT_SUFFIX, TOKEN_METADATA_VERSION
 from .tokens import ChapterToken, deserialize_chapter_tokens, serialize_chapter_tokens
 
 PRIMARY_OVERRIDE_FILENAME = "custom_token.json"
@@ -136,6 +136,8 @@ def refine_book(book_dir: Path, overrides: Iterable[OverrideRule]) -> int:
         return 0
     refined = 0
     for txt_path in sorted(book_dir.glob("*.txt")):
+        if txt_path.name.endswith(PARTIAL_TEXT_SUFFIX):
+            continue
         if refine_chapter(txt_path, override_list):
             refined += 1
     return refined

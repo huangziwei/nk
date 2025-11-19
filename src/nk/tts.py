@@ -23,6 +23,7 @@ import requests
 
 from .book_io import (
     LoadedBookMetadata,
+    PARTIAL_TEXT_SUFFIX,
     ensure_cover_is_square,
     load_book_metadata,
     load_token_metadata,
@@ -126,9 +127,52 @@ def _parse_track_number_from_name(stem: str) -> int | None:
         return None
 
 
+def _is_original_text_file(path: Path) -> bool:
+    return path.name.endswith(".original.txt")
+
+
+def _is_partial_text_file(path: Path) -> bool:
+    return path.name.endswith(PARTIAL_TEXT_SUFFIX)
+
+
+def _base_txt_name(path: Path) -> str:
+    name = path.name
+    if _is_partial_text_file(path):
+        base = name[: -len(PARTIAL_TEXT_SUFFIX)]
+        return f"{base}.txt"
+    return name
+
+
+def _canonical_chapter_path(path: Path) -> Path:
+    if not _is_partial_text_file(path):
+        return path
+    base = _base_txt_name(path)
+    candidate = path.with_name(base)
+    return candidate if candidate.exists() else path
+
+
+def _collect_text_variants(directory: Path) -> tuple[list[Path], list[Path]]:
+    canonical: list[Path] = []
+    partial: list[Path] = []
+    for candidate in directory.iterdir():
+        if not candidate.is_file() or candidate.suffix.lower() != ".txt":
+            continue
+        if _is_original_text_file(candidate):
+            continue
+        if _is_partial_text_file(candidate):
+            partial.append(candidate)
+        else:
+            canonical.append(candidate)
+    canonical.sort()
+    partial.sort()
+    return canonical, partial
+
+
 def resolve_text_targets(
     input_path: Path,
     output_dir: Path | None = None,
+    *,
+    text_variant: str = "auto",
 ) -> list[TTSTarget]:
     """
     Determine which .txt files should be synthesized and their destination MP3 paths.
@@ -136,16 +180,21 @@ def resolve_text_targets(
     path = input_path
     if not path.exists():
         raise FileNotFoundError(f"Input path not found: {path}")
+    variant = (text_variant or "auto").strip().lower()
+    if variant not in {"auto", "full", "partial"}:
+        raise ValueError("text_variant must be one of: auto, full, partial")
 
     targets: list[TTSTarget] = []
     if path.is_dir():
-        text_files = sorted(
-            p
-            for p in path.iterdir()
-            if p.is_file()
-            and p.suffix.lower() == ".txt"
-            and not p.name.endswith(".original.txt")
-        )
+        canonical_files, partial_files = _collect_text_variants(path)
+        if variant == "partial":
+            text_files = partial_files
+            if not text_files:
+                raise FileNotFoundError(f"No {PARTIAL_TEXT_SUFFIX} files found in directory: {path}")
+        elif variant == "auto":
+            text_files = partial_files or canonical_files
+        else:
+            text_files = canonical_files
         if not text_files:
             raise FileNotFoundError(f"No .txt files found in directory: {path}")
         base_output = output_dir or path
@@ -155,13 +204,16 @@ def resolve_text_targets(
         cover_path = _cover_path_for_book(path, metadata)
         track_total = len(text_files)
         for idx, txt in enumerate(text_files):
-            output = base_output / (txt.stem + ".mp3")
-            chapter_meta = metadata.chapters.get(txt.name) if metadata else None
+            base_name = _base_txt_name(txt)
+            base_stem = Path(base_name).stem
+            output = base_output / (base_stem + ".mp3")
+            chapter_meta = metadata.chapters.get(base_name) if metadata else None
+            canonical_txt = _canonical_chapter_path(txt)
             original_title = (
                 chapter_meta.original_title if chapter_meta and chapter_meta.original_title else None
             )
             if not original_title:
-                original_title = _read_original_title_from_file(txt)
+                original_title = _read_original_title_from_file(canonical_txt)
             track_number = (
                 chapter_meta.index
                 if chapter_meta and chapter_meta.index is not None
@@ -183,34 +235,44 @@ def resolve_text_targets(
                 )
             )
     else:
-        if path.suffix.lower() != ".txt" or path.name.endswith(".original.txt"):
+        if path.suffix.lower() != ".txt" or _is_original_text_file(path):
             raise ValueError("TTS input must be a .txt file or a directory of .txt files.")
+        actual_path = path
+        if variant in {"partial", "auto"} and not _is_partial_text_file(path):
+            candidate = path.with_name(f"{path.stem}{PARTIAL_TEXT_SUFFIX}")
+            if candidate.exists():
+                actual_path = candidate
+            elif variant == "partial":
+                raise FileNotFoundError(f"Partial text not found for {path.name}")
         base_output = output_dir or path.parent
-        output = base_output / (path.stem + ".mp3")
-        book_dir = path.parent
+        base_name = _base_txt_name(actual_path)
+        base_stem = Path(base_name).stem
+        output = base_output / (base_stem + ".mp3")
+        book_dir = actual_path.parent
         metadata = load_book_metadata(book_dir) if book_dir.exists() else None
         book_title = _book_title_from_metadata(book_dir, metadata)
         book_author = metadata.author if metadata else None
         cover_path = _cover_path_for_book(book_dir, metadata)
-        chapter_meta = metadata.chapters.get(path.name) if metadata else None
+        chapter_meta = metadata.chapters.get(base_name) if metadata else None
         original_title = (
             chapter_meta.original_title if chapter_meta and chapter_meta.original_title else None
         )
         if not original_title:
-            original_title = _read_original_title_from_file(path)
+            canonical_txt = _canonical_chapter_path(actual_path)
+            original_title = _read_original_title_from_file(canonical_txt)
         track_total = (
             len(metadata.chapters) if metadata and metadata.chapters else None
         )
         track_number = (
             chapter_meta.index
             if chapter_meta and chapter_meta.index is not None
-            else _parse_track_number_from_name(path.stem)
+            else _parse_track_number_from_name(base_stem)
         )
         if track_number is None:
             track_number = 1
         targets.append(
             TTSTarget(
-                source=path,
+                source=actual_path,
                 output=output,
                 book_title=book_title,
                 book_author=book_author,

@@ -266,6 +266,55 @@ def test_pitch_tokens_capture_transformation_sources(tmp_path: Path, backend: NL
     assert any("unidic" in source for source in sources)
 
 
+def test_partial_text_preserves_dictionary_kanji(tmp_path: Path, backend: NLPBackend) -> None:
+    epub_path = tmp_path / "partial.epub"
+    mimetype = "application/epub+zip"
+    container_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+"""
+    opf_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" unique-identifier="BookId" xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Partial</dc:title>
+  </metadata>
+  <manifest>
+    <item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="ch1"/>
+  </spine>
+</package>
+"""
+    ch1_html = """<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Partial</title></head>
+  <body>
+    <p>雨が降る。</p>
+    <p><ruby>明日<rt>アシタ</rt></ruby>が近い。</p>
+  </body>
+</html>
+"""
+    with zipfile.ZipFile(epub_path, "w") as zf:
+        zf.writestr("mimetype", mimetype)
+        zf.writestr("META-INF/container.xml", container_xml)
+        zf.writestr("content.opf", opf_xml)
+        zf.writestr("ch1.xhtml", ch1_html)
+
+    chapters, _ = epub_to_chapter_texts(str(epub_path), nlp=backend)
+    assert len(chapters) == 1
+    full_text = chapters[0].text
+    partial_text = chapters[0].partial_text
+    assert partial_text is not None
+    assert "アメ" in full_text
+    assert "雨" not in full_text
+    assert "雨" in partial_text
+    assert "アシタ" in partial_text
+
+
 def test_chapter_title_preserves_original_text(tmp_path: Path, backend: NLPBackend) -> None:
     epub_path = tmp_path / "title.epub"
     mimetype = "application/epub+zip"

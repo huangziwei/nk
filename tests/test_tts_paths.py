@@ -88,6 +88,57 @@ def test_resolve_directory_with_output_override(tmp_path: Path) -> None:
     assert all(t.track_total == 2 for t in targets)
 
 
+def test_resolve_directory_prefers_partial_variant(tmp_path: Path) -> None:
+    book_dir = tmp_path / "novel"
+    book_dir.mkdir()
+    full = book_dir / "001_intro.txt"
+    full.write_text("FULL", encoding="utf-8")
+    partial = book_dir / "001_intro.partial.txt"
+    partial.write_text("PART", encoding="utf-8")
+    (book_dir / "001_intro.original.txt").write_text("Original Title", encoding="utf-8")
+    metadata = {
+        "version": 1,
+        "title": "Novel",
+        "chapters": [
+            {"index": 1, "file": "001_intro.txt", "title": "Intro", "original_title": "Original Title"}
+        ],
+    }
+    (book_dir / ".nk-book.json").write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
+
+    targets = resolve_text_targets(book_dir, text_variant="partial")
+    assert len(targets) == 1
+    target = targets[0]
+    assert target.source == partial
+    assert target.output == book_dir / "001_intro.mp3"
+    assert target.original_title == "Original Title"
+
+    auto_targets = resolve_text_targets(book_dir, text_variant="auto")
+    assert auto_targets[0].source == partial
+
+
+def test_resolve_single_file_switches_to_partial(tmp_path: Path) -> None:
+    book_dir = tmp_path / "novel"
+    book_dir.mkdir()
+    full = book_dir / "001.txt"
+    full.write_text("FULL", encoding="utf-8")
+    partial = book_dir / "001.partial.txt"
+    partial.write_text("PARTial", encoding="utf-8")
+    (book_dir / "001.original.txt").write_text("Orig", encoding="utf-8")
+    metadata = {
+        "version": 1,
+        "chapters": [
+            {"index": 3, "file": "001.txt", "title": "One", "original_title": "Orig"}
+        ],
+    }
+    (book_dir / ".nk-book.json").write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
+
+    targets = resolve_text_targets(full, text_variant="partial")
+    assert len(targets) == 1
+    target = targets[0]
+    assert target.source == partial
+    assert target.track_number == 3
+
+
 def test_resolve_uses_book_metadata(tmp_path: Path) -> None:
     book_dir = tmp_path / "novel"
     book_dir.mkdir()

@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from .book_io import (
     ChapterMetadata,
     LoadedBookMetadata,
+    PARTIAL_TEXT_SUFFIX,
     load_book_metadata,
     update_book_tts_defaults,
 )
@@ -4355,7 +4356,9 @@ def _list_chapters(book_dir: Path) -> list[Path]:
     return [
         p
         for p in sorted(book_dir.glob("*.txt"))
-        if p.is_file() and not p.name.endswith(".original.txt")
+        if p.is_file()
+        and not p.name.endswith(".original.txt")
+        and not p.name.endswith(PARTIAL_TEXT_SUFFIX)
     ]
 
 
