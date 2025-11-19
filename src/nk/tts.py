@@ -23,10 +23,13 @@ import requests
 
 from .book_io import (
     LoadedBookMetadata,
-    PARTIAL_TEXT_SUFFIX,
+    canonical_text_path,
     ensure_cover_is_square,
+    is_original_text_file,
+    is_partial_text_file,
     load_book_metadata,
     load_token_metadata,
+    select_text_variant_path,
 )
 from .pitch import PitchToken
 from .tokens import tokens_to_pitch_tokens
@@ -69,6 +72,7 @@ class FFmpegError(RuntimeError):
 class TTSTarget:
     source: Path
     output: Path
+    text_path: Path | None = None
     book_title: str | None = None
     book_author: str | None = None
     chapter_title: str | None = None
@@ -127,45 +131,11 @@ def _parse_track_number_from_name(stem: str) -> int | None:
         return None
 
 
-def _is_original_text_file(path: Path) -> bool:
-    return path.name.endswith(".original.txt")
-
-
-def _is_partial_text_file(path: Path) -> bool:
-    return path.name.endswith(PARTIAL_TEXT_SUFFIX)
-
-
-def _base_txt_name(path: Path) -> str:
-    name = path.name
-    if _is_partial_text_file(path):
-        base = name[: -len(PARTIAL_TEXT_SUFFIX)]
-        return f"{base}.txt"
-    return name
-
-
-def _canonical_chapter_path(path: Path) -> Path:
-    if not _is_partial_text_file(path):
-        return path
-    base = _base_txt_name(path)
-    candidate = path.with_name(base)
-    return candidate if candidate.exists() else path
-
-
-def _collect_text_variants(directory: Path) -> tuple[list[Path], list[Path]]:
-    canonical: list[Path] = []
-    partial: list[Path] = []
-    for candidate in directory.iterdir():
-        if not candidate.is_file() or candidate.suffix.lower() != ".txt":
-            continue
-        if _is_original_text_file(candidate):
-            continue
-        if _is_partial_text_file(candidate):
-            partial.append(candidate)
-        else:
-            canonical.append(candidate)
-    canonical.sort()
-    partial.sort()
-    return canonical, partial
+def _normalize_text_variant(value: str | None) -> str:
+    normalized = (value or "auto").strip().lower()
+    if normalized not in {"auto", "full", "partial"}:
+        raise ValueError("text_variant must be one of: auto, full, partial")
+    return normalized
 
 
 def resolve_text_targets(
@@ -186,45 +156,45 @@ def resolve_text_targets(
 
     targets: list[TTSTarget] = []
     if path.is_dir():
-        canonical_files, partial_files = _collect_text_variants(path)
-        if variant == "partial":
-            text_files = partial_files
-            if not text_files:
-                raise FileNotFoundError(f"No {PARTIAL_TEXT_SUFFIX} files found in directory: {path}")
-        elif variant == "auto":
-            text_files = partial_files or canonical_files
-        else:
-            text_files = canonical_files
-        if not text_files:
+        canonical_files = sorted(
+            p
+            for p in path.iterdir()
+            if p.is_file()
+            and p.suffix.lower() == ".txt"
+            and not is_original_text_file(p)
+            and not is_partial_text_file(p)
+        )
+        if not canonical_files:
             raise FileNotFoundError(f"No .txt files found in directory: {path}")
         base_output = output_dir or path
         metadata = load_book_metadata(path)
         book_title = _book_title_from_metadata(path, metadata)
         book_author = metadata.author if metadata else None
         cover_path = _cover_path_for_book(path, metadata)
-        track_total = len(text_files)
-        for idx, txt in enumerate(text_files):
-            base_name = _base_txt_name(txt)
-            base_stem = Path(base_name).stem
-            output = base_output / (base_stem + ".mp3")
-            chapter_meta = metadata.chapters.get(base_name) if metadata else None
-            canonical_txt = _canonical_chapter_path(txt)
+        track_total = len(canonical_files)
+        for idx, base_path in enumerate(canonical_files):
+            try:
+                variant_path = select_text_variant_path(base_path, variant)
+            except FileNotFoundError as exc:
+                raise FileNotFoundError(f"Partial text not found for {base_path.name}") from exc
+            chapter_meta = metadata.chapters.get(base_path.name) if metadata else None
             original_title = (
                 chapter_meta.original_title if chapter_meta and chapter_meta.original_title else None
             )
             if not original_title:
-                original_title = _read_original_title_from_file(canonical_txt)
+                original_title = _read_original_title_from_file(base_path)
             track_number = (
                 chapter_meta.index
                 if chapter_meta and chapter_meta.index is not None
-                else _parse_track_number_from_name(txt.stem)
+                else _parse_track_number_from_name(base_path.stem)
             )
             if track_number is None:
                 track_number = idx + 1
             targets.append(
                 TTSTarget(
-                    source=txt,
-                    output=output,
+                    source=base_path,
+                    text_path=variant_path if variant_path != base_path else None,
+                    output=base_output / (base_path.stem + ".mp3"),
                     book_title=book_title,
                     book_author=book_author,
                     chapter_title=chapter_meta.title if chapter_meta else None,
@@ -235,45 +205,42 @@ def resolve_text_targets(
                 )
             )
     else:
-        if path.suffix.lower() != ".txt" or _is_original_text_file(path):
+        if path.suffix.lower() != ".txt" or is_original_text_file(path):
             raise ValueError("TTS input must be a .txt file or a directory of .txt files.")
-        actual_path = path
-        if variant in {"partial", "auto"} and not _is_partial_text_file(path):
-            candidate = path.with_name(f"{path.stem}{PARTIAL_TEXT_SUFFIX}")
-            if candidate.exists():
-                actual_path = candidate
-            elif variant == "partial":
-                raise FileNotFoundError(f"Partial text not found for {path.name}")
-        base_output = output_dir or path.parent
-        base_name = _base_txt_name(actual_path)
-        base_stem = Path(base_name).stem
-        output = base_output / (base_stem + ".mp3")
-        book_dir = actual_path.parent
+        base_path = canonical_text_path(path)
+        if not base_path.exists():
+            raise FileNotFoundError(f"Chapter not found: {base_path}")
+        try:
+            variant_path = select_text_variant_path(base_path, variant)
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(f"Partial text not found for {base_path.name}") from exc
+        base_output = output_dir or base_path.parent
+        book_dir = base_path.parent
         metadata = load_book_metadata(book_dir) if book_dir.exists() else None
         book_title = _book_title_from_metadata(book_dir, metadata)
         book_author = metadata.author if metadata else None
         cover_path = _cover_path_for_book(book_dir, metadata)
-        chapter_meta = metadata.chapters.get(base_name) if metadata else None
+        chapter_meta = metadata.chapters.get(base_path.name) if metadata else None
         original_title = (
             chapter_meta.original_title if chapter_meta and chapter_meta.original_title else None
         )
         if not original_title:
-            canonical_txt = _canonical_chapter_path(actual_path)
-            original_title = _read_original_title_from_file(canonical_txt)
+            original_title = _read_original_title_from_file(base_path)
         track_total = (
             len(metadata.chapters) if metadata and metadata.chapters else None
         )
         track_number = (
             chapter_meta.index
             if chapter_meta and chapter_meta.index is not None
-            else _parse_track_number_from_name(base_stem)
+            else _parse_track_number_from_name(base_path.stem)
         )
         if track_number is None:
             track_number = 1
         targets.append(
             TTSTarget(
-                source=actual_path,
-                output=output,
+                source=base_path,
+                text_path=variant_path if variant_path != base_path else None,
+                output=base_output / (base_path.stem + ".mp3"),
                 book_title=book_title,
                 book_author=book_author,
                 chapter_title=chapter_meta.title if chapter_meta else None,
@@ -666,7 +633,8 @@ def _synthesize_target_with_client(
                 shutil.rmtree(cache_dir, ignore_errors=True)
             return target.output
 
-    text = target.source.read_text(encoding="utf-8").strip()
+    text_path = target.text_path or target.source
+    text = text_path.read_text(encoding="utf-8").strip()
     if not text:
         _emit_progress(
             progress,
@@ -679,7 +647,7 @@ def _synthesize_target_with_client(
         return None
 
     text_hash = hashlib.sha1(text.encode("utf-8")).hexdigest()
-    token_metadata = load_token_metadata(target.source)
+    token_metadata = load_token_metadata(text_path)
     if token_metadata and token_metadata.text_sha1 and token_metadata.text_sha1 != text_hash:
         _debug_log(
             f"Token metadata SHA mismatch (expected {token_metadata.text_sha1}, got {text_hash}); ignoring overrides"

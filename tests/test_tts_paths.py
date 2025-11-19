@@ -108,12 +108,14 @@ def test_resolve_directory_prefers_partial_variant(tmp_path: Path) -> None:
     targets = resolve_text_targets(book_dir, text_variant="partial")
     assert len(targets) == 1
     target = targets[0]
-    assert target.source == partial
+    assert target.source == full
+    assert target.text_path == partial
     assert target.output == book_dir / "001_intro.mp3"
     assert target.original_title == "Original Title"
 
     auto_targets = resolve_text_targets(book_dir, text_variant="auto")
-    assert auto_targets[0].source == partial
+    assert auto_targets[0].source == full
+    assert auto_targets[0].text_path == partial
 
 
 def test_resolve_single_file_switches_to_partial(tmp_path: Path) -> None:
@@ -135,8 +137,17 @@ def test_resolve_single_file_switches_to_partial(tmp_path: Path) -> None:
     targets = resolve_text_targets(full, text_variant="partial")
     assert len(targets) == 1
     target = targets[0]
-    assert target.source == partial
+    assert target.source == full
+    assert target.text_path == partial
     assert target.track_number == 3
+
+
+def test_resolve_partial_variant_requires_files(tmp_path: Path) -> None:
+    book_dir = tmp_path / "novel"
+    book_dir.mkdir()
+    (book_dir / "001.txt").write_text("FULL", encoding="utf-8")
+    with pytest.raises(FileNotFoundError):
+        resolve_text_targets(book_dir, text_variant="partial")
 
 
 def test_resolve_uses_book_metadata(tmp_path: Path) -> None:

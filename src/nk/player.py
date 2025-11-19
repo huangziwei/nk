@@ -17,8 +17,10 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from .book_io import (
     ChapterMetadata,
     LoadedBookMetadata,
-    PARTIAL_TEXT_SUFFIX,
+    is_original_text_file,
+    is_partial_text_file,
     load_book_metadata,
+    select_text_variant_path,
     update_book_tts_defaults,
 )
 from .library import BookListing, list_books_sorted
@@ -59,6 +61,7 @@ class PlayerConfig:
     intonation_scale: float | None = None
     cache_dir: Path | None = None
     keep_cache: bool = True
+    text_variant: str = "auto"
 
 
 COVER_EXTENSIONS = (".jpg", ".jpeg", ".png")
@@ -4357,8 +4360,8 @@ def _list_chapters(book_dir: Path) -> list[Path]:
         p
         for p in sorted(book_dir.glob("*.txt"))
         if p.is_file()
-        and not p.name.endswith(".original.txt")
-        and not p.name.endswith(PARTIAL_TEXT_SUFFIX)
+        and not is_original_text_file(p)
+        and not is_partial_text_file(p)
     ]
 
 
@@ -4655,8 +4658,19 @@ def _chapter_state(
     *,
     chapter_meta: ChapterMetadata | None = None,
     build_status: dict[str, object] | None = None,
+    text_variant: str = "full",
 ) -> dict[str, object]:
-    target = TTSTarget(source=chapter_path, output=chapter_path.with_suffix(".mp3"))
+    try:
+        variant_path = select_text_variant_path(chapter_path, text_variant, strict=False)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    target = TTSTarget(
+        source=chapter_path,
+        text_path=variant_path if variant_path != chapter_path else None,
+        output=chapter_path.with_suffix(".mp3"),
+    )
     cache_dir = _target_cache_dir(config.cache_dir, target)
     total_chunks = _safe_read_int(cache_dir / ".complete")
     track_number = index
@@ -4879,6 +4893,7 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
     root = config.root.expanduser().resolve()
     if not root.exists():
         raise FileNotFoundError(f"Books root not found: {root}")
+    text_variant = (config.text_variant or "auto").strip().lower()
 
     app = FastAPI(title="nk VoiceVox")
     app.state.config = config
@@ -4948,16 +4963,18 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         ) = _book_media_info(book_dir, config, metadata=metadata)
         chapters = _list_chapters(book_dir)
         status_snapshot = _status_snapshot(book_id)
-        states = [
-            _chapter_state(
-                chapter,
-                config,
-                idx + 1,
-                chapter_meta=metadata.chapters.get(chapter.name) if metadata else None,
-                build_status=status_snapshot.get(chapter.name),
+        states = []
+        for idx, chapter in enumerate(chapters):
+            states.append(
+                _chapter_state(
+                    chapter,
+                    config,
+                    idx + 1,
+                    chapter_meta=metadata.chapters.get(chapter.name) if metadata else None,
+                    build_status=status_snapshot.get(chapter.name),
+                    text_variant=text_variant,
+                )
             )
-            for idx, chapter in enumerate(chapters)
-        ]
         total = len(states)
         completed = sum(1 for st in states if st["mp3_exists"])
         pending = total - completed
@@ -5256,16 +5273,18 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         ) = _book_media_info(book_path, config)
         chapters = _list_chapters(book_path)
         status_snapshot = _status_snapshot(canonical_id)
-        states = [
-            _chapter_state(
-                chapter,
-                config,
-                idx + 1,
-                chapter_meta=metadata.chapters.get(chapter.name) if metadata else None,
-                build_status=status_snapshot.get(chapter.name),
+        states = []
+        for idx, chapter in enumerate(chapters):
+            states.append(
+                _chapter_state(
+                    chapter,
+                    config,
+                    idx + 1,
+                    chapter_meta=metadata.chapters.get(chapter.name) if metadata else None,
+                    build_status=status_snapshot.get(chapter.name),
+                    text_variant=text_variant,
+                )
             )
-            for idx, chapter in enumerate(chapters)
-        ]
         completed_count = sum(1 for st in states if st["mp3_exists"])
         summary = {
             "total": len(states),
@@ -5496,7 +5515,17 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         if not chapter_path.exists():
             raise HTTPException(status_code=404, detail="Chapter not found")
 
-        target = TTSTarget(source=chapter_path, output=chapter_path.with_suffix(".mp3"))
+        try:
+            variant_path = select_text_variant_path(chapter_path, text_variant, strict=False)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        target = TTSTarget(
+            source=chapter_path,
+            text_path=variant_path if variant_path != chapter_path else None,
+            output=chapter_path.with_suffix(".mp3"),
+        )
         metadata = load_book_metadata(book_path)
         _populate_target_metadata(target, book_path, metadata)
         voice_overrides = _voice_settings_for_book(config, metadata)

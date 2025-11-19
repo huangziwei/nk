@@ -85,17 +85,30 @@ def _reload_watch_dirs() -> list[str]:
     return [str(_package_source_dir())]
 
 
-def _set_reader_reload_root(root: Path) -> None:
-    os.environ[_READER_RELOAD_ENV] = str(root)
+def _set_reader_reload_config(root: Path, text_variant: str) -> None:
+    payload = {
+        "root": str(root),
+        "text_variant": text_variant,
+    }
+    os.environ[_READER_RELOAD_ENV] = json.dumps(payload)
 
 
 def _reader_reload_app():
-    root_value = os.environ.get(_READER_RELOAD_ENV)
-    if not root_value:
+    raw_value = os.environ.get(_READER_RELOAD_ENV)
+    if not raw_value:
         raise RuntimeError(
             "nk reader reload context missing. Start the server via `nk read --reload`."
         )
-    return create_reader_app(Path(root_value))
+    text_variant = "full"
+    root_value = raw_value
+    try:
+        payload = json.loads(raw_value)
+    except json.JSONDecodeError:
+        payload = None
+    if isinstance(payload, dict) and payload.get("root"):
+        root_value = payload["root"]
+        text_variant = payload.get("text_variant", "full")
+    return create_reader_app(Path(root_value), text_variant=text_variant)
 
 
 def _serialize_player_reload_config(
@@ -117,6 +130,7 @@ def _serialize_player_reload_config(
         "intonation_scale": config.intonation_scale,
         "cache_dir": str(config.cache_dir) if config.cache_dir else None,
         "keep_cache": config.keep_cache,
+        "text_variant": config.text_variant,
         "reader_url": reader_url,
     }
     return json.dumps(payload)
@@ -165,6 +179,7 @@ def _player_reload_app():
         intonation_scale=data.get("intonation_scale"),
         cache_dir=_to_path(data.get("cache_dir")),
         keep_cache=bool(data.get("keep_cache", True)),
+        text_variant=data.get("text_variant", "auto"),
     )
     reader_url = data.get("reader_url")
     return create_app(config, reader_url=reader_url)
@@ -186,8 +201,10 @@ def _start_reader_process(
     host: str,
     port: int,
     log_config: dict[str, object] | None,
+    *,
+    text_variant: str,
 ) -> Process:
-    _set_reader_reload_root(root)
+    _set_reader_reload_config(root, text_variant)
     process = Process(
         target=_reader_process_entry,
         args=(host, port, log_config),
@@ -538,6 +555,15 @@ def build_play_parser() -> argparse.ArgumentParser:
         help="Retain cached WAV chunks after playback completes.",
     )
     ap.add_argument(
+        "--text-variant",
+        choices=("auto", "full", "partial"),
+        default="auto",
+        help=(
+            "Choose which transformed text to synthesize: 'full' for all-kana, 'partial' keeps safe kanji, "
+            "and 'auto' prefers partial when available (default)."
+        ),
+    )
+    ap.add_argument(
         "--no-reader",
         action="store_true",
         help="Skip launching the nk Reader companion service.",
@@ -569,6 +595,15 @@ def build_reader_parser() -> argparse.ArgumentParser:
         type=int,
         default=2047,
         help="Port for the reader (default: 2047).",
+    )
+    ap.add_argument(
+        "--text-variant",
+        choices=("full", "partial", "auto"),
+        default="full",
+        help=(
+            "Choose which transformed text to display: 'full' for kana, 'partial' keeps safe kanji, "
+            "and 'auto' prefers partial when available (default: full)."
+        ),
     )
     ap.add_argument(
         "--reload",
@@ -1440,13 +1475,12 @@ def _run_play(args: argparse.Namespace) -> None:
         speed_scale=args.speed,
         pitch_scale=args.pitch,
         intonation_scale=args.intonation,
+        text_variant=args.text_variant,
     )
 
     reader_process: Process | None = None
     reader_url: str | None = None
-    reader_host = args.reader_host or args.host
-    if not reader_host:
-        reader_host = "127.0.0.1"
+    reader_host = args.reader_host or args.host or "127.0.0.1"
     reader_port = args.reader_port
     if not args.no_reader:
         reader_log_config = build_uvicorn_log_config()
@@ -1456,6 +1490,7 @@ def _run_play(args: argparse.Namespace) -> None:
                 reader_host,
                 reader_port,
                 reader_log_config,
+                text_variant=config.text_variant,
             )
         except Exception as exc:
             raise SystemExit(
@@ -1509,7 +1544,7 @@ def _run_read(args: argparse.Namespace) -> int:
     print("Press Ctrl+C to stop.\n")
     log_config = build_uvicorn_log_config()
     if args.reload:
-        _set_reader_reload_root(root)
+        _set_reader_reload_config(root, args.text_variant)
         uvicorn.run(
             "nk.cli:_reader_reload_app",
             host=args.host,
@@ -1521,7 +1556,7 @@ def _run_read(args: argparse.Namespace) -> int:
             factory=True,
         )
     else:
-        app = create_reader_app(root)
+        app = create_reader_app(root, text_variant=args.text_variant)
         uvicorn.run(
             app,
             host=args.host,

@@ -8,7 +8,7 @@ from typing import Iterable, Mapping
 from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from .book_io import PARTIAL_TEXT_SUFFIX
+from .book_io import is_original_text_file, is_partial_text_file, select_text_variant_path
 from .library import list_books_sorted
 from .refine import (
     append_override_entry,
@@ -2479,15 +2479,15 @@ def _iter_chapter_files(root: Path, sort_mode: str) -> Iterable[Path]:
         for path in sorted(book_path.rglob("*.txt")):
             if not path.is_file():
                 continue
-            if path.name.endswith(".original.txt") or path.name.endswith(PARTIAL_TEXT_SUFFIX):
+            if is_original_text_file(path) or is_partial_text_file(path):
                 continue
             yield path
     # Include any loose .txt files directly under the root (rare).
     for path in sorted(root.glob("*.txt")):
         if (
             not path.is_file()
-            or path.name.endswith(".original.txt")
-            or path.name.endswith(PARTIAL_TEXT_SUFFIX)
+            or is_original_text_file(path)
+            or is_partial_text_file(path)
         ):
             continue
         yield path
@@ -2620,16 +2620,26 @@ def _load_token_payload(
     return converted, raw_payload, None
 
 
-def create_reader_app(root: Path) -> FastAPI:
+def create_reader_app(root: Path, text_variant: str = "full") -> FastAPI:
     resolved_root = root.expanduser().resolve()
     if not resolved_root.exists() or not resolved_root.is_dir():
         raise FileNotFoundError(f"Root not found: {resolved_root}")
+    variant = (text_variant or "full").strip().lower()
 
     app = FastAPI(title="nk Reader")
     app.state.root = resolved_root
+    app.state.text_variant = variant
     upload_manager = UploadManager(resolved_root)
     app.state.upload_manager = upload_manager
     app.add_event_handler("shutdown", upload_manager.shutdown)
+
+    def _chapter_text_path(chapter_path: Path) -> Path:
+        try:
+            return select_text_variant_path(chapter_path, variant, strict=False)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> HTMLResponse:
@@ -2703,13 +2713,15 @@ def create_reader_app(root: Path) -> FastAPI:
         if chapter_path.suffix.lower() != ".txt":
             raise HTTPException(status_code=400, detail="Only .txt files are supported")
 
-        text = _safe_read_text(chapter_path) if include_transformed else None
+        variant_path = _chapter_text_path(chapter_path)
+
+        text = _safe_read_text(variant_path) if include_transformed else None
         text_length = len(text) if text is not None else None
         original_path = chapter_path.with_name(f"{chapter_path.stem}.original.txt")
         original_text = _safe_read_text(original_path)
         original_length = len(original_text) if original_text is not None else None
 
-        token_path = chapter_path.with_name(chapter_path.name + ".token.json")
+        token_path = variant_path.with_name(variant_path.name + ".token.json")
         tokens_list, token_payload, token_error = _load_token_payload(token_path)
 
         chapter_entry = _chapter_entry(resolved_root, chapter_path)
