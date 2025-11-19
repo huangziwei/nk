@@ -1018,6 +1018,7 @@ def _build_chapter_tokens_from_original(
             if consumed:
                 continue
             reading = span.reading
+            fallback_reading: str | None = None
             if _contains_cjk(reading):
                 base = span.base or ""
                 canonical = None
@@ -1032,8 +1033,8 @@ def _build_chapter_tokens_from_original(
                             canonical = None
                 if not canonical:
                     canonical = _normalize_katakana(_hiragana_to_katakana(reading))
-                reading = canonical
-            _append_token(start, end, reading, "ruby")
+                fallback_reading = canonical
+            _append_token(start, end, reading, "ruby", fallback=fallback_reading)
             idx += 1
 
     for mapping, sources in (

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from nk.core import _build_chapter_tokens_from_original
+from nk.core import _RubySpan, _build_chapter_tokens_from_original, _render_text_from_tokens
 
 
 @dataclass
@@ -39,6 +39,28 @@ class _StubBackend:
         return tokens
 
 
+class _GikunBackend(_StubBackend):
+    def to_reading_text(self, text: str) -> str:
+        mapping = {
+            "Aランク": "エーランク",
+            "Fランク": "エフランク",
+        }
+        return mapping.get(text, text)
+
+    def to_reading_with_pitch(self, surface: str):  # type: ignore[override]
+        reading = self.to_reading_text(surface)
+        token = _StubToken(
+            surface=surface,
+            reading=reading,
+            start=0,
+            end=len(surface),
+            accent_type=0,
+            accent_connection="C2",
+            pos="名詞",
+        )
+        return reading, [token]
+
+
 def test_propagation_tokens_precede_unidic() -> None:
     backend = _StubBackend()
     text = "馬締光也の顔"
@@ -56,3 +78,35 @@ def test_propagation_tokens_precede_unidic() -> None:
     assert tokens[0].surface == "馬締光也"
     assert tokens[0].reading == "マジメミツヤ"
     assert tokens[0].reading_source == "propagation"
+
+
+def test_translation_ruby_preserves_gikun_reading() -> None:
+    backend = _GikunBackend()
+    text = "AランクとFランク"
+    a_start = text.index("Aランク")
+    f_start = text.index("Fランク")
+    ruby_spans = [
+        _RubySpan(start=a_start, end=a_start + len("Aランク"), base="Aランク", reading="化け物"),
+        _RubySpan(start=f_start, end=f_start + len("Fランク"), base="Fランク", reading="誰か"),
+    ]
+    tokens = _build_chapter_tokens_from_original(
+        text,
+        backend,
+        ruby_spans=ruby_spans,
+        unique_mapping={},
+        common_mapping={},
+        unique_sources={},
+        common_sources={},
+        context_rules={},
+    )
+    assert tokens
+    a_token = next(token for token in tokens if token.surface == "Aランク")
+    f_token = next(token for token in tokens if token.surface == "Fランク")
+    assert a_token.reading == "化け物"
+    assert f_token.reading == "誰か"
+    assert a_token.fallback_reading == "エーランク"
+    assert f_token.fallback_reading == "エフランク"
+
+    rendered, _ = _render_text_from_tokens(text, tokens, preserve_unambiguous=True)
+    assert "化け物" in rendered
+    assert "誰か" in rendered
