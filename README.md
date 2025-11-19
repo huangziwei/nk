@@ -2,7 +2,7 @@
 
 > Originally short for `no Kanji`, but it evolves so much over time that the name doesn't mean anything anymore. Let's just call it /nik/. 
 
-`nk` converts Japanese EPUBs into chapterized TXT files where every kanji is replaced with katakana. It leans on in-text ruby first and falls back to UniDic lookups (reinforced with NHK easy news corpus). From there you can synthesize MP3s with VoiceVox and expose them over WebDAV or the built-in web-based player.
+`nk` converts Japanese EPUBs into TTS-friendly, chapterized TXT files. It leans on in-text ruby first and falls back to UniDic lookups (reinforced with NHK easy news corpus). From there you can synthesize MP3s with VoiceVox and expose them over WebDAV or the built-in web-based player.
 
 Tested on macOS and Ubuntu.
 
