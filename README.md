@@ -20,7 +20,8 @@ cd nk
 source .venv/bin/activate
 
 # cli
-nk example/\[夏目漱石\]\ 夢十夜.epub # convert epubs into kana-only chapterized txt files
+nk example/\[夏目漱石\]\ 夢十夜.epub # # convert epubs into partially kana-transformed, chapterized txt files
+nk example/\[夏目漱石\]\ 夢十夜.epub --transform full # convert epubs into kana-only chapterized txt files
 nk tts example/\[夏目漱石\]\ 夢十夜 # convert txt files into mp3s
 
 # web

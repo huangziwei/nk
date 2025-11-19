@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "text_sha1": "820f3a2bb48ac4db02c4c5c4afec508c8ffc866c",
+  "text_sha1": "f9825f69cf21789f49bf548eeefa239d36bdffb0",
   "tokens": [
     {
       "surface": "夢",
@@ -15,7 +15,9 @@
       "connection": "C3",
       "pos": "名詞",
       "transformed_start": 0,
-      "transformed_end": 2
+      "transformed_end": 1,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "十",
@@ -29,8 +31,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 2,
-      "transformed_end": 5
+      "transformed_start": 1,
+      "transformed_end": 2,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "夜",
@@ -44,8 +48,10 @@
       "accent": null,
       "connection": "C3",
       "pos": "接尾辞",
-      "transformed_start": 5,
-      "transformed_end": 6
+      "transformed_start": 2,
+      "transformed_end": 3,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "夏目",
@@ -59,8 +65,10 @@
       "accent": 0,
       "connection": null,
       "pos": "名詞",
-      "transformed_start": 8,
-      "transformed_end": 11
+      "transformed_start": 5,
+      "transformed_end": 7,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "漱石",
@@ -71,11 +79,13 @@
       "fallback_reading": "ソウセキ",
       "context_prefix": "\n夏目",
       "context_suffix": "",
-      "accent": null,
+      "accent": 1,
       "connection": null,
-      "pos": null,
-      "transformed_start": 11,
-      "transformed_end": 15
+      "pos": "名詞",
+      "transformed_start": 7,
+      "transformed_end": 9,
+      "validated": true,
+      "block_surface_preservation": false
     }
   ]
 }

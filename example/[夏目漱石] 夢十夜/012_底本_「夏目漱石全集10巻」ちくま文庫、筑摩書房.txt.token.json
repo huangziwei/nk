@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "text_sha1": "de6a5329182c3fae8b08fc6303e19bac63e45f17",
+  "text_sha1": "0960c8cbd9c0c7e4e93061bc703a84f5a4fa1461",
   "tokens": [
     {
       "surface": "底本",
@@ -15,7 +15,9 @@
       "connection": "C2",
       "pos": "名詞",
       "transformed_start": 0,
-      "transformed_end": 4
+      "transformed_end": 2,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "夏目",
@@ -29,8 +31,10 @@
       "accent": 0,
       "connection": null,
       "pos": "名詞",
-      "transformed_start": 6,
-      "transformed_end": 9
+      "transformed_start": 4,
+      "transformed_end": 6,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "漱石",
@@ -41,11 +45,13 @@
       "fallback_reading": "ソウセキ",
       "context_prefix": "「夏目",
       "context_suffix": "全集1",
-      "accent": null,
+      "accent": 1,
       "connection": null,
-      "pos": null,
-      "transformed_start": 9,
-      "transformed_end": 13
+      "pos": "名詞",
+      "transformed_start": 6,
+      "transformed_end": 8,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "全集",
@@ -59,8 +65,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 13,
-      "transformed_end": 18
+      "transformed_start": 8,
+      "transformed_end": 10,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "巻",
@@ -74,8 +82,10 @@
       "accent": 1,
       "connection": "C1",
       "pos": "名詞",
-      "transformed_start": 20,
-      "transformed_end": 22
+      "transformed_start": 12,
+      "transformed_end": 13,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "文庫",
@@ -89,8 +99,10 @@
       "accent": null,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 26,
-      "transformed_end": 29
+      "transformed_start": 17,
+      "transformed_end": 19,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "筑摩",
@@ -104,8 +116,10 @@
       "accent": 1,
       "connection": null,
       "pos": "名詞",
-      "transformed_start": 30,
-      "transformed_end": 33
+      "transformed_start": 20,
+      "transformed_end": 22,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "書房",
@@ -119,8 +133,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 33,
-      "transformed_end": 37
+      "transformed_start": 22,
+      "transformed_end": 24,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "昭和",
@@ -134,8 +150,10 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 47,
-      "transformed_end": 51
+      "transformed_start": 34,
+      "transformed_end": 36,
+      "validated": false,
+      "block_surface_preservation": false
     },
     {
       "surface": "年",
@@ -149,8 +167,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 54,
-      "transformed_end": 56
+      "transformed_start": 39,
+      "transformed_end": 40,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "月",
@@ -164,8 +184,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 57,
-      "transformed_end": 59
+      "transformed_start": 41,
+      "transformed_end": 42,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "日",
@@ -179,8 +201,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 61,
-      "transformed_end": 63
+      "transformed_start": 44,
+      "transformed_end": 45,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "第",
@@ -194,8 +218,10 @@
       "accent": null,
       "connection": "P13",
       "pos": "接頭辞",
-      "transformed_start": 63,
-      "transformed_end": 65
+      "transformed_start": 45,
+      "transformed_end": 46,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "刷",
@@ -209,8 +235,10 @@
       "accent": null,
       "connection": "C4",
       "pos": "接尾辞",
-      "transformed_start": 66,
-      "transformed_end": 68
+      "transformed_start": 47,
+      "transformed_end": 48,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "発行",
@@ -224,8 +252,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 68,
-      "transformed_end": 72
+      "transformed_start": 48,
+      "transformed_end": 50,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "平成",
@@ -236,11 +266,13 @@
       "fallback_reading": "ヘイセイ",
       "context_prefix": "96(",
       "context_suffix": "8)年",
-      "accent": null,
+      "accent": 0,
       "connection": null,
-      "pos": null,
-      "transformed_start": 82,
-      "transformed_end": 86
+      "pos": "名詞",
+      "transformed_start": 60,
+      "transformed_end": 62,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "年",
@@ -254,8 +286,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 88,
-      "transformed_end": 90
+      "transformed_start": 64,
+      "transformed_end": 65,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "月",
@@ -269,8 +303,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 91,
-      "transformed_end": 93
+      "transformed_start": 66,
+      "transformed_end": 67,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "日",
@@ -284,8 +320,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 95,
-      "transformed_end": 97
+      "transformed_start": 69,
+      "transformed_end": 70,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "第",
@@ -299,8 +337,10 @@
       "accent": null,
       "connection": "P13",
       "pos": "接頭辞",
-      "transformed_start": 97,
-      "transformed_end": 99
+      "transformed_start": 70,
+      "transformed_end": 71,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "刷",
@@ -314,8 +354,10 @@
       "accent": null,
       "connection": "C4",
       "pos": "接尾辞",
-      "transformed_start": 100,
-      "transformed_end": 102
+      "transformed_start": 72,
+      "transformed_end": 73,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "発行",
@@ -329,8 +371,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 102,
-      "transformed_end": 106
+      "transformed_start": 73,
+      "transformed_end": 75,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "底本",
@@ -344,8 +388,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 108,
-      "transformed_end": 112
+      "transformed_start": 77,
+      "transformed_end": 79,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "親本",
@@ -359,8 +405,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 113,
-      "transformed_end": 117
+      "transformed_start": 80,
+      "transformed_end": 82,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "筑摩",
@@ -374,8 +422,10 @@
       "accent": 1,
       "connection": null,
       "pos": "名詞",
-      "transformed_start": 119,
-      "transformed_end": 122
+      "transformed_start": 84,
+      "transformed_end": 86,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "全集",
@@ -389,8 +439,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 122,
-      "transformed_end": 127
+      "transformed_start": 86,
+      "transformed_end": 88,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "類聚",
@@ -404,8 +456,10 @@
       "accent": 1,
       "connection": "C1",
       "pos": "名詞",
-      "transformed_start": 127,
-      "transformed_end": 132
+      "transformed_start": 88,
+      "transformed_end": 90,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "版",
@@ -419,8 +473,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 132,
-      "transformed_end": 134
+      "transformed_start": 90,
+      "transformed_end": 91,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "夏目",
@@ -434,8 +490,10 @@
       "accent": 0,
       "connection": null,
       "pos": "名詞",
-      "transformed_start": 134,
-      "transformed_end": 137
+      "transformed_start": 91,
+      "transformed_end": 93,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "漱石",
@@ -446,11 +504,13 @@
       "fallback_reading": "ソウセキ",
       "context_prefix": "版夏目",
       "context_suffix": "全集」",
-      "accent": null,
+      "accent": 1,
       "connection": null,
-      "pos": null,
-      "transformed_start": 137,
-      "transformed_end": 141
+      "pos": "名詞",
+      "transformed_start": 93,
+      "transformed_end": 95,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "全集",
@@ -464,8 +524,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 141,
-      "transformed_end": 146
+      "transformed_start": 95,
+      "transformed_end": 97,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "筑摩",
@@ -479,8 +541,10 @@
       "accent": 1,
       "connection": null,
       "pos": "名詞",
-      "transformed_start": 147,
-      "transformed_end": 150
+      "transformed_start": 98,
+      "transformed_end": 100,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "書房",
@@ -494,8 +558,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 150,
-      "transformed_end": 154
+      "transformed_start": 100,
+      "transformed_end": 102,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "昭和",
@@ -509,8 +575,10 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 164,
-      "transformed_end": 168
+      "transformed_start": 112,
+      "transformed_end": 114,
+      "validated": false,
+      "block_surface_preservation": false
     },
     {
       "surface": "年",
@@ -524,8 +592,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 171,
-      "transformed_end": 173
+      "transformed_start": 117,
+      "transformed_end": 118,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "月",
@@ -539,8 +609,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 174,
-      "transformed_end": 176
+      "transformed_start": 119,
+      "transformed_end": 120,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "昭和",
@@ -554,8 +626,10 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 182,
-      "transformed_end": 186
+      "transformed_start": 126,
+      "transformed_end": 128,
+      "validated": false,
+      "block_surface_preservation": false
     },
     {
       "surface": "年",
@@ -569,8 +643,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 189,
-      "transformed_end": 191
+      "transformed_start": 131,
+      "transformed_end": 132,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "月",
@@ -584,8 +660,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 192,
-      "transformed_end": 194
+      "transformed_start": 133,
+      "transformed_end": 134,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "底本",
@@ -599,8 +677,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 197,
-      "transformed_end": 201
+      "transformed_start": 137,
+      "transformed_end": 139,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "物",
@@ -614,8 +694,10 @@
       "accent": null,
       "connection": "C4",
       "pos": "名詞",
-      "transformed_start": 203,
-      "transformed_end": 205
+      "transformed_start": 141,
+      "transformed_end": 142,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "数える",
@@ -629,8 +711,10 @@
       "accent": 3,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 206,
-      "transformed_end": 210
+      "transformed_start": 143,
+      "transformed_end": 146,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "際",
@@ -644,8 +728,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 210,
-      "transformed_end": 212
+      "transformed_start": 146,
+      "transformed_end": 147,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "地名",
@@ -659,8 +745,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 213,
-      "transformed_end": 216
+      "transformed_start": 148,
+      "transformed_end": 150,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "用いる",
@@ -674,8 +762,10 @@
       "accent": null,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 219,
-      "transformed_end": 223
+      "transformed_start": 153,
+      "transformed_end": 156,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "ヶ",
@@ -689,8 +779,10 @@
       "accent": null,
       "connection": "動詞%F2@0,名詞%F1",
       "pos": "助詞",
-      "transformed_start": 224,
-      "transformed_end": 225
+      "transformed_start": 157,
+      "transformed_end": 158,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "区点",
@@ -704,8 +796,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 227,
-      "transformed_end": 230
+      "transformed_start": 160,
+      "transformed_end": 162,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "番号",
@@ -716,11 +810,13 @@
       "fallback_reading": "バンゴウ",
       "context_prefix": "(区点",
       "context_suffix": "5-8",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "transformed_start": 230,
-      "transformed_end": 234
+      "accent": 3,
+      "connection": "C2",
+      "pos": "名詞",
+      "transformed_start": 162,
+      "transformed_end": 164,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "大振り",
@@ -734,8 +830,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "形状詞",
-      "transformed_start": 241,
-      "transformed_end": 245
+      "transformed_start": 171,
+      "transformed_end": 174,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "入力",
@@ -749,8 +847,10 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 256,
-      "transformed_end": 262
+      "transformed_start": 185,
+      "transformed_end": 187,
+      "validated": false,
+      "block_surface_preservation": false
     },
     {
       "surface": "野口",
@@ -761,11 +861,13 @@
       "fallback_reading": "ノグチ",
       "context_prefix": "入力:",
       "context_suffix": "英司\n",
-      "accent": null,
+      "accent": 1,
       "connection": null,
-      "pos": null,
-      "transformed_start": 263,
-      "transformed_end": 266
+      "pos": "名詞",
+      "transformed_start": 188,
+      "transformed_end": 190,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "英司",
@@ -779,8 +881,10 @@
       "accent": 1,
       "connection": null,
       "pos": "名詞",
-      "transformed_start": 266,
-      "transformed_end": 269
+      "transformed_start": 190,
+      "transformed_end": 192,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "年",
@@ -794,8 +898,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 275,
-      "transformed_end": 277
+      "transformed_start": 198,
+      "transformed_end": 199,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "月",
@@ -809,8 +915,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 279,
-      "transformed_end": 281
+      "transformed_start": 201,
+      "transformed_end": 202,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "日",
@@ -824,8 +932,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 283,
-      "transformed_end": 285
+      "transformed_start": 204,
+      "transformed_end": 205,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "公開",
@@ -836,11 +946,13 @@
       "fallback_reading": "コウカイ",
       "context_prefix": "16日",
       "context_suffix": "\n\n2",
-      "accent": null,
-      "connection": null,
-      "pos": null,
-      "transformed_start": 285,
-      "transformed_end": 289
+      "accent": 0,
+      "connection": "C2",
+      "pos": "名詞",
+      "transformed_start": 205,
+      "transformed_end": 207,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "年",
@@ -854,8 +966,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 295,
-      "transformed_end": 297
+      "transformed_start": 213,
+      "transformed_end": 214,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "月",
@@ -869,8 +983,10 @@
       "accent": 1,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 298,
-      "transformed_end": 300
+      "transformed_start": 215,
+      "transformed_end": 216,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "日",
@@ -884,8 +1000,10 @@
       "accent": null,
       "connection": "C4",
       "pos": "接尾辞",
-      "transformed_start": 302,
-      "transformed_end": 304
+      "transformed_start": 218,
+      "transformed_end": 219,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "修正",
@@ -899,8 +1017,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 304,
-      "transformed_end": 309
+      "transformed_start": 219,
+      "transformed_end": 221,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "青空",
@@ -914,8 +1034,10 @@
       "accent": 3,
       "connection": "C1",
       "pos": "名詞",
-      "transformed_start": 311,
-      "transformed_end": 315
+      "transformed_start": 223,
+      "transformed_end": 225,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "文庫",
@@ -929,8 +1051,10 @@
       "accent": null,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 315,
-      "transformed_end": 318
+      "transformed_start": 225,
+      "transformed_end": 227,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "作成",
@@ -944,8 +1068,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 318,
-      "transformed_end": 322
+      "transformed_start": 227,
+      "transformed_end": 229,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "図書館",
@@ -959,8 +1085,10 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 345,
-      "transformed_end": 350
+      "transformed_start": 252,
+      "transformed_end": 255,
+      "validated": false,
+      "block_surface_preservation": false
     },
     {
       "surface": "青空",
@@ -974,8 +1102,10 @@
       "accent": 3,
       "connection": "C1",
       "pos": "名詞",
-      "transformed_start": 351,
-      "transformed_end": 355
+      "transformed_start": 256,
+      "transformed_end": 258,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "文庫",
@@ -989,8 +1119,10 @@
       "accent": null,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 355,
-      "transformed_end": 358
+      "transformed_start": 258,
+      "transformed_end": 260,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "作ら",
@@ -1004,8 +1136,10 @@
       "accent": 2,
       "connection": "C1",
       "pos": "動詞",
-      "transformed_start": 385,
-      "transformed_end": 388
+      "transformed_start": 287,
+      "transformed_end": 289,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "入力",
@@ -1019,8 +1153,10 @@
       "accent": null,
       "connection": null,
       "pos": null,
-      "transformed_start": 393,
-      "transformed_end": 399
+      "transformed_start": 294,
+      "transformed_end": 296,
+      "validated": false,
+      "block_surface_preservation": false
     },
     {
       "surface": "校正",
@@ -1034,8 +1170,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 400,
-      "transformed_end": 404
+      "transformed_start": 297,
+      "transformed_end": 299,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "制作",
@@ -1049,8 +1187,10 @@
       "accent": 0,
       "connection": "C2",
       "pos": "名詞",
-      "transformed_start": 405,
-      "transformed_end": 409
+      "transformed_start": 300,
+      "transformed_end": 302,
+      "validated": true,
+      "block_surface_preservation": false
     },
     {
       "surface": "皆",
@@ -1064,8 +1204,10 @@
       "accent": null,
       "connection": "C3",
       "pos": "名詞",
-      "transformed_start": 424,
-      "transformed_end": 426
+      "transformed_start": 317,
+      "transformed_end": 318,
+      "validated": true,
+      "block_surface_preservation": false
     }
   ]
 }
