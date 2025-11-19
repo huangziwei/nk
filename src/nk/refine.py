@@ -187,6 +187,7 @@ def edit_single_token(
     surface: str | None = None,
     pos: str | None = None,
     accent: int | None = None,
+    replacement: str | None = None,
 ) -> bool:
     if token_index < 0:
         raise ValueError("token_index must be non-negative.")
@@ -205,6 +206,8 @@ def edit_single_token(
         raise ValueError("token_index is out of range for this chapter.")
     target = tokens[token_index]
     changed = False
+    text_value = text_path.read_text(encoding="utf-8")
+    text_changed = False
 
     def _normalize(value: str | None) -> str | None:
         if value is None:
@@ -214,12 +217,14 @@ def edit_single_token(
             return None
         return trimmed
 
+    normalized_replacement = _normalize(replacement)
+    normalized_reading_input = _normalize(reading)
+    normalized_reading = normalized_reading_input or normalized_replacement
     normalized_surface = _normalize(surface)
     if normalized_surface and normalized_surface != target.surface:
         target.surface = normalized_surface
         changed = True
 
-    normalized_reading = _normalize(reading)
     if normalized_reading and normalized_reading != target.reading:
         target.reading = normalized_reading
         target.fallback_reading = normalized_reading
@@ -238,12 +243,31 @@ def edit_single_token(
         target.accent_type = accent
         changed = True
 
+    desired_segment = normalized_replacement or normalized_reading
+    bounds = _token_transformed_bounds(target)
+    if desired_segment and bounds is None:
+        raise ValueError("Token does not have transformed offsets; cannot edit text.")
+    if desired_segment and bounds is not None:
+        start, end = bounds
+        if end > start:
+            segment = text_value[start:end]
+            if segment != desired_segment:
+                text_value = f"{text_value[:start]}{desired_segment}{text_value[end:]}"
+                delta = len(desired_segment) - len(segment)
+                _shift_tokens(tokens, end, delta, exclude=target)
+                target.transformed_start = start
+                target.transformed_end = start + len(desired_segment)
+                text_changed = True
+                changed = True
+
     if not changed:
         return False
 
+    if text_changed:
+        text_path.write_text(text_value, encoding="utf-8")
+
     tokens.sort(key=lambda token: (_token_transformed_start(token), _token_transformed_end(token)))
-    text = text_path.read_text(encoding="utf-8")
-    normalized_for_hash = text.strip()
+    normalized_for_hash = text_value.strip()
     sha1 = hashlib.sha1(normalized_for_hash.encode("utf-8")).hexdigest()
     version = payload.get("version", 1)
     new_payload = {
@@ -372,4 +396,4 @@ def _token_transformed_end(token: ChapterToken) -> int:
     return _token_transformed_start(token)
 
 
-__all__ = ["load_override_config", "refine_book", "refine_chapter"]
+__all__ = ["load_override_config", "refine_book", "refine_chapter", "edit_single_token"]

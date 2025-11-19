@@ -42,6 +42,7 @@ def test_edit_single_token_updates_token_file(tmp_path: Path) -> None:
 
     updated = edit_single_token(chapter, 0, reading="アマ", accent=2, pos="名詞")
     assert updated
+    assert chapter.read_text(encoding="utf-8") == "アマが降る。"
     payload = json.loads(token_path.read_text(encoding="utf-8"))
     tokens = payload["tokens"]
     assert len(tokens) == 1
@@ -51,6 +52,37 @@ def test_edit_single_token_updates_token_file(tmp_path: Path) -> None:
     assert token["accent"] == 2
     assert token["pos"] == "名詞"
     assert token["reading_source"] == "manual"
+
+
+def test_edit_single_token_uses_replacement_when_reading_missing(tmp_path: Path) -> None:
+    book_dir = tmp_path / "book_manual_replacement"
+    book_dir.mkdir()
+    chapter = book_dir / "001.txt"
+    chapter.write_text("アメ", encoding="utf-8")
+    token_path = book_dir / "001.txt.token.json"
+    _write_token_file(
+        token_path,
+        [
+            {
+                "surface": "雨",
+                "reading": "アメ",
+                "accent": 0,
+                "start": 0,
+                "end": 1,
+                "transformed_start": 0,
+                "transformed_end": 2,
+            }
+        ],
+        "アメ",
+    )
+
+    updated = edit_single_token(chapter, 0, replacement="アマ")
+    assert updated
+    assert chapter.read_text(encoding="utf-8") == "アマ"
+    payload = json.loads(token_path.read_text(encoding="utf-8"))
+    token = payload["tokens"][0]
+    assert token["reading"] == "アマ"
+    assert token["fallback_reading"] == "アマ"
 
 
 def test_edit_single_token_validates_index(tmp_path: Path) -> None:

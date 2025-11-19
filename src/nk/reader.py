@@ -1085,7 +1085,7 @@ INDEX_HTML = """<!DOCTYPE html>
         } else if (refineContext && typeof refineContext.index === 'number') {
           payload.token_index = refineContext.index;
         }
-        if (normalizedScope !== 'token' && replacement) {
+        if (replacement) {
           payload.replacement = replacement;
         }
         if (reading) payload.reading = reading;
@@ -2905,6 +2905,7 @@ def create_reader_app(root: Path) -> FastAPI:
                     surface=surface,
                     pos=pos,
                     accent=accent,
+                    replacement=replacement,
                 )
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
