@@ -1562,6 +1562,16 @@ INDEX_HTML = """<!DOCTYPE html>
       </div>
     </div>
   </div>
+  <div id="replace-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="replace-modal-title">
+      <h3 id="replace-modal-title">Replace existing book?</h3>
+      <p class="modal-meta" id="replace-modal-message"></p>
+      <div class="modal-actions">
+        <button type="button" class="secondary" id="replace-cancel">Cancel</button>
+        <button type="button" id="replace-confirm">Replace</button>
+      </div>
+    </div>
+  </div>
 
   <script type="application/json" id="nk-player-config">__NK_PLAYER_CONFIG__</script>
   <script>
@@ -1607,6 +1617,10 @@ INDEX_HTML = """<!DOCTYPE html>
     const deleteModalMessage = document.getElementById('delete-modal-message');
     const deleteConfirmBtn = document.getElementById('delete-confirm');
     const deleteCancelBtn = document.getElementById('delete-cancel');
+    const replaceModal = document.getElementById('replace-modal');
+    const replaceModalMessage = document.getElementById('replace-modal-message');
+    const replaceConfirmBtn = document.getElementById('replace-confirm');
+    const replaceCancelBtn = document.getElementById('replace-cancel');
     const PLAYER_SEEK_MAX = 1000;
     const PLAYBACK_RATES = [0.75, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2];
     const SPEED_STORAGE_KEY = 'nk-player-speed';
@@ -2080,7 +2094,44 @@ INDEX_HTML = """<!DOCTYPE html>
       }, UPLOAD_POLL_INTERVAL);
     }
 
-    function handleUploadFiles(fileList) {
+    const INVALID_DIR_CHARS = new Set(['<', '>', ':', '"', '/', String.fromCharCode(92), '|', '?', '*']);
+
+    function sanitizeDirFragment(name) {
+      let candidate = typeof name === 'string' ? name.trim() : '';
+      if (!candidate) {
+        candidate = 'book';
+      }
+      const chars = [];
+      for (const ch of candidate) {
+        const code = ch.codePointAt(0);
+        if (INVALID_DIR_CHARS.has(ch)) {
+          chars.push('_');
+        } else if (typeof code === 'number' && code < 32) {
+          continue;
+        } else {
+          chars.push(ch);
+        }
+      }
+      let sanitized = chars.join('').replace(/^[\s.]+|[\s.]+$/g, '');
+      if (!sanitized) {
+        sanitized = 'book';
+      }
+      if (sanitized.length > 120) {
+        sanitized = sanitized.slice(0, 120);
+      }
+      return sanitized;
+    }
+
+    function deriveUploadTargetPath(file) {
+      const fileName = typeof file?.name === 'string' ? file.name : '';
+      const base = fileName.replace(/\\\\/g, '/').split('/').pop() || fileName;
+      const stem = base.replace(/\.[^.]+$/, '') || base;
+      const sanitized = sanitizeDirFragment(stem);
+      const prefix = normalizeLibraryPath(state.libraryPrefix);
+      return prefix ? `${prefix}/${sanitized}` : sanitized;
+    }
+
+    async function handleUploadFiles(fileList) {
       const files = [];
       if (!fileList) {
         // no-op
@@ -2098,6 +2149,22 @@ INDEX_HTML = """<!DOCTYPE html>
         return;
       }
       setUploadError('');
+      const targetPath = deriveUploadTargetPath(file);
+      if (targetPath) {
+        const collision = Array.isArray(state.books)
+          ? state.books.some(book => normalizeLibraryPath(book?.path || book?.id) === targetPath)
+          : false;
+        if (collision) {
+          const proceed = await confirmReplaceUpload(targetPath, file.name);
+          if (!proceed) {
+            if (uploadUI.input) {
+              uploadUI.input.value = '';
+            }
+            uploadDragDepth = 0;
+            return;
+          }
+        }
+      }
       if (uploadUI.drop) {
         uploadUI.drop.classList.remove('dragging');
         uploadUI.drop.classList.add('upload-busy');
@@ -2724,6 +2791,10 @@ INDEX_HTML = """<!DOCTYPE html>
       return deleteModal && !deleteModal.classList.contains('hidden');
     }
 
+    function isReplaceModalActive() {
+      return replaceModal && !replaceModal.classList.contains('hidden');
+    }
+
     function setNoteModalDisabled(disabled) {
       if (noteSaveBtn) noteSaveBtn.disabled = disabled;
       if (noteCancelBtn) noteCancelBtn.disabled = disabled;
@@ -2758,6 +2829,56 @@ INDEX_HTML = """<!DOCTYPE html>
       document.body.classList.remove('modal-open');
       setDeleteModalBusy(false);
       deleteContext = null;
+    }
+
+    let replaceResolver = null;
+
+    function setReplaceModalBusy(busy) {
+      if (replaceConfirmBtn) {
+        replaceConfirmBtn.disabled = busy;
+        replaceConfirmBtn.textContent = busy ? 'Replacing…' : 'Replace';
+      }
+      if (replaceCancelBtn) {
+        replaceCancelBtn.disabled = busy;
+      }
+    }
+
+    function hideReplaceModal() {
+      if (!replaceModal) return;
+      replaceModal.classList.add('hidden');
+      replaceModal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('modal-open');
+      setReplaceModalBusy(false);
+    }
+
+    function resolveReplaceModal(result) {
+      const resolver = replaceResolver;
+      replaceResolver = null;
+      hideReplaceModal();
+      if (resolver) resolver(result);
+    }
+
+    function confirmReplaceUpload(targetPath, filename) {
+      const message = `A book already exists at "${targetPath}". Uploading "${filename}" will replace its chapters, metadata, and cover. Existing audio files stay as-is; rebuild if you need fresh audio. Continue?`;
+      if (!replaceModal || !replaceConfirmBtn || !replaceCancelBtn) {
+        return Promise.resolve(window.confirm(message));
+      }
+      if (replaceResolver) {
+        resolveReplaceModal(false);
+      }
+      if (replaceModalMessage) {
+        replaceModalMessage.textContent = message;
+      }
+      document.body.classList.add('modal-open');
+      replaceModal.classList.remove('hidden');
+      replaceModal.setAttribute('aria-hidden', 'false');
+      setReplaceModalBusy(false);
+      return new Promise(resolve => {
+        replaceResolver = resolve;
+        if (replaceConfirmBtn) {
+          replaceConfirmBtn.focus();
+        }
+      });
     }
 
     function openDeleteModal(book) {
@@ -2888,6 +3009,13 @@ INDEX_HTML = """<!DOCTYPE html>
         }
       });
     }
+    if (replaceModal) {
+      replaceModal.addEventListener('click', (event) => {
+        if (event.target === replaceModal && (!replaceConfirmBtn || !replaceConfirmBtn.disabled)) {
+          resolveReplaceModal(false);
+        }
+      });
+    }
     if (noteTextarea) {
       noteTextarea.addEventListener('keydown', (event) => {
         if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
@@ -2909,6 +3037,21 @@ INDEX_HTML = """<!DOCTYPE html>
         confirmDeleteBook();
       });
     }
+    if (replaceCancelBtn) {
+      replaceCancelBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (replaceConfirmBtn && replaceConfirmBtn.disabled) return;
+        resolveReplaceModal(false);
+      });
+    }
+    if (replaceConfirmBtn) {
+      replaceConfirmBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (replaceConfirmBtn.disabled) return;
+        setReplaceModalBusy(true);
+        resolveReplaceModal(true);
+      });
+    }
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') {
         return;
@@ -2922,6 +3065,13 @@ INDEX_HTML = """<!DOCTYPE html>
         event.preventDefault();
         if (!deleteConfirmBtn || !deleteConfirmBtn.disabled) {
           closeDeleteModal();
+        }
+        return;
+      }
+      if (isReplaceModalActive()) {
+        event.preventDefault();
+        if (!replaceConfirmBtn || !replaceConfirmBtn.disabled) {
+          resolveReplaceModal(false);
         }
         return;
       }
