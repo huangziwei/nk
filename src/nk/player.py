@@ -3544,6 +3544,39 @@ INDEX_HTML = """<!DOCTYPE html>
           event.stopPropagation();
           toggleCardMenu(menuButton, menu);
         });
+        const addMenuItem = (label, className, handler) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = label;
+          button.className = className || '';
+          button.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            closeCardMenu();
+            handler();
+          });
+          menu.appendChild(button);
+        };
+        if (book.epub_path) {
+          addMenuItem('Reprocess EPUB', '', () => {
+            const prompt = `Reprocess "${book.title || bookLabel}" from its EPUB? This will replace chapter text, metadata, and cover. Existing audio stays until rebuilt.`;
+            if (!window.confirm(prompt)) return;
+            fetch(`/api/books/${encodeURIComponent(bookId)}/reprocess`, { method: 'POST' })
+              .then(async res => {
+                if (!res.ok) {
+                  const detail = await readErrorResponse(res);
+                  throw new Error(detail);
+                }
+                return res.json();
+              })
+              .then(() => {
+                handlePromise(loadBooks(state.libraryPrefix || '', { skipHistory: true }));
+              })
+              .catch(err => {
+                alert(`Failed to reprocess EPUB: ${err.message || err}`);
+              });
+          });
+        }
         const deleteAction = document.createElement('button');
         deleteAction.type = 'button';
         deleteAction.className = 'danger';
@@ -5428,6 +5461,59 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
     build_lock = threading.Lock()
     active_build_jobs: dict[tuple[str, str], dict[str, object]] = {}
 
+    def _epub_source_for_book(book_dir: Path, metadata: LoadedBookMetadata | None) -> Path | None:
+        candidates: list[Path] = []
+        seen: set[Path] = set()
+        book_name = book_dir.name.casefold()
+
+        def _add(path: Path) -> None:
+            try:
+                resolved = path.resolve()
+            except OSError:
+                return
+            if resolved in seen:
+                return
+            seen.add(resolved)
+            candidates.append(resolved)
+
+        # Explicit metadata hint
+        if metadata and isinstance(metadata.source_epub, str) and metadata.source_epub:
+            hint_path = Path(metadata.source_epub)
+            if hint_path.is_absolute():
+                _add(hint_path)
+            else:
+                _add(book_dir / hint_path)
+                _add(book_dir.parent / hint_path)
+
+        # Any epub inside the book directory
+        try:
+            for child in book_dir.iterdir():
+                if child.is_file() and child.suffix.lower() == ".epub":
+                    _add(child)
+        except OSError:
+            pass
+
+        # A sibling epub with the same stem as the book directory
+        try:
+            for child in book_dir.parent.iterdir():
+                if not child.is_file():
+                    continue
+                if child.suffix.lower() != ".epub":
+                    continue
+                if child.stem.casefold() != book_name:
+                    continue
+                _add(child)
+        except OSError:
+            pass
+
+        for candidate in candidates:
+            try:
+                if candidate.exists() and candidate.is_file():
+                    return candidate
+            except OSError:
+                continue
+        return None
+
     def _resolve_prefix(prefix: str | None) -> tuple[str, Path]:
         normalized = _normalize_library_path(prefix)
         candidate = (root if not normalized else root / normalized).resolve()
@@ -5479,6 +5565,7 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
             _,
             _,
         ) = _book_media_info(book_dir, config, metadata=metadata)
+        epub_source = _epub_source_for_book(book_dir, metadata)
         chapters = _list_chapters(book_dir)
         status_snapshot = _status_snapshot(book_id)
         states = []
@@ -5510,6 +5597,12 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         cover_url = _cover_url(book_id, cover_path)
         if cover_url:
             payload["cover_url"] = cover_url
+        if epub_source:
+            try:
+                epub_rel = _relative_library_path(root, epub_source, allow_root=True)
+            except ValueError:
+                epub_rel = epub_source.name
+            payload["epub_path"] = epub_rel
         return payload
 
     def _set_chapter_status(
@@ -5860,6 +5953,29 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
                 status_code=500, detail=f"Failed to delete book: {exc}"
             ) from exc
         return JSONResponse({"deleted": True, "book": canonical_id})
+
+    @app.post("/api/books/{book_id:path}/reprocess")
+    def api_reprocess_book(book_id: str) -> JSONResponse:
+        canonical_id, book_path = _resolve_book(book_id)
+        with build_lock:
+            in_progress = any(
+                key[0] == canonical_id for key in active_build_jobs.keys()
+            )
+        if in_progress:
+            raise HTTPException(
+                status_code=409,
+                detail="Cannot reprocess this book while chapters are building.",
+            )
+        metadata = load_book_metadata(book_path)
+        epub_source = _epub_source_for_book(book_path, metadata)
+        if epub_source is None:
+            raise HTTPException(
+                status_code=404,
+                detail="No EPUB file found for this book. Place an .epub in the book folder to reprocess.",
+            )
+        job = UploadJob(root, epub_source.name, source_path=epub_source, output_dir=book_path)
+        upload_manager.enqueue(job)
+        return JSONResponse({"job": job.to_payload(), "book": canonical_id})
 
     @app.get("/api/books/{book_id:path}/bookmarks")
     def api_bookmarks(book_id: str) -> JSONResponse:

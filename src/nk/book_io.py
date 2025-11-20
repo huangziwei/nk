@@ -62,6 +62,7 @@ class LoadedBookMetadata:
     cover_path: Path | None
     chapters: dict[str, ChapterMetadata]
     tts_defaults: "BookTTSDefaults | None"
+    source_epub: str | None = None
 
 
 @dataclass
@@ -546,6 +547,10 @@ def load_book_metadata(book_dir: Path) -> LoadedBookMetadata | None:
             ensure_cover_is_square(candidate)
             cover_path = candidate
 
+    epub_name = payload.get("epub")
+    if not isinstance(epub_name, str):
+        epub_name = None
+
     chapters_payload = payload.get("chapters")
     chapters: dict[str, ChapterMetadata] = {}
     if isinstance(chapters_payload, list):
@@ -579,6 +584,7 @@ def load_book_metadata(book_dir: Path) -> LoadedBookMetadata | None:
         cover_path=cover_path,
         chapters=chapters,
         tts_defaults=tts_defaults,
+        source_epub=epub_name,
     )
 
 
