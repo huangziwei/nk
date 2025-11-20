@@ -22,6 +22,7 @@ from .book_io import (
     update_book_tts_defaults,
 )
 from .library import BookListing, list_books_sorted
+from .refine import create_token_from_selection
 from .tts import (
     FFmpegError,
     TTSTarget,
@@ -35,7 +36,6 @@ from .tts import (
     managed_voicevox_runtime,
 )
 from .uploads import UploadJob, UploadManager
-from .refine import create_token_from_selection
 from .voice_defaults import (
     DEFAULT_INTONATION_SCALE,
     DEFAULT_PITCH_SCALE,
@@ -239,7 +239,7 @@ INDEX_HTML = """<!DOCTYPE html>
     .card {
       background: var(--panel-alt);
       border-radius: calc(var(--radius) - 4px);
-      padding: 1rem 1.1rem;
+      padding: 0.33rem 0.33rem;
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
@@ -256,8 +256,8 @@ INDEX_HTML = """<!DOCTYPE html>
     }
     .card-menu-button {
       position: absolute;
-      bottom: 1rem;
-      right: 1rem;
+      bottom: 0.33rem;
+      right: 0.33rem;
       width: 32px;
       height: 32px;
       border-radius: 50%;
@@ -5891,7 +5891,9 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
             start = int(payload.get("start"))  # type: ignore[arg-type]
             end = int(payload.get("end"))  # type: ignore[arg-type]
         except Exception:
-            raise HTTPException(status_code=400, detail="start and end must be integers")
+            raise HTTPException(
+                status_code=400, detail="start and end must be integers"
+            )
         if start < 0 or end <= start:
             raise HTTPException(status_code=400, detail="Invalid selection bounds")
         replacement = payload.get("replacement")
