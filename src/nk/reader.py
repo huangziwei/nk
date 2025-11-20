@@ -12,8 +12,8 @@ from .book_io import is_original_text_file
 from .library import list_books_sorted
 from .refine import (
     append_override_entry,
-    edit_single_token,
     create_token_from_selection,
+    edit_single_token,
     load_override_config,
     refine_book,
     refine_chapter,
@@ -413,13 +413,15 @@ INDEX_HTML = """<!DOCTYPE html>
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 0.65rem;
+      margin-bottom: 0.75rem;
     }
     .diagnostic-search {
       display: flex;
       flex-wrap: wrap;
       gap: 0.5rem;
       align-items: center;
-      margin-bottom: 0.65rem;
+      margin-top: 0.35rem;
+      margin-bottom: 0.4rem;
     }
     .diagnostic-search input[type="search"] {
       flex: 1;
@@ -1015,15 +1017,15 @@ INDEX_HTML = """<!DOCTYPE html>
       </section>
       <section class="panel" id="diagnostics-panel" hidden>
         <h2>diagnostics</h2>
+        <div class="diagnostic-grid" id="diagnostic-summary">
+          <div class="diagnostic-empty">Load a chapter to view diagnostics.</div>
+        </div>
         <div class="diagnostic-search">
           <input type="search" id="diagnostic-search-input" placeholder="Search surface (exact) across book" aria-label="Search token surface">
           <select id="diagnostic-search-scope" aria-label="Search scope">
             <option value="book" selected>Whole book</option>
             <option value="chapter">This chapter</option>
           </select>
-        </div>
-        <div class="diagnostic-grid" id="diagnostic-summary">
-          <div class="diagnostic-empty">Load a chapter to view diagnostics.</div>
         </div>
         <div class="diagnostic-results" id="diagnostic-search-results"></div>
         <div class="diagnostic-conflicts-wrap">
@@ -3714,7 +3716,9 @@ def create_reader_app(root: Path) -> FastAPI:
         if not chapter_path.exists():
             raise HTTPException(status_code=404, detail="Chapter not found")
         if chapter_path.name.endswith(".partial.txt"):
-            raise HTTPException(status_code=400, detail="Partial text files are no longer supported.")
+            raise HTTPException(
+                status_code=400, detail="Partial text files are no longer supported."
+            )
         return chapter_path
 
     @app.get("/", response_class=HTMLResponse)
@@ -3969,7 +3973,9 @@ def create_reader_app(root: Path) -> FastAPI:
 
     @app.get("/api/token-search")
     def api_token_search(
-        path: str = Query(..., description="Relative path to a chapter within the book"),
+        path: str = Query(
+            ..., description="Relative path to a chapter within the book"
+        ),
         surface: str = Query(..., description="Exact surface to search for"),
         scope: str = Query("book", description="Scope: 'book' or 'chapter'"),
     ) -> JSONResponse:
@@ -3977,12 +3983,16 @@ def create_reader_app(root: Path) -> FastAPI:
             raise HTTPException(status_code=400, detail="path and surface are required")
         rel_path = Path(path)
         if rel_path.is_absolute():
-            raise HTTPException(status_code=400, detail="Path must be relative to the root")
+            raise HTTPException(
+                status_code=400, detail="Path must be relative to the root"
+            )
         chapter_path = (resolved_root / rel_path).resolve()
         try:
             chapter_path.relative_to(resolved_root)
         except ValueError:
-            raise HTTPException(status_code=400, detail="Path escapes the root directory")
+            raise HTTPException(
+                status_code=400, detail="Path escapes the root directory"
+            )
         if not chapter_path.exists() or not chapter_path.is_file():
             raise HTTPException(status_code=404, detail="Chapter not found")
         normalized_surface = surface.strip()
@@ -4006,14 +4016,18 @@ def create_reader_app(root: Path) -> FastAPI:
                     "context_prefix": token.get("context_prefix"),
                     "context_suffix": token.get("context_suffix"),
                     "index": idx,
-                    "chapter_path": _relative_to_root(resolved_root, txt_path).as_posix(),
+                    "chapter_path": _relative_to_root(
+                        resolved_root, txt_path
+                    ).as_posix(),
                     "chapter_name": txt_path.name,
                 }
                 results.append(entry)
 
         scope_value = (scope or "book").strip().lower()
         if scope_value not in {"book", "chapter"}:
-            raise HTTPException(status_code=400, detail="scope must be 'book' or 'chapter'")
+            raise HTTPException(
+                status_code=400, detail="scope must be 'book' or 'chapter'"
+            )
 
         if scope_value == "chapter":
             _append_matches(chapter_path)
@@ -4056,7 +4070,9 @@ def create_reader_app(root: Path) -> FastAPI:
         start = payload.get("start")
         end = payload.get("end")
         if not isinstance(start, int) or not isinstance(end, int):
-            raise HTTPException(status_code=400, detail="start and end must be integers.")
+            raise HTTPException(
+                status_code=400, detail="start and end must be integers."
+            )
         if end <= start or start < 0:
             raise HTTPException(status_code=400, detail="Invalid selection range.")
         replacement = payload.get("replacement")
