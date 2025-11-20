@@ -379,12 +379,13 @@ INDEX_HTML = """<!DOCTYPE html>
     .epub-alert {
       border: 1px solid rgba(59,130,246,0.25);
       border-radius: calc(var(--radius) - 6px);
-      padding: 1rem 1.1rem;
       background: rgba(15,18,32,0.75);
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
       margin-bottom: 1rem;
+      padding: 0;
+      overflow: hidden;
     }
     .epub-alert-header {
       display: flex;
@@ -392,6 +393,15 @@ INDEX_HTML = """<!DOCTYPE html>
       gap: 0.75rem;
       align-items: center;
       flex-wrap: wrap;
+      cursor: pointer;
+      padding: 0.9rem 1rem;
+      list-style: none;
+    }
+    .epub-alert summary::-webkit-details-marker {
+      display: none;
+    }
+    .epub-alert[open] .epub-alert-header {
+      border-bottom: 1px solid rgba(59,130,246,0.15);
     }
     .epub-alert-header strong {
       font-size: 1rem;
@@ -405,6 +415,7 @@ INDEX_HTML = """<!DOCTYPE html>
       display: flex;
       flex-direction: column;
       gap: 0.6rem;
+      padding: 0 1rem 0.75rem;
     }
     .epub-item {
       display: flex;
@@ -1424,16 +1435,16 @@ INDEX_HTML = """<!DOCTYPE html>
           </label>
         </div>
       </div>
-      <div class="epub-alert hidden" id="pending-epubs">
-        <div class="epub-alert-header">
+      <details class="epub-alert hidden" id="pending-epubs">
+        <summary class="epub-alert-header">
           <div>
             <strong>Unprocessed EPUBs</strong>
             <p class="epub-alert-note">These EPUB files are in this folder but haven't been chapterized yet.</p>
           </div>
           <button type="button" class="secondary" id="epub-chapterize-all">Chapterize all</button>
-        </div>
+        </summary>
         <div class="epub-list" id="pending-epub-list"></div>
-      </div>
+      </details>
       <div class="cards collection-cards hidden" id="collections-grid"></div>
       <div class="cards" id="books-grid"></div>
     </section>
@@ -1640,6 +1651,9 @@ INDEX_HTML = """<!DOCTYPE html>
     const pendingEpubPanel = document.getElementById('pending-epubs');
     const pendingEpubList = document.getElementById('pending-epub-list');
     const pendingEpubAllBtn = document.getElementById('epub-chapterize-all');
+    if (pendingEpubPanel) {
+      pendingEpubPanel.open = false;
+    }
     const playerConfigNode = document.getElementById('nk-player-config');
     let readerBaseUrl = null;
     if (playerConfigNode && typeof playerConfigNode.textContent === 'string') {
@@ -3389,6 +3403,7 @@ INDEX_HTML = """<!DOCTYPE html>
         return;
       }
       pendingEpubPanel.classList.remove('hidden');
+      pendingEpubPanel.open = false;
       pendingEpubList.innerHTML = '';
       state.pendingEpubs.forEach(epub => {
         if (!epub || typeof epub !== 'object') return;
