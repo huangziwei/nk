@@ -566,7 +566,7 @@ def build_play_parser() -> argparse.ArgumentParser:
         metavar="HOST",
         help=(
             "Open the player URL in your default web browser. Optionally provide HOST "
-            "(e.g., macbookpro) to override the opened hostname."
+            "(e.g., macbookpro) to override the opened hostname; omit to use your machine hostname."
         ),
     )
     return ap
@@ -604,7 +604,7 @@ def build_reader_parser() -> argparse.ArgumentParser:
         metavar="HOST",
         help=(
             "Open the reader URL in your default web browser. Optionally provide HOST "
-            "(e.g., macbookpro) to override the opened hostname."
+            "(e.g., macbookpro) to override the opened hostname; omit to use your machine hostname."
         ),
     )
     return ap
@@ -1513,7 +1513,11 @@ def _run_play(args: argparse.Namespace) -> None:
     url = f"http://{public_ip}:{args.port}/"
     open_url = url
     if args.open:
-        open_host = public_ip if args.open == _OPEN_AUTO else args.open
+        open_host = (
+            _preferred_open_host(args.host, public_ip)
+            if args.open == _OPEN_AUTO
+            else args.open
+        )
         open_url = f"http://{open_host}:{args.port}/"
     print(f"Serving nk play from {root}")
     print(f"Player URL: {url}")
@@ -1558,7 +1562,11 @@ def _run_read(args: argparse.Namespace) -> int:
     url = f"http://{public_ip}:{args.port}/"
     open_url = url
     if args.open:
-        open_host = public_ip if args.open == _OPEN_AUTO else args.open
+        open_host = (
+            _preferred_open_host(args.host, public_ip)
+            if args.open == _OPEN_AUTO
+            else args.open
+        )
         open_url = f"http://{open_host}:{args.port}/"
     print(f"Serving nk read from {root}")
     print(f"Reader URL: {url}")
@@ -1847,6 +1855,31 @@ def _resolve_local_ip(host: str) -> str:
             return sock.getsockname()[0]
     except OSError:
         return "127.0.0.1"
+
+
+def _preferred_open_host(requested_host: str, resolved_host: str) -> str:
+    """
+    Choose a friendly hostname for browser opening:
+    - Use requested_host when it is a concrete interface (not 0.0.0.0).
+    - Otherwise prefer a fast local hostname (no network lookups), falling back to resolved_host.
+    """
+
+    if requested_host not in {"", "0.0.0.0"}:
+        return requested_host
+
+    host = _fast_hostname()
+    return host or resolved_host
+
+
+def _fast_hostname() -> str | None:
+    candidates = [socket.gethostname()]
+    for raw in candidates:
+        if not raw:
+            continue
+        host = raw.split(".")[0].strip()
+        if host and not host.lower().startswith("localhost"):
+            return host
+    return None
 
 
 def _open_in_browser(url: str) -> None:
