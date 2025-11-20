@@ -408,6 +408,96 @@ INDEX_HTML = """<!DOCTYPE html>
       font-size: 0.95rem;
       word-break: break-word;
     }
+    .diagnostic-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.65rem;
+    }
+    .diagnostic-card {
+      background: var(--panel-alt);
+      border-radius: 12px;
+      padding: 0.65rem 0.75rem;
+      border: 1px solid rgba(255,255,255,0.07);
+    }
+    .diagnostic-card .label {
+      margin: 0;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    .diagnostic-card .value {
+      margin: 0.35rem 0 0;
+      font-weight: 700;
+      font-size: 1.05rem;
+    }
+    .diagnostic-card.warn {
+      border-color: rgba(248,113,113,0.45);
+      color: #fecdd3;
+    }
+    .diagnostic-conflicts-wrap {
+      margin-top: 0.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .diagnostic-conflicts {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+    .diagnostic-conflict {
+      background: var(--panel-alt);
+      border: 1px solid var(--outline);
+      border-radius: 12px;
+      padding: 0.75rem 0.85rem;
+    }
+    .diagnostic-conflict.flagged {
+      border-color: rgba(248,113,113,0.55);
+      background: rgba(248,113,113,0.08);
+    }
+    .diagnostic-conflict-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+    .diagnostic-surface {
+      font-weight: 700;
+      font-size: 1rem;
+      word-break: break-word;
+    }
+    .diagnostic-meta {
+      display: inline-flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .diagnostic-readings {
+      margin: 0.35rem 0 0;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    .diagnostic-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.78rem;
+      border-radius: 9px;
+      padding: 0.15rem 0.65rem;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.04);
+    }
+    .diagnostic-chip.warn {
+      color: var(--warn);
+      border-color: rgba(252,211,77,0.55);
+    }
+    .diagnostic-empty {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
     .text-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -794,6 +884,18 @@ INDEX_HTML = """<!DOCTYPE html>
           <button type="button" data-role="chapter-next" aria-label="Next chapter" disabled>Next &rarr;</button>
         </div>
       </section>
+      <section class="panel" id="diagnostics-panel" hidden>
+        <h2>diagnostics</h2>
+        <div class="diagnostic-grid" id="diagnostic-summary">
+          <div class="diagnostic-empty">Load a chapter to view diagnostics.</div>
+        </div>
+        <div class="diagnostic-conflicts-wrap">
+          <h3>ambiguous readings</h3>
+          <div id="diagnostic-conflicts" class="diagnostic-conflicts">
+            <div class="diagnostic-empty">No data yet.</div>
+          </div>
+        </div>
+      </section>
       <section class="panel" id="meta-panel" hidden>
         <h2>chapter info</h2>
         <div class="meta-grid" id="meta-grid"></div>
@@ -913,6 +1015,9 @@ INDEX_HTML = """<!DOCTYPE html>
       const metaPanel = document.getElementById('meta-panel');
       const textGrid = document.getElementById('text-grid');
       const metaGrid = document.getElementById('meta-grid');
+      const diagnosticsPanel = document.getElementById('diagnostics-panel');
+      const diagnosticSummary = document.getElementById('diagnostic-summary');
+      const diagnosticConflicts = document.getElementById('diagnostic-conflicts');
       const transformedMeta = document.getElementById('transformed-meta');
       const originalMeta = document.getElementById('original-meta');
       const transformedText = document.getElementById('transformed-text');
@@ -1401,6 +1506,11 @@ INDEX_HTML = """<!DOCTYPE html>
         return value.toLocaleString();
       }
 
+      function formatPercent(value) {
+        if (!Number.isFinite(value)) return '—';
+        return `${(value * 100).toFixed(1)}%`;
+      }
+
       function formatDate(value) {
         if (!value) return '—';
         const date = new Date(value);
@@ -1885,6 +1995,223 @@ INDEX_HTML = """<!DOCTYPE html>
         metaPanel.hidden = false;
       }
 
+      function computeDiagnostics(tokens) {
+        const stats = {
+          totalTokens: Array.isArray(tokens) ? tokens.length : 0,
+          uniqueSurfaces: 0,
+          missingSurface: 0,
+          missingReading: 0,
+          missingAccent: 0,
+          missingSources: 0,
+          multiReadingSurfaces: 0,
+          flaggedSurfaces: 0,
+          flaggedTokens: 0,
+        };
+        const surfaceMap = new Map();
+        tokens.forEach((token, index) => {
+          const surfaceRaw = typeof token.surface === 'string' ? token.surface : '';
+          const surface = surfaceRaw.trim();
+          const readingRaw = typeof token.reading === 'string' ? token.reading : '';
+          const reading = readingRaw.trim();
+          const hasAccent = Number.isFinite(token.accent);
+          const hasSource = Array.isArray(token.sources) && token.sources.length > 0;
+          if (!surface) {
+            stats.missingSurface += 1;
+            if (!reading) {
+              stats.missingReading += 1;
+            }
+            if (!hasAccent) {
+              stats.missingAccent += 1;
+            }
+            if (!hasSource) {
+              stats.missingSources += 1;
+            }
+            return;
+          }
+          if (!reading) {
+            stats.missingReading += 1;
+          }
+          if (!hasAccent) {
+            stats.missingAccent += 1;
+          }
+          if (!hasSource) {
+            stats.missingSources += 1;
+          }
+          let entry = surfaceMap.get(surface);
+          if (!entry) {
+            entry = {
+              surface,
+              total: 0,
+              readings: new Map(),
+              sampleIndices: [],
+            };
+            surfaceMap.set(surface, entry);
+          }
+          entry.total += 1;
+          if (entry.sampleIndices.length < 5) {
+            entry.sampleIndices.push(index);
+          }
+          const readingKey = reading || '—';
+          let readingEntry = entry.readings.get(readingKey);
+          if (!readingEntry) {
+            readingEntry = { reading: readingKey, count: 0, indices: [] };
+            entry.readings.set(readingKey, readingEntry);
+          }
+          readingEntry.count += 1;
+          if (readingEntry.indices.length < 3) {
+            readingEntry.indices.push(index);
+          }
+        });
+        const surfaces = Array.from(surfaceMap.values());
+        stats.uniqueSurfaces = surfaces.length;
+        const conflicts = surfaces
+          .filter((entry) => entry.readings.size > 1)
+          .map((entry) => {
+            const readings = Array.from(entry.readings.values())
+              .map((item) => ({
+                reading: item.reading,
+                count: item.count,
+                share: entry.total ? item.count / entry.total : 0,
+                indices: item.indices,
+              }))
+              .sort(
+                (a, b) =>
+                  b.count - a.count
+                  || a.reading.localeCompare(b.reading, 'ja', { numeric: true, sensitivity: 'base' })
+              );
+            const primary = readings[0] || { share: 0 };
+            const primaryShare = primary.share;
+            const flagged = primaryShare < 0.9 || readings.length >= 3;
+            const score = (1 - primaryShare) * entry.total;
+            return {
+              surface: entry.surface,
+              total: entry.total,
+              readings,
+              primaryShare,
+              flagged,
+              sampleIndices: entry.sampleIndices,
+              score,
+            };
+          })
+          .sort(
+            (a, b) =>
+              Number(b.flagged) - Number(a.flagged)
+              || b.score - a.score
+              || b.total - a.total
+              || a.surface.localeCompare(b.surface, 'ja', { numeric: true, sensitivity: 'base' })
+          );
+        stats.multiReadingSurfaces = conflicts.length;
+        stats.flaggedSurfaces = conflicts.filter((entry) => entry.flagged).length;
+        stats.flaggedTokens = conflicts
+          .filter((entry) => entry.flagged)
+          .reduce((sum, entry) => sum + entry.total, 0);
+        return { stats, conflicts };
+      }
+
+      function clearDiagnostics() {
+        if (diagnosticSummary) {
+          diagnosticSummary.innerHTML = '<div class="diagnostic-empty">Load a chapter to view diagnostics.</div>';
+        }
+        if (diagnosticConflicts) {
+          diagnosticConflicts.innerHTML = '<div class="diagnostic-empty">No data yet.</div>';
+        }
+        if (diagnosticsPanel) {
+          diagnosticsPanel.hidden = true;
+        }
+      }
+
+      function renderDiagnostics(tokens) {
+        if (!diagnosticSummary || !diagnosticConflicts || !diagnosticsPanel) {
+          return;
+        }
+        if (!Array.isArray(tokens) || !tokens.length) {
+          diagnosticSummary.innerHTML = '<div class="diagnostic-empty">No token data.</div>';
+          diagnosticConflicts.innerHTML = '<div class="diagnostic-empty">No ambiguous readings detected.</div>';
+          diagnosticsPanel.hidden = false;
+          return;
+        }
+        const { stats, conflicts } = computeDiagnostics(tokens);
+        const summaryItems = [
+          { label: 'Tokens', value: stats.totalTokens },
+          { label: 'Unique surfaces', value: stats.uniqueSurfaces },
+          ...(stats.missingSurface
+            ? [{ label: 'Missing surfaces', value: stats.missingSurface, tone: 'warn' }]
+            : []),
+          { label: 'Missing readings', value: stats.missingReading, tone: stats.missingReading ? 'warn' : '' },
+          { label: 'Missing accent', value: stats.missingAccent, tone: stats.missingAccent ? 'warn' : '' },
+          { label: 'Missing sources', value: stats.missingSources, tone: stats.missingSources ? 'warn' : '' },
+          { label: 'Multi-reading surfaces', value: stats.multiReadingSurfaces },
+          { label: 'Likely conflict surfaces', value: stats.flaggedSurfaces, tone: stats.flaggedSurfaces ? 'warn' : '' },
+          { label: 'Tokens needing review', value: stats.flaggedTokens, tone: stats.flaggedTokens ? 'warn' : '' },
+        ];
+        diagnosticSummary.innerHTML = '';
+        summaryItems.forEach((item) => {
+          const card = document.createElement('div');
+          card.className = 'diagnostic-card' + (item.tone === 'warn' ? ' warn' : '');
+          const label = document.createElement('div');
+          label.className = 'label';
+          label.textContent = item.label;
+          const value = document.createElement('div');
+          value.className = 'value';
+          value.textContent = formatNumber(item.value);
+          card.appendChild(label);
+          card.appendChild(value);
+          diagnosticSummary.appendChild(card);
+        });
+        diagnosticConflicts.innerHTML = '';
+        const topConflicts = conflicts.slice(0, 15);
+        if (!topConflicts.length) {
+          const empty = document.createElement('div');
+          empty.className = 'diagnostic-empty';
+          empty.textContent = 'All surfaces use a single reading.';
+          diagnosticConflicts.appendChild(empty);
+        } else {
+          topConflicts.forEach((entry) => {
+            const card = document.createElement('div');
+            card.className = 'diagnostic-conflict' + (entry.flagged ? ' flagged' : '');
+            const header = document.createElement('div');
+            header.className = 'diagnostic-conflict-header';
+            const surface = document.createElement('div');
+            surface.className = 'diagnostic-surface';
+            surface.textContent = entry.surface || '—';
+            header.appendChild(surface);
+            const meta = document.createElement('div');
+            meta.className = 'diagnostic-meta';
+            if (entry.flagged) {
+              const chip = document.createElement('span');
+              chip.className = 'diagnostic-chip warn';
+              chip.textContent = 'needs review';
+              meta.appendChild(chip);
+            }
+            const share = document.createElement('span');
+            share.textContent = `Top share ${formatPercent(entry.primaryShare)}`;
+            meta.appendChild(share);
+            const count = document.createElement('span');
+            count.textContent = `${entry.total} token${entry.total === 1 ? '' : 's'}`;
+            meta.appendChild(count);
+            header.appendChild(meta);
+            card.appendChild(header);
+            const readingsLabel = document.createElement('div');
+            readingsLabel.className = 'diagnostic-readings';
+            readingsLabel.textContent = entry.readings
+              .map(
+                (reading) => `${reading.reading} (${reading.count}/${entry.total}, ${formatPercent(reading.share)})`
+              )
+              .join(' · ');
+            card.appendChild(readingsLabel);
+            if (entry.sampleIndices && entry.sampleIndices.length) {
+              const sample = document.createElement('div');
+              sample.className = 'diagnostic-meta';
+              const sampleLabel = entry.sampleIndices.length > 1 ? 'Sample tokens' : 'Sample token';
+              sample.textContent = `${sampleLabel} #${entry.sampleIndices.slice(0, 3).join(', #')}`;
+              card.appendChild(sample);
+            }
+            diagnosticConflicts.appendChild(card);
+          });
+        }
+        diagnosticsPanel.hidden = false;
+      }
+
       function applyFilter() {
         const query = state.filterValue.trim().toLowerCase();
         if (!query) {
@@ -2267,6 +2594,7 @@ INDEX_HTML = """<!DOCTYPE html>
 
       function clearSelection() {
         metaPanel.hidden = true;
+        clearDiagnostics();
         transformedMeta.textContent = '—';
         transformedMeta.className = 'pill';
         originalMeta.textContent = '—';
@@ -2344,6 +2672,7 @@ INDEX_HTML = """<!DOCTYPE html>
         updateMetaPanel(payload);
         renderOriginalText(payload, tokens);
         renderTransformedText(payload, tokens);
+        renderDiagnostics(tokens);
         scheduleAlignLines();
         if (options.preserveScroll && options.scrollSnapshot) {
           restoreScrollPositions(options.scrollSnapshot);
