@@ -371,6 +371,21 @@ def create_token_from_selection(
         context_prefix = text[max(0, start - 3) : start]
         context_suffix = text[end : end + 3]
 
+    def _ranges_overlap(a_start: int | None, a_end: int | None, b_start: int, b_end: int) -> bool:
+        if a_start is None or a_end is None:
+            return False
+        return b_end > a_start and a_end > b_start
+
+    filtered_tokens: list[ChapterToken] = []
+    for token in tokens:
+        t_bounds = _token_transformed_bounds(token)
+        overlaps_transformed = t_bounds is not None and _ranges_overlap(t_bounds[0], t_bounds[1], start, end)
+        overlaps_original = _ranges_overlap(token.start, token.end, original_start, original_end)
+        if overlaps_transformed or overlaps_original:
+            continue
+        filtered_tokens.append(token)
+    tokens = filtered_tokens
+
     reading_val = reading or replacement_text
     surface_val = surface or surface_segment
     new_token = ChapterToken(
