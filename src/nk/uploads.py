@@ -82,11 +82,13 @@ class UploadJob:
         *,
         source_path: Path | None = None,
         output_dir: Path | None = None,
+        force: bool = False,
     ) -> None:
         self.root = root
         self.id = uuid4().hex
         self.filename = _normalize_upload_filename(filename)
         self.book_label = self.filename
+        self.force = force
         self._owns_temp = source_path is None
         target_path: Path | None = None
         if output_dir is not None:

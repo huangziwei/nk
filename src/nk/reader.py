@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping
 
-from fastapi import Body, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from .book_io import is_original_text_file
@@ -3018,43 +3018,55 @@ INDEX_HTML = """<!DOCTYPE html>
           uploadDrop.classList.remove('dragging');
           uploadDrop.classList.add('upload-busy');
         }
-        const formData = new FormData();
-        formData.append('file', file, file.name);
-        fetch('/api/uploads', {
-          method: 'POST',
-          body: formData,
-        })
-          .then(async (res) => {
-            let payload = null;
-            try {
-              payload = await res.json();
-            } catch (error) {
-              payload = null;
-            }
-            if (!res.ok) {
-              const detail = payload && payload.detail;
-              throw new Error(detail || `Upload failed (${res.status})`);
-            }
-            return payload;
+        const submitUpload = (force = false) => {
+          const formData = new FormData();
+          formData.append('file', file, file.name);
+          if (force) {
+            formData.set('force', '1');
+          }
+          fetch('/api/uploads', {
+            method: 'POST',
+            body: formData,
           })
-          .then(() => {
-            loadUploads();
-            startUploadPolling();
-          })
-          .catch((err) => {
-            console.error(err);
-            setUploadError(err.message || 'Upload failed.');
-          })
-          .finally(() => {
-            if (uploadInput) {
-              uploadInput.value = '';
-            }
-            if (uploadDrop) {
-              uploadDrop.classList.remove('upload-busy');
-              uploadDrop.classList.remove('dragging');
-            }
-            uploadDragDepth = 0;
-          });
+            .then(async (res) => {
+              let payload = null;
+              try {
+                payload = await res.json();
+              } catch (error) {
+                payload = null;
+              }
+              if (!res.ok) {
+                const detail = payload && payload.detail ? payload.detail : null;
+                if (res.status === 409 && detail) {
+                  const confirmText = `${detail}\n\nProceed and overwrite existing chapterized files?`;
+                  if (window.confirm(confirmText)) {
+                    return submitUpload(true);
+                  }
+                }
+                throw new Error(detail || `Upload failed (${res.status})`);
+              }
+              return payload;
+            })
+            .then(() => {
+              loadUploads();
+              startUploadPolling();
+            })
+            .catch((err) => {
+              console.error(err);
+              setUploadError(err.message || 'Upload failed.');
+            })
+            .finally(() => {
+              if (uploadInput) {
+                uploadInput.value = '';
+              }
+              if (uploadDrop) {
+                uploadDrop.classList.remove('upload-busy');
+                uploadDrop.classList.remove('dragging');
+              }
+              uploadDragDepth = 0;
+            });
+        };
+        submitUpload(false);
       }
 
       function clearSelection() {
@@ -3634,14 +3646,24 @@ def create_reader_app(root: Path) -> FastAPI:
         return JSONResponse({"jobs": jobs})
 
     @app.post("/api/uploads")
-    async def api_upload_epub(file: UploadFile = File(...)) -> JSONResponse:
+    async def api_upload_epub(
+        file: UploadFile = File(...),
+        force: bool = Form(False),
+    ) -> JSONResponse:
         filename = file.filename or "upload.epub"
         suffix = Path(filename).suffix.lower()
         if suffix != ".epub":
             raise HTTPException(
                 status_code=400, detail="Only .epub files are supported."
             )
-        job = UploadJob(resolved_root, filename)
+        job = UploadJob(resolved_root, filename, force=bool(force))
+        if job.output_dir.exists() and not job.force:
+            job.cleanup()
+            detail = (
+                f"Book already exists at {job.target_rel}. Uploading will overwrite transformed text, "
+                "token metadata, cover, and manifests (bookmarks/custom_token.json are left as-is)."
+            )
+            raise HTTPException(status_code=409, detail=detail)
         try:
             with job.temp_path.open("wb") as destination:
                 while True:
