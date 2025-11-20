@@ -27,6 +27,37 @@ class OverrideRule:
     match_surface: str | None
 
 
+def _build_offset_mapper(source: str | None, target: str | None):
+    if source is None or target is None:
+        return None
+    matcher = SequenceMatcher(None, source, target, autojunk=False)
+    opcodes = matcher.get_opcodes()
+
+    def _map(value: int) -> int:
+        if value <= 0:
+            return 0
+        for tag, i1, i2, j1, j2 in opcodes:
+            if value < j1:
+                return i1
+            if j1 <= value <= j2:
+                if tag == "equal":
+                    return i1 + (value - j1)
+                t_len = j2 - j1
+                s_len = i2 - i1
+                if t_len == 0:
+                    return i1
+                ratio = (value - j1) / t_len
+                mapped = int(round(i1 + ratio * s_len))
+                if mapped < i1:
+                    return i1
+                if mapped > i2:
+                    return i2
+                return mapped
+        return len(source)
+
+    return _map
+
+
 def _migrate_legacy_override_file(book_dir: Path) -> Path | None:
     primary = book_dir / PRIMARY_OVERRIDE_FILENAME
     if primary.exists():
@@ -146,7 +177,12 @@ def refine_book(book_dir: Path, overrides: Iterable[OverrideRule]) -> int:
 
 def refine_chapter(text_path: Path, overrides: Iterable[OverrideRule]) -> bool:
     text = text_path.read_text(encoding="utf-8")
-    original_text = text
+    initial_text = text
+    try:
+        original_path = text_path.with_name(f"{text_path.stem}.original.txt")
+        original_text = original_path.read_text(encoding="utf-8")
+    except OSError:
+        original_text = None
     token_path = text_path.with_name(text_path.name + ".token.json")
     existing_tokens: list[ChapterToken] = []
     version = 1
@@ -162,10 +198,10 @@ def refine_chapter(text_path: Path, overrides: Iterable[OverrideRule]) -> bool:
     tokens = [replace(token) for token in existing_tokens]
     overrides_applied = False
     for rule in overrides:
-        text, changed = _apply_override_rule(text, tokens, rule)
+        text, changed = _apply_override_rule(text, tokens, rule, original_text=original_text)
         if changed:
             overrides_applied = True
-    if text == original_text and not overrides_applied:
+    if text == initial_text and not overrides_applied:
         return False
     text_path.write_text(text, encoding="utf-8")
     tokens.sort(key=lambda token: (_token_transformed_start(token), _token_transformed_end(token)))
@@ -324,34 +360,6 @@ def create_token_from_selection(
     except OSError:
         original_text = None
 
-    def _build_offset_mapper(source: str, target: str):
-        matcher = SequenceMatcher(None, source, target, autojunk=False)
-        opcodes = matcher.get_opcodes()
-
-        def _map(value: int) -> int:
-            if value <= 0:
-                return 0
-            for tag, i1, i2, j1, j2 in opcodes:
-                if value < j1:
-                    return i1
-                if j1 <= value <= j2:
-                    if tag == "equal":
-                        return i1 + (value - j1)
-                    t_len = j2 - j1
-                    s_len = i2 - i1
-                    if t_len == 0:
-                        return i1
-                    ratio = (value - j1) / t_len
-                    mapped = int(round(i1 + ratio * s_len))
-                    if mapped < i1:
-                        return i1
-                    if mapped > i2:
-                        return i2
-                    return mapped
-            return len(source)
-
-        return _map
-
     if original_text is not None:
         map_to_original = _build_offset_mapper(original_text, text)
         original_start = map_to_original(start)
@@ -418,7 +426,11 @@ def create_token_from_selection(
 
 
 def _apply_override_rule(
-    text: str, tokens: list[ChapterToken], rule: OverrideRule
+    text: str,
+    tokens: list[ChapterToken],
+    rule: OverrideRule,
+    *,
+    original_text: str | None = None,
 ) -> tuple[str, bool]:
     compiled: re.Pattern[str] | None = None
     if rule.regex:
@@ -427,6 +439,19 @@ def _apply_override_rule(
         except re.error as exc:
             raise ValueError(f"Invalid pattern '{rule.pattern}': {exc}") from exc
     changed = False
+    mapper_cache: dict[str, object] = {"text": None, "mapper": None}
+
+    def _get_mapper():
+        if original_text is None:
+            return None
+        cached_text = mapper_cache.get("text")
+        if cached_text == text:
+            return mapper_cache.get("mapper")
+        mapper = _build_offset_mapper(original_text, text)
+        mapper_cache["text"] = text
+        mapper_cache["mapper"] = mapper
+        return mapper
+
     def _overlaps(start: int, end: int) -> bool:
         for tok in tokens:
             bounds = _token_transformed_bounds(tok)
@@ -437,9 +462,18 @@ def _apply_override_rule(
                 return True
         return False
 
+    def _map_bounds(transformed_start: int, transformed_end: int) -> tuple[int, int]:
+        mapper = _get_mapper()
+        if mapper is None:
+            return transformed_start, transformed_end
+        original_len = len(original_text or "")
+        o_start = mapper(transformed_start)
+        o_end = mapper(transformed_end)
+        o_start = max(0, min(o_start, original_len))
+        o_end = max(o_start, min(o_end, original_len))
+        return o_start, o_end
+
     def _add_token(
-        original_start: int,
-        original_end: int,
         transformed_start: int,
         transformed_end: int,
         segment: str,
@@ -448,6 +482,7 @@ def _apply_override_rule(
         replacement = replacement_text if replacement_text is not None else segment
         reading_val = rule.reading or replacement
         surface_val = rule.surface or replacement
+        original_start, original_end = _map_bounds(transformed_start, transformed_end)
         token = ChapterToken(
             surface=surface_val,
             start=original_start,
@@ -455,8 +490,8 @@ def _apply_override_rule(
             reading=reading_val,
             fallback_reading=reading_val,
             reading_source="override",
-            context_prefix=text[max(0, original_start - 3) : original_start],
-            context_suffix=text[original_end : original_end + 3],
+            context_prefix=(original_text or text)[max(0, original_start - 3) : original_start],
+            context_suffix=(original_text or text)[original_end : original_end + 3],
             accent_type=rule.accent,
             pos=rule.pos,
             transformed_start=transformed_start,
@@ -539,7 +574,7 @@ def _apply_override_rule(
             _shift_tokens(tokens, adj_end, change_delta)
             adj_end = adj_start + len(replacement_text)
             delta += change_delta
-        _add_token(start, end, adj_start, adj_end, segment, replacement_text)
+        _add_token(adj_start, adj_end, segment, replacement_text)
         changed = True
 
     if changed:
