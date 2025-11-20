@@ -135,3 +135,29 @@ def test_ambiguous_unidic_surfaces_are_forced_to_katakana() -> None:
     assert "守衛" not in rendered
     assert "モリエ" in rendered
     assert "シュエイ" in rendered
+
+
+def test_conflict_between_ruby_and_unidic_blocks_surface_preservation() -> None:
+    text = "鳥や虫や蛙の鳴き声と蛙の鳴き声"
+    first = text.index("蛙")
+    second = text.rindex("蛙")
+    tokens = [
+        ChapterToken(
+            surface="蛙",
+            start=first,
+            end=first + 1,
+            reading="カエル",
+            reading_source="ruby",
+        ),
+        ChapterToken(
+            surface="蛙",
+            start=second,
+            end=second + 1,
+            reading="カワズ",
+            reading_source="unidic",
+        ),
+    ]
+    rendered, _ = _render_text_from_tokens(text, tokens, preserve_unambiguous=True)
+    assert "蛙" not in rendered
+    assert "カエル" in rendered
+    assert "カワズ" in rendered

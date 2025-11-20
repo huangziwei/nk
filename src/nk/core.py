@@ -1115,6 +1115,7 @@ def _build_chapter_tokens_from_original(
 
     _harmonize_small_kana(tokens, backend)
     _flag_unidic_ambiguous_tokens(tokens)
+    _flag_surface_reading_conflicts(tokens)
     _fill_missing_accent_on_chapter_tokens(tokens, backend)
     tokens.sort(key=lambda token: (token.start, token.end))
     return tokens
@@ -1159,6 +1160,7 @@ def _render_text_from_tokens(
         # Re-evaluate ambiguous UniDic surfaces so partial transforms always
         # kana-ize multi-reading kanji even when token flags were never set.
         _flag_unidic_ambiguous_tokens(tokens)
+        _flag_surface_reading_conflicts(tokens)
     output: list[str] = []
     cursor = 0
     out_pos = 0
@@ -1211,6 +1213,41 @@ def _flag_unidic_ambiguous_tokens(tokens: list[ChapterToken]) -> None:
             continue
         normalized_surface = unicodedata.normalize("NFKC", token.surface)
         if normalized_surface in ambiguous_surfaces:
+            token.block_surface_preservation = True
+
+
+def _flag_surface_reading_conflicts(tokens: list[ChapterToken]) -> None:
+    """
+    Mark tokens as unsafe for surface preservation when the same surface
+    shows up with multiple readings across any source (ruby, propagation,
+    UniDic, etc.). This ensures partial transforms use kana for ambiguous
+    surfaces even if the conflict is between ruby and UniDic.
+    """
+    if not tokens:
+        return
+    readings_by_surface: dict[str, set[str]] = defaultdict(set)
+    for token in tokens:
+        surface = token.surface
+        reading = token.reading or token.fallback_reading
+        if not surface or not reading:
+            continue
+        normalized_surface = unicodedata.normalize("NFKC", surface)
+        normalized_reading = _normalize_katakana(reading)
+        if not normalized_reading:
+            continue
+        reading_key = _strip_small_kana_variants(normalized_reading)
+        readings_by_surface[normalized_surface].add(reading_key)
+    conflict_surfaces = {
+        surface for surface, variants in readings_by_surface.items() if len(variants) > 1
+    }
+    if not conflict_surfaces:
+        return
+    for token in tokens:
+        surface = token.surface
+        if not surface:
+            continue
+        normalized_surface = unicodedata.normalize("NFKC", surface)
+        if normalized_surface in conflict_surfaces:
             token.block_surface_preservation = True
 
 
