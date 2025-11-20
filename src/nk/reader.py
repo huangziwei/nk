@@ -382,6 +382,14 @@ INDEX_HTML = """<!DOCTYPE html>
       text-transform: uppercase;
       color: var(--muted);
     }
+    .panel-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.6rem;
+    }
     .panel h3 {
       font-size: 0.95rem;
     }
@@ -801,6 +809,9 @@ INDEX_HTML = """<!DOCTYPE html>
       width: min(480px, 95vw);
       box-shadow: 0 25px 60px rgba(0,0,0,0.45);
     }
+    .overrides-card {
+      width: min(920px, 96vw);
+    }
     .modal-card h3 {
       margin: 0;
       font-size: 1.2rem;
@@ -817,6 +828,101 @@ INDEX_HTML = """<!DOCTYPE html>
       margin: -0.4rem 0 0.8rem;
       color: var(--muted);
       font-size: 0.85rem;
+    }
+    .overrides-body {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 1rem;
+      align-items: start;
+    }
+    .overrides-list {
+      border: 1px solid var(--outline);
+      border-radius: 12px;
+      background: rgba(0,0,0,0.1);
+      max-height: 60vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .overrides-item {
+      padding: 0.75rem 0.8rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      display: grid;
+      gap: 0.3rem;
+      text-align: left;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      border: none;
+    }
+    .overrides-item:hover,
+    .overrides-item:focus-visible {
+      background: rgba(59,130,246,0.1);
+      outline: none;
+    }
+    .overrides-item.active {
+      background: rgba(59,130,246,0.18);
+      border-left: 3px solid var(--accent);
+    }
+    .overrides-item strong {
+      font-size: 0.95rem;
+    }
+    .overrides-item .meta {
+      display: flex;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .overrides-empty {
+      padding: 0.75rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .overrides-form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .overrides-grid {
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    }
+    .checkbox-field {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .overrides-buttons {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .overrides-error {
+      color: var(--danger);
+      font-size: 0.9rem;
+      flex: 1;
+      text-align: center;
+    }
+    .overrides-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.8rem;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 0.8rem;
+    }
+    .overrides-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    @media (max-width: 900px) {
+      .overrides-body {
+        grid-template-columns: 1fr;
+      }
     }
     .refine-chip {
       display: inline-flex;
@@ -1016,7 +1122,10 @@ INDEX_HTML = """<!DOCTYPE html>
         </div>
       </section>
       <section class="panel" id="diagnostics-panel" hidden>
-        <h2>diagnostics</h2>
+        <div class="panel-heading">
+          <h2>diagnostics</h2>
+          <button type="button" class="secondary" id="overrides-open" disabled>Book overrides</button>
+        </div>
         <div class="diagnostic-grid" id="diagnostic-summary">
           <div class="diagnostic-empty">Load a chapter to view diagnostics.</div>
         </div>
@@ -1040,6 +1149,66 @@ INDEX_HTML = """<!DOCTYPE html>
         <div class="meta-grid" id="meta-grid"></div>
       </section>
     </main>
+  </div>
+  <div id="overrides-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card overrides-card" role="dialog" aria-modal="true" aria-labelledby="overrides-title">
+      <div class="overrides-header">
+        <div>
+          <h3 id="overrides-title">Book overrides</h3>
+          <p class="modal-meta" id="overrides-meta">Edit custom_token.json for this book.</p>
+        </div>
+        <div class="overrides-actions">
+          <button type="button" class="secondary" id="overrides-add">Add override</button>
+          <button type="button" class="secondary" id="overrides-close">Close</button>
+        </div>
+      </div>
+      <div class="overrides-body">
+        <div class="overrides-list" id="overrides-list">
+          <div class="overrides-empty">No overrides yet.</div>
+        </div>
+        <form class="overrides-form" id="overrides-form">
+          <div class="form-grid overrides-grid">
+            <label class="form-field">
+              <span>Pattern *</span>
+              <input type="text" id="override-pattern" required>
+            </label>
+            <label class="form-field">
+              <span>Replacement</span>
+              <input type="text" id="override-replacement">
+            </label>
+            <label class="form-field">
+              <span>Reading</span>
+              <input type="text" id="override-reading">
+            </label>
+            <label class="form-field">
+              <span>Surface</span>
+              <input type="text" id="override-surface">
+            </label>
+            <label class="form-field">
+              <span>Match surface</span>
+              <input type="text" id="override-match-surface">
+            </label>
+            <label class="form-field">
+              <span>Part of speech</span>
+              <input type="text" id="override-pos">
+            </label>
+            <label class="form-field">
+              <span>Accent</span>
+              <input type="number" id="override-accent" min="0">
+            </label>
+            <label class="checkbox-field">
+              <input type="checkbox" id="override-regex">
+              <span>Regex pattern</span>
+            </label>
+          </div>
+          <div class="overrides-buttons">
+            <button type="button" class="danger secondary" id="override-delete">Delete selected</button>
+            <span class="overrides-error" id="overrides-error"></span>
+            <button type="submit" id="override-save">Save overrides</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
   <div id="refine-modal" class="modal hidden" aria-hidden="true">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="refine-title">
@@ -1110,6 +1279,12 @@ INDEX_HTML = """<!DOCTYPE html>
         sortOrder: 'author',
         pendingHighlightIndex: null,
       };
+      const overridesState = {
+        items: [],
+        selectedIndex: -1,
+        bookId: null,
+        path: null,
+      };
       const baseTitle = document.title || 'nk Reader';
       const CHAPTER_HASH_PREFIX = '#chapter=';
       const CHAPTER_NAV_DEFAULT = 'Select a chapter to preview.';
@@ -1145,6 +1320,17 @@ INDEX_HTML = """<!DOCTYPE html>
           const newUrl = `${window.location.pathname}${window.location.search}`;
           window.history.replaceState(null, '', newUrl);
         }
+      }
+
+      function currentBookId() {
+        if (!state.selectedPath) return null;
+        const parts = state.selectedPath.split('/');
+        return parts.length ? parts[0] : null;
+      }
+
+      function updateOverridesButton() {
+        if (!overridesOpenBtn) return;
+        overridesOpenBtn.disabled = !currentBookId();
       }
 
       const listEl = document.getElementById('chapter-list');
@@ -1248,6 +1434,24 @@ INDEX_HTML = """<!DOCTYPE html>
       const refineError = document.getElementById('refine-error');
       const refineContextLabel = document.getElementById('refine-context');
       const refineMeta = document.getElementById('refine-meta');
+      const overridesModal = document.getElementById('overrides-modal');
+      const overridesOpenBtn = document.getElementById('overrides-open');
+      const overridesList = document.getElementById('overrides-list');
+      const overridesForm = document.getElementById('overrides-form');
+      const overridesAddBtn = document.getElementById('overrides-add');
+      const overridesCloseBtn = document.getElementById('overrides-close');
+      const overridesError = document.getElementById('overrides-error');
+      const overridesMeta = document.getElementById('overrides-meta');
+      const overridePatternInput = document.getElementById('override-pattern');
+      const overrideReplacementInput = document.getElementById('override-replacement');
+      const overrideReadingInput = document.getElementById('override-reading');
+      const overrideSurfaceInput = document.getElementById('override-surface');
+      const overrideMatchSurfaceInput = document.getElementById('override-match-surface');
+      const overridePosInput = document.getElementById('override-pos');
+      const overrideAccentInput = document.getElementById('override-accent');
+      const overrideRegexInput = document.getElementById('override-regex');
+      const overrideDeleteBtn = document.getElementById('override-delete');
+      const overrideSaveBtn = document.getElementById('override-save');
       let alignFrame = null;
       const SORT_STORAGE_KEY = 'nkReaderSortOrder';
       const SORT_OPTIONS = ['author', 'recent', 'played'];
@@ -1302,7 +1506,12 @@ INDEX_HTML = """<!DOCTYPE html>
         });
       }
       window.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && refineModal && !refineModal.classList.contains('hidden')) {
+        if (event.key !== 'Escape') return;
+        if (overridesModal && !overridesModal.classList.contains('hidden')) {
+          closeOverridesModal();
+          return;
+        }
+        if (refineModal && !refineModal.classList.contains('hidden')) {
           closeRefineModal();
         }
       });
@@ -1490,6 +1699,245 @@ INDEX_HTML = """<!DOCTYPE html>
             submitRefine(scopeValue);
           });
         });
+      }
+      if (overridesOpenBtn) {
+        overridesOpenBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          openOverridesModal();
+        });
+      }
+      if (overridesCloseBtn) {
+        overridesCloseBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          closeOverridesModal();
+        });
+      }
+      if (overridesModal) {
+        overridesModal.addEventListener('click', (event) => {
+          if (event.target === overridesModal) {
+            closeOverridesModal();
+          }
+        });
+      }
+      if (overridesAddBtn) {
+        overridesAddBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          syncFormToState();
+          overridesState.items.push({ pattern: '', regex: false });
+          overridesState.selectedIndex = overridesState.items.length - 1;
+          renderOverridesList();
+          if (overridePatternInput) {
+            overridePatternInput.focus();
+          }
+        });
+      }
+      if (overrideDeleteBtn) {
+        overrideDeleteBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          if (overridesState.selectedIndex < 0) return;
+          syncFormToState();
+          overridesState.items.splice(overridesState.selectedIndex, 1);
+          overridesState.selectedIndex = overridesState.items.length ? 0 : -1;
+          renderOverridesList();
+        });
+      }
+      if (overridesForm) {
+        overridesForm.addEventListener('submit', (event) => {
+          event.preventDefault();
+          saveOverrides();
+        });
+      }
+      function setOverridesError(message) {
+        if (overridesError) {
+          overridesError.textContent = message || '';
+        }
+      }
+
+      function closeOverridesModal() {
+        if (!overridesModal) return;
+        overridesModal.classList.add('hidden');
+        overridesModal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('modal-open');
+        overridesState.selectedIndex = -1;
+        setOverridesError('');
+      }
+
+      function populateOverrideForm(entry) {
+        if (!entry) {
+          if (overridePatternInput) overridePatternInput.value = '';
+          if (overrideReplacementInput) overrideReplacementInput.value = '';
+          if (overrideReadingInput) overrideReadingInput.value = '';
+          if (overrideSurfaceInput) overrideSurfaceInput.value = '';
+          if (overrideMatchSurfaceInput) overrideMatchSurfaceInput.value = '';
+          if (overridePosInput) overridePosInput.value = '';
+          if (overrideAccentInput) overrideAccentInput.value = '';
+          if (overrideRegexInput) overrideRegexInput.checked = false;
+          return;
+        }
+        if (overridePatternInput) overridePatternInput.value = entry.pattern || '';
+        if (overrideReplacementInput) overrideReplacementInput.value = entry.replacement || '';
+        if (overrideReadingInput) overrideReadingInput.value = entry.reading || '';
+        if (overrideSurfaceInput) overrideSurfaceInput.value = entry.surface || '';
+        if (overrideMatchSurfaceInput) overrideMatchSurfaceInput.value = entry.match_surface || '';
+        if (overridePosInput) overridePosInput.value = entry.pos || '';
+        if (overrideAccentInput) {
+          overrideAccentInput.value = Number.isFinite(entry.accent) ? String(entry.accent) : '';
+        }
+        if (overrideRegexInput) overrideRegexInput.checked = Boolean(entry.regex);
+      }
+
+      function syncFormToState() {
+        if (overridesState.selectedIndex < 0 || overridesState.selectedIndex >= overridesState.items.length) {
+          return;
+        }
+        const target = overridesState.items[overridesState.selectedIndex];
+        target.pattern = overridePatternInput ? overridePatternInput.value.trim() : '';
+        target.replacement = overrideReplacementInput ? overrideReplacementInput.value.trim() : '';
+        target.reading = overrideReadingInput ? overrideReadingInput.value.trim() : '';
+        target.surface = overrideSurfaceInput ? overrideSurfaceInput.value.trim() : '';
+        target.match_surface = overrideMatchSurfaceInput ? overrideMatchSurfaceInput.value.trim() : '';
+        target.pos = overridePosInput ? overridePosInput.value.trim() : '';
+        if (overrideAccentInput) {
+          const parsed = Number.parseInt(overrideAccentInput.value, 10);
+          target.accent = Number.isFinite(parsed) ? parsed : undefined;
+        }
+        target.regex = overrideRegexInput ? Boolean(overrideRegexInput.checked) : false;
+      }
+
+      function renderOverridesList() {
+        if (!overridesList) return;
+        overridesList.innerHTML = '';
+        if (!overridesState.items.length) {
+          const empty = document.createElement('div');
+          empty.className = 'overrides-empty';
+          empty.textContent = 'No overrides yet.';
+          overridesList.appendChild(empty);
+          populateOverrideForm(null);
+          return;
+        }
+        overridesState.items.forEach((entry, index) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'overrides-item' + (index === overridesState.selectedIndex ? ' active' : '');
+          const title = document.createElement('strong');
+          title.textContent = entry.pattern || '(no pattern)';
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          if (entry.replacement) {
+            meta.appendChild(document.createTextNode(`→ ${entry.replacement}`));
+          }
+          if (entry.reading) {
+            const span = document.createElement('span');
+            span.textContent = `reading: ${entry.reading}`;
+            meta.appendChild(span);
+          }
+          if (entry.surface) {
+            const span = document.createElement('span');
+            span.textContent = `surface: ${entry.surface}`;
+            meta.appendChild(span);
+          }
+          if (entry.pos) {
+            const span = document.createElement('span');
+            span.textContent = entry.pos;
+            meta.appendChild(span);
+          }
+          if (entry.regex) {
+            const span = document.createElement('span');
+            span.textContent = 'regex';
+            meta.appendChild(span);
+          }
+          button.appendChild(title);
+          button.appendChild(meta);
+          button.addEventListener('click', () => {
+            syncFormToState();
+            overridesState.selectedIndex = index;
+            populateOverrideForm(entry);
+            renderOverridesList();
+          });
+          overridesList.appendChild(button);
+        });
+        if (overridesState.selectedIndex >= 0 && overridesState.selectedIndex < overridesState.items.length) {
+          populateOverrideForm(overridesState.items[overridesState.selectedIndex]);
+        } else {
+          populateOverrideForm(null);
+        }
+      }
+
+      function openOverridesModal() {
+        const bookId = currentBookId();
+        if (!bookId) {
+          renderStatus('Select a chapter to edit overrides.');
+          return;
+        }
+        overridesState.bookId = bookId;
+        setOverridesError('');
+        if (overridesMeta) {
+          overridesMeta.textContent = `Editing custom_token.json for ${bookId}`;
+        }
+        fetchJSON(`/api/books/${encodeURIComponent(bookId)}/overrides`)
+          .then((payload) => {
+            overridesState.items = Array.isArray(payload.overrides)
+              ? payload.overrides.map(entry => ({ ...entry }))
+              : [];
+            overridesState.selectedIndex = overridesState.items.length ? 0 : -1;
+            renderOverridesList();
+            if (!overridesModal) return;
+            overridesModal.classList.remove('hidden');
+            overridesModal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
+            if (overridePatternInput) {
+              overridePatternInput.focus();
+            }
+          })
+          .catch((err) => {
+            setOverridesError(err.message || 'Failed to load overrides.');
+          });
+      }
+
+      function saveOverrides() {
+        if (!overridesState.bookId) return;
+        syncFormToState();
+        const normalized = overridesState.items.map(entry => ({
+          pattern: (entry.pattern || '').trim(),
+          replacement: (entry.replacement || '').trim(),
+          reading: (entry.reading || '').trim(),
+          surface: (entry.surface || '').trim(),
+          match_surface: (entry.match_surface || '').trim(),
+          pos: (entry.pos || '').trim(),
+          accent: Number.isFinite(entry.accent) ? entry.accent : undefined,
+          regex: Boolean(entry.regex),
+        })).map(entry => {
+          const clean = { pattern: entry.pattern, regex: entry.regex };
+          if (entry.replacement) clean.replacement = entry.replacement;
+          if (entry.reading) clean.reading = entry.reading;
+          if (entry.surface) clean.surface = entry.surface;
+          if (entry.match_surface) clean.match_surface = entry.match_surface;
+          if (entry.pos) clean.pos = entry.pos;
+          if (entry.accent !== undefined) clean.accent = entry.accent;
+          return clean;
+        }).filter(entry => entry.pattern);
+        setOverridesError('');
+        overrideSaveBtn.disabled = true;
+        fetchJSON(`/api/books/${encodeURIComponent(overridesState.bookId)}/overrides`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ overrides: normalized }),
+        })
+          .then((payload) => {
+            overridesState.items = Array.isArray(payload.overrides)
+              ? payload.overrides.map(entry => ({ ...entry }))
+              : [];
+            overridesState.selectedIndex = overridesState.items.length ? 0 : -1;
+            renderOverridesList();
+            closeOverridesModal();
+            renderStatus('Overrides saved.');
+          })
+          .catch((err) => {
+            setOverridesError(err.message || 'Failed to save overrides.');
+          })
+          .finally(() => {
+            overrideSaveBtn.disabled = false;
+          });
       }
       if (homeLink) {
         homeLink.addEventListener('click', (event) => {
@@ -3188,6 +3636,7 @@ INDEX_HTML = """<!DOCTYPE html>
         setHighlighted(null);
         setChapterNavLabel('');
         updateChapterNavButtons();
+        updateOverridesButton();
         if (diagnosticSearchResults) {
           diagnosticSearchResults.innerHTML = '<div class="diagnostic-empty">Enter a surface to search.</div>';
         }
@@ -3254,6 +3703,7 @@ INDEX_HTML = """<!DOCTYPE html>
           runDiagnosticSearch();
         }
         scheduleAlignLines();
+        updateOverridesButton();
         if (state.pendingHighlightIndex !== null) {
           const highlightIndex = state.pendingHighlightIndex;
           state.pendingHighlightIndex = null;
@@ -3523,6 +3973,7 @@ INDEX_HTML = """<!DOCTYPE html>
       window.addEventListener('hashchange', handleHashNavigation);
 
       clearSelection();
+      updateOverridesButton();
       loadChapters();
       if (initialHashPath) {
         openChapter(initialHashPath, { autoCollapse: false, preservePayload: false });
@@ -3571,6 +4022,19 @@ def _relative_to_root(root: Path, path: Path) -> Path:
         return path.resolve().relative_to(root)
     except ValueError as exc:  # pragma: no cover - defensive
         raise HTTPException(status_code=400, detail="Invalid chapter path") from exc
+
+
+def _resolve_book_dir(root: Path, book_id: str) -> Path:
+    if not isinstance(book_id, str) or not book_id.strip():
+        raise HTTPException(status_code=400, detail="Book id is required.")
+    candidate = (root / book_id).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Book not found.") from exc
+    if not candidate.exists() or not candidate.is_dir():
+        raise HTTPException(status_code=404, detail="Book not found.")
+    return candidate
 
 
 def _chapter_entry(root: Path, path: Path) -> dict[str, object]:
@@ -3721,6 +4185,74 @@ def create_reader_app(root: Path) -> FastAPI:
             )
         return chapter_path
 
+    def _read_overrides(book_dir: Path) -> tuple[list[dict[str, object]], bool, float | None]:
+        overrides_path = book_dir / "custom_token.json"
+        if not overrides_path.exists():
+            return [], False, None
+        try:
+            raw = json.loads(overrides_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to parse overrides file: {exc}",
+            ) from exc
+        payload = raw.get("overrides")
+        if payload is None:
+            payload = raw.get("rules")
+        if payload is None:
+            payload = raw.get("tokens")
+        if not isinstance(payload, list):
+            raise HTTPException(
+                status_code=400,
+                detail="Overrides file must contain an 'overrides' array.",
+            )
+        try:
+            modified = overrides_path.stat().st_mtime
+        except OSError:
+            modified = None
+        normalized: list[dict[str, object]] = []
+        for entry in payload:
+            if isinstance(entry, dict):
+                normalized.append(entry)
+        return normalized, True, modified
+
+    def _normalize_override_entry(entry: Mapping[str, object]) -> dict[str, object]:
+        pattern = entry.get("pattern")
+        if not isinstance(pattern, str) or not pattern.strip():
+            raise HTTPException(status_code=400, detail="pattern is required for each override.")
+        regex = bool(entry.get("regex"))
+        replacement = entry.get("replacement")
+        if replacement is not None and not isinstance(replacement, str):
+            replacement = None
+        reading = entry.get("reading")
+        if reading is not None and not isinstance(reading, str):
+            reading = None
+        surface = entry.get("surface")
+        if surface is not None and not isinstance(surface, str):
+            surface = None
+        match_surface = entry.get("match_surface")
+        if match_surface is not None and not isinstance(match_surface, str):
+            match_surface = None
+        pos = entry.get("pos")
+        if pos is not None and not isinstance(pos, str):
+            pos = None
+        accent_val = entry.get("accent")
+        accent = None
+        if isinstance(accent_val, int):
+            accent = accent_val
+        elif isinstance(accent_val, str) and accent_val.strip().isdigit():
+            accent = int(accent_val.strip())
+        return {
+            "pattern": pattern.strip(),
+            "regex": regex,
+            **({"replacement": replacement} if replacement else {}),
+            **({"reading": reading} if reading else {}),
+            **({"surface": surface} if surface else {}),
+            **({"match_surface": match_surface} if match_surface else {}),
+            **({"pos": pos} if pos else {}),
+            **({"accent": accent} if accent is not None else {}),
+        }
+
     @app.get("/", response_class=HTMLResponse)
     def index() -> HTMLResponse:
         return HTMLResponse(INDEX_HTML.replace("__NK_FAVICON__", NK_FAVICON_URL))
@@ -3775,6 +4307,52 @@ def create_reader_app(root: Path) -> FastAPI:
             await file.close()
         upload_manager.enqueue(job)
         return JSONResponse({"job": job.to_payload()})
+
+    @app.get("/api/books/{book_id:path}/overrides")
+    def api_get_overrides(book_id: str) -> JSONResponse:
+        book_dir = _resolve_book_dir(resolved_root, book_id)
+        overrides, exists, modified = _read_overrides(book_dir)
+        return JSONResponse(
+            {
+                "book": book_id,
+                "path": _relative_to_root(resolved_root, book_dir).as_posix(),
+                "overrides": overrides,
+                "exists": exists,
+                "modified": modified,
+            }
+        )
+
+    @app.put("/api/books/{book_id:path}/overrides")
+    def api_update_overrides(book_id: str, payload: dict[str, object] = Body(...)) -> JSONResponse:
+        book_dir = _resolve_book_dir(resolved_root, book_id)
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="Invalid payload.")
+        overrides_payload = payload.get("overrides")
+        if not isinstance(overrides_payload, list):
+            raise HTTPException(status_code=400, detail="'overrides' must be an array.")
+        normalized: list[dict[str, object]] = []
+        for entry in overrides_payload:
+            if not isinstance(entry, Mapping):
+                continue
+            normalized.append(_normalize_override_entry(entry))
+        overrides_path = book_dir / "custom_token.json"
+        overrides_path.write_text(
+            json.dumps({"overrides": normalized}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        try:
+            modified = overrides_path.stat().st_mtime
+        except OSError:
+            modified = None
+        return JSONResponse(
+            {
+                "book": book_id,
+                "path": _relative_to_root(resolved_root, book_dir).as_posix(),
+                "overrides": normalized,
+                "exists": True,
+                "modified": modified,
+            }
+        )
 
     @app.get("/api/chapter")
     def api_chapter(
