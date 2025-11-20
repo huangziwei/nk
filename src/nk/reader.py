@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from .book_io import is_original_text_file
 from .library import list_books_sorted
@@ -19,7 +19,7 @@ from .refine import (
     refine_chapter,
 )
 from .uploads import UploadJob, UploadManager
-from .web_assets import NK_FAVICON_URL
+from .web_assets import NK_APPLE_TOUCH_ICON_PNG, NK_FAVICON_URL
 
 INDEX_HTML = """<!DOCTYPE html>
 <html lang="ja">
@@ -27,7 +27,9 @@ INDEX_HTML = """<!DOCTYPE html>
   <meta charset="utf-8">
   <title>Reader</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="icon" type="image/svg+xml" href="__NK_FAVICON__">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <style>
     :root {
       color-scheme: dark;
@@ -4262,6 +4264,10 @@ def create_reader_app(root: Path) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     def index() -> HTMLResponse:
         return HTMLResponse(INDEX_HTML.replace("__NK_FAVICON__", NK_FAVICON_URL))
+
+    @app.get("/apple-touch-icon.png")
+    def apple_touch_icon() -> Response:
+        return Response(content=NK_APPLE_TOUCH_ICON_PNG, media_type="image/png")
 
     @app.get("/api/chapters")
     def api_chapters(

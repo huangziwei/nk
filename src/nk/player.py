@@ -12,7 +12,7 @@ from typing import Callable
 from urllib.parse import quote
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
 from .book_io import (
     ChapterMetadata,
@@ -42,7 +42,7 @@ from .voice_defaults import (
     DEFAULT_SPEAKER_ID,
     DEFAULT_SPEED_SCALE,
 )
-from .web_assets import NK_FAVICON_URL
+from .web_assets import NK_APPLE_TOUCH_ICON_PNG, NK_FAVICON_URL
 
 
 @dataclass(slots=True)
@@ -85,7 +85,9 @@ INDEX_HTML = """<!DOCTYPE html>
   <meta charset="utf-8">
   <title>Player</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <link rel="icon" type="image/svg+xml" href="__NK_FAVICON__">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <style>
     :root {
       color-scheme: dark;
@@ -5701,6 +5703,10 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
             "__NK_FAVICON__", NK_FAVICON_URL
         )
         return HTMLResponse(html)
+
+    @app.get("/apple-touch-icon.png")
+    def apple_touch_icon() -> Response:
+        return Response(content=NK_APPLE_TOUCH_ICON_PNG, media_type="image/png")
 
     @app.get("/api/uploads")
     def api_uploads() -> JSONResponse:
