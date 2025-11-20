@@ -3200,6 +3200,21 @@ INDEX_HTML = """<!DOCTYPE html>
       }
     }
 
+    function formatDateTime(ts) {
+      if (!Number.isFinite(ts)) return '';
+      try {
+        const date = new Date(ts * 1000);
+        return date.toLocaleString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      } catch {
+        return '';
+      }
+    }
+
     function syncPendingEpubBusy() {
       if (!state.epubBusy) {
         state.epubBusy = new Set();
@@ -3672,6 +3687,12 @@ INDEX_HTML = """<!DOCTYPE html>
         statusSpan.className = statusInfo.className ? `badge ${statusInfo.className}` : 'badge';
         statusSpan.textContent = statusInfo.label;
         statusBadges.appendChild(statusSpan);
+        if (ch.mp3_exists && Number.isFinite(ch.mp3_mtime)) {
+          const builtBadge = document.createElement('span');
+          builtBadge.className = 'badge muted';
+          builtBadge.textContent = `Built ${formatDateTime(ch.mp3_mtime)}`;
+          statusBadges.appendChild(builtBadge);
+        }
 
         footer.appendChild(statusBadges);
 
@@ -3982,6 +4003,11 @@ INDEX_HTML = """<!DOCTYPE html>
         const result = await res.json();
         clearLocalBuild();
         chapter.mp3_exists = true;
+        if (typeof result.mp3_mtime === 'number') {
+          chapter.mp3_mtime = result.mp3_mtime;
+        } else {
+          chapter.mp3_mtime = Date.now() / 1000;
+        }
         if (typeof result.total_chunks === 'number') {
           chapter.total_chunks = result.total_chunks;
         }
@@ -5010,6 +5036,11 @@ def _chapter_state(
         "has_cache": cache_dir.exists(),
         "total_chunks": total_chunks,
     }
+    if state["mp3_exists"]:
+        try:
+            state["mp3_mtime"] = target.output.stat().st_mtime
+        except OSError:
+            state["mp3_mtime"] = None
     if build_status:
         state["build_status"] = build_status
     return state
@@ -5906,11 +5937,16 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
 
         cache_dir = _target_cache_dir(config.cache_dir, target)
         total_chunks = _safe_read_int(cache_dir / ".complete")
+        try:
+            mp3_mtime = target.output.stat().st_mtime
+        except OSError:
+            mp3_mtime = None
         return JSONResponse(
             {
                 "status": "ready",
                 "created": bool(created),
                 "total_chunks": total_chunks,
+                "mp3_mtime": mp3_mtime,
             }
         )
 
