@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 import time
+import webbrowser
 from importlib import metadata
 from multiprocessing import Process
 from pathlib import Path
@@ -75,6 +76,7 @@ from .voice_defaults import (
 
 _READER_RELOAD_ENV = "NK_READER_RELOAD_ROOT"
 _PLAYER_RELOAD_ENV = "NK_PLAYER_RELOAD_CONFIG"
+_OPEN_AUTO = "__NK_OPEN_AUTO__"
 
 
 def _package_source_dir() -> Path:
@@ -557,6 +559,16 @@ def build_play_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Reload the server automatically when nk source files change.",
     )
+    ap.add_argument(
+        "--open",
+        nargs="?",
+        const=_OPEN_AUTO,
+        metavar="HOST",
+        help=(
+            "Open the player URL in your default web browser. Optionally provide HOST "
+            "(e.g., macbookpro) to override the opened hostname."
+        ),
+    )
     return ap
 
 
@@ -571,8 +583,8 @@ def build_reader_parser() -> argparse.ArgumentParser:
     )
     ap.add_argument(
         "--host",
-        default="127.0.0.1",
-        help="Host interface for the reader (default: 127.0.0.1).",
+        default="0.0.0.0",
+        help="Host interface for the reader (default: 0.0.0.0).",
     )
     ap.add_argument(
         "--port",
@@ -584,6 +596,16 @@ def build_reader_parser() -> argparse.ArgumentParser:
         "--reload",
         action="store_true",
         help="Reload the server automatically when nk source files change.",
+    )
+    ap.add_argument(
+        "--open",
+        nargs="?",
+        const=_OPEN_AUTO,
+        metavar="HOST",
+        help=(
+            "Open the reader URL in your default web browser. Optionally provide HOST "
+            "(e.g., macbookpro) to override the opened hostname."
+        ),
     )
     return ap
 
@@ -1489,10 +1511,17 @@ def _run_play(args: argparse.Namespace) -> None:
 
     public_ip = _resolve_local_ip(args.host)
     url = f"http://{public_ip}:{args.port}/"
+    open_url = url
+    if args.open:
+        open_host = public_ip if args.open == _OPEN_AUTO else args.open
+        open_url = f"http://{open_host}:{args.port}/"
     print(f"Serving nk play from {root}")
     print(f"Player URL: {url}")
     if reader_url:
         print(f"Reader URL: {reader_url}")
+    if args.open:
+        print(f"Opening browser at {open_url}")
+        _open_in_browser(open_url)
     print("Press Ctrl+C to stop.\n")
     log_config = build_uvicorn_log_config()
     try:
@@ -1527,8 +1556,15 @@ def _run_read(args: argparse.Namespace) -> int:
         raise SystemExit(f"Reader root not found: {root}")
     public_ip = _resolve_local_ip(args.host)
     url = f"http://{public_ip}:{args.port}/"
+    open_url = url
+    if args.open:
+        open_host = public_ip if args.open == _OPEN_AUTO else args.open
+        open_url = f"http://{open_host}:{args.port}/"
     print(f"Serving nk read from {root}")
     print(f"Reader URL: {url}")
+    if args.open:
+        print(f"Opening browser at {open_url}")
+        _open_in_browser(open_url)
     print("Press Ctrl+C to stop.\n")
     log_config = build_uvicorn_log_config()
     if args.reload:
@@ -1811,3 +1847,10 @@ def _resolve_local_ip(host: str) -> str:
             return sock.getsockname()[0]
     except OSError:
         return "127.0.0.1"
+
+
+def _open_in_browser(url: str) -> None:
+    try:
+        webbrowser.open(url, new=2)
+    except Exception as exc:  # pragma: no cover - best effort
+        print(f"[nk] Warn: failed to open a browser at {url}: {exc}", file=sys.stderr)
