@@ -413,6 +413,82 @@ INDEX_HTML = """<!DOCTYPE html>
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 0.65rem;
     }
+    .diagnostic-search {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 0.65rem;
+    }
+    .diagnostic-search input[type="search"] {
+      flex: 1;
+      min-width: 160px;
+      padding: 0.45rem 0.75rem;
+      border-radius: 10px;
+      border: 1px solid var(--outline);
+      background: rgba(0,0,0,0.2);
+      color: var(--text);
+    }
+    .diagnostic-search select {
+      padding: 0.42rem 0.6rem;
+      border-radius: 10px;
+      border: 1px solid var(--outline);
+      background: rgba(0,0,0,0.2);
+      color: var(--text);
+    }
+    .diagnostic-results {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      margin: 0.4rem 0 0.8rem;
+    }
+    .diagnostic-result {
+      background: var(--panel-alt);
+      border: 1px solid var(--outline);
+      border-radius: 12px;
+      padding: 0.75rem 0.85rem;
+      display: grid;
+      gap: 0.4rem;
+    }
+    .diagnostic-result-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      align-items: baseline;
+    }
+    .diagnostic-result-title {
+      font-weight: 700;
+      font-size: 1rem;
+      word-break: break-word;
+    }
+    .diagnostic-result-meta {
+      display: inline-flex;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .diagnostic-result-context {
+      color: var(--muted);
+      font-size: 0.88rem;
+      word-break: break-word;
+    }
+    .diagnostic-result-actions {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+    .diagnostic-result button {
+      border-radius: 8px;
+      border: 1px solid var(--outline);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      padding: 0.3rem 0.75rem;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
     .diagnostic-card {
       background: var(--panel-alt);
       border-radius: 12px;
@@ -908,9 +984,17 @@ INDEX_HTML = """<!DOCTYPE html>
       </section>
       <section class="panel" id="diagnostics-panel" hidden>
         <h2>diagnostics</h2>
+        <div class="diagnostic-search">
+          <input type="search" id="diagnostic-search-input" placeholder="Search surface (exact) across book" aria-label="Search token surface">
+          <select id="diagnostic-search-scope" aria-label="Search scope">
+            <option value="book" selected>Whole book</option>
+            <option value="chapter">This chapter</option>
+          </select>
+        </div>
         <div class="diagnostic-grid" id="diagnostic-summary">
           <div class="diagnostic-empty">Load a chapter to view diagnostics.</div>
         </div>
+        <div class="diagnostic-results" id="diagnostic-search-results"></div>
         <div class="diagnostic-conflicts-wrap">
           <h3>ambiguous readings</h3>
           <div id="diagnostic-conflicts" class="diagnostic-conflicts">
@@ -991,6 +1075,7 @@ INDEX_HTML = """<!DOCTYPE html>
         folderState: {},
         uploadJobs: [],
         sortOrder: 'author',
+        pendingHighlightIndex: null,
       };
       const baseTitle = document.title || 'nk Reader';
       const CHAPTER_HASH_PREFIX = '#chapter=';
@@ -1041,6 +1126,9 @@ INDEX_HTML = """<!DOCTYPE html>
       const diagnosticsPanel = document.getElementById('diagnostics-panel');
       const diagnosticSummary = document.getElementById('diagnostic-summary');
       const diagnosticConflicts = document.getElementById('diagnostic-conflicts');
+      const diagnosticSearchInput = document.getElementById('diagnostic-search-input');
+      const diagnosticSearchScope = document.getElementById('diagnostic-search-scope');
+      const diagnosticSearchResults = document.getElementById('diagnostic-search-results');
       const transformedMeta = document.getElementById('transformed-meta');
       const originalMeta = document.getElementById('original-meta');
       const transformedText = document.getElementById('transformed-text');
@@ -1124,6 +1212,7 @@ INDEX_HTML = """<!DOCTYPE html>
       let uploadDragDepth = 0;
       let refineContext = null;
       let refineBusy = false;
+      let diagnosticSearchTimer = null;
       const UPLOAD_POLL_INTERVAL = 4000;
       const initialHashPath = getChapterPathFromHash();
       if (initialHashPath) {
@@ -1744,6 +1833,15 @@ INDEX_HTML = """<!DOCTYPE html>
         });
       }
 
+      function scrollTokenIntoView(index) {
+        if (index === null || index === undefined) return;
+        const selector = `[data-token-index="${index}"]`;
+        const node = document.querySelector(selector);
+        if (node && typeof node.scrollIntoView === 'function') {
+          node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+
       function attachHighlightHandlers(element, index) {
         element.addEventListener('mouseenter', () => setHighlighted(index));
         element.addEventListener('mouseleave', () => setHighlighted(null));
@@ -2292,6 +2390,131 @@ INDEX_HTML = """<!DOCTYPE html>
         diagnosticsPanel.hidden = false;
       }
 
+      function formatContextSnippet(result) {
+        const prefix = result.context_prefix || '';
+        const suffix = result.context_suffix || '';
+        const surface = result.surface || '';
+        return `${prefix}${surface}${suffix}`;
+      }
+
+      function renderSearchResults(results, query, scope) {
+        if (!diagnosticSearchResults) return;
+        diagnosticSearchResults.innerHTML = '';
+        if (!query) {
+          diagnosticSearchResults.innerHTML = '<div class="diagnostic-empty">Enter a surface to search.</div>';
+          return;
+        }
+        if (!Array.isArray(results) || !results.length) {
+          diagnosticSearchResults.innerHTML = '<div class="diagnostic-empty">No matches found.</div>';
+          return;
+        }
+        results.forEach((result) => {
+          const card = document.createElement('div');
+          card.className = 'diagnostic-result';
+          const header = document.createElement('div');
+          header.className = 'diagnostic-result-header';
+          const title = document.createElement('div');
+          title.className = 'diagnostic-result-title';
+          title.textContent = `${result.surface || ''} → ${result.reading || ''}`;
+          header.appendChild(title);
+          const meta = document.createElement('div');
+          meta.className = 'diagnostic-result-meta';
+          if (result.chapter_path) {
+            const chapter = document.createElement('span');
+            chapter.textContent = result.chapter_path;
+            meta.appendChild(chapter);
+          }
+          if (Array.isArray(result.sources) && result.sources.length) {
+            const sources = document.createElement('span');
+            sources.textContent = `Sources: ${result.sources.join(', ')}`;
+            meta.appendChild(sources);
+          }
+          if (typeof result.index === 'number') {
+            const idx = document.createElement('span');
+            idx.textContent = `Token #${result.index}`;
+            meta.appendChild(idx);
+          }
+          header.appendChild(meta);
+          card.appendChild(header);
+
+          const contextLine = document.createElement('div');
+          contextLine.className = 'diagnostic-result-context';
+          contextLine.textContent = formatContextSnippet(result);
+          card.appendChild(contextLine);
+
+          const actions = document.createElement('div');
+          actions.className = 'diagnostic-result-actions';
+          const openBtn = document.createElement('button');
+          openBtn.textContent = result.chapter_path === state.selectedPath ? 'Highlight' : 'Open';
+          openBtn.addEventListener('click', () => {
+            if (!result.chapter_path) return;
+            if (result.chapter_path === state.selectedPath) {
+              setHighlighted(result.index);
+              scrollTokenIntoView(result.index);
+            } else {
+              state.pendingHighlightIndex = typeof result.index === 'number' ? result.index : null;
+              openChapter(result.chapter_path, { autoCollapse: false, preserveHighlight: true });
+            }
+          });
+          actions.appendChild(openBtn);
+          card.appendChild(actions);
+          diagnosticSearchResults.appendChild(card);
+        });
+      }
+
+      function tokenSearchPayloadFromChapter(tokens, path) {
+        if (!Array.isArray(tokens)) return [];
+        return tokens.map((token, index) => ({
+          surface: token.surface || '',
+          reading: token.reading || '',
+          sources: Array.isArray(token.sources) ? token.sources : [],
+          pos: token.pos,
+          accent: token.accent,
+          connection: token.connection,
+          context_prefix: token.context_prefix || '',
+          context_suffix: token.context_suffix || '',
+          index,
+          chapter_path: path || state.selectedPath,
+        }));
+      }
+
+      async function runDiagnosticSearch() {
+        if (!diagnosticSearchInput || !diagnosticSearchScope) return;
+        const query = (diagnosticSearchInput.value || '').trim();
+        const scope = diagnosticSearchScope.value === 'chapter' ? 'chapter' : 'book';
+        if (!query) {
+          renderSearchResults([], query, scope);
+          return;
+        }
+        if (scope === 'book' && !state.selectedPath) {
+          diagnosticSearchResults.innerHTML = '<div class="diagnostic-empty">Select a chapter to search its book.</div>';
+          return;
+        }
+        if (scope === 'chapter') {
+          const matches = tokenSearchPayloadFromChapter(state.tokens, state.selectedPath).filter(
+            (entry) => entry.surface === query
+          );
+          renderSearchResults(matches, query, scope);
+          return;
+        }
+        if (!state.selectedPath) {
+          renderSearchResults([], query, scope);
+          return;
+        }
+        try {
+          const params = new URLSearchParams();
+          params.set('path', state.selectedPath);
+          params.set('surface', query);
+          params.set('scope', scope);
+          const payload = await fetchJSON(`/api/token-search?${params.toString()}`);
+          const results = Array.isArray(payload.results) ? payload.results : [];
+          renderSearchResults(results, query, scope);
+        } catch (error) {
+          const message = error && error.message ? error.message : 'Search failed.';
+          diagnosticSearchResults.innerHTML = `<div class="diagnostic-empty">${message}</div>`;
+        }
+      }
+
       function applyFilter() {
         const query = state.filterValue.trim().toLowerCase();
         if (!query) {
@@ -2690,10 +2913,14 @@ INDEX_HTML = """<!DOCTYPE html>
         setDocumentTitle(null);
         state.chapterPayload = null;
         state.tokens = [];
+        state.pendingHighlightIndex = null;
         closeRefineModal();
         setHighlighted(null);
         setChapterNavLabel('');
         updateChapterNavButtons();
+        if (diagnosticSearchResults) {
+          diagnosticSearchResults.innerHTML = '<div class="diagnostic-empty">Enter a surface to search.</div>';
+        }
       }
 
       function buildChapterUrl(path, includeTransformed) {
@@ -2753,7 +2980,18 @@ INDEX_HTML = """<!DOCTYPE html>
         renderOriginalText(payload, tokens);
         renderTransformedText(payload, tokens);
         renderDiagnostics(tokens);
+        if (diagnosticSearchInput && diagnosticSearchInput.value.trim()) {
+          runDiagnosticSearch();
+        }
         scheduleAlignLines();
+        if (state.pendingHighlightIndex !== null) {
+          const highlightIndex = state.pendingHighlightIndex;
+          state.pendingHighlightIndex = null;
+          requestAnimationFrame(() => {
+            setHighlighted(highlightIndex);
+            scrollTokenIntoView(highlightIndex);
+          });
+        }
         if (options.preserveScroll && options.scrollSnapshot) {
           restoreScrollPositions(options.scrollSnapshot);
         } else {
@@ -2938,6 +3176,22 @@ INDEX_HTML = """<!DOCTYPE html>
       refreshBtn.addEventListener('click', () => {
         loadChapters();
       });
+
+      if (diagnosticSearchInput) {
+        diagnosticSearchInput.addEventListener('input', () => {
+          if (diagnosticSearchTimer) {
+            window.clearTimeout(diagnosticSearchTimer);
+          }
+          diagnosticSearchTimer = window.setTimeout(() => {
+            runDiagnosticSearch();
+          }, 220);
+        });
+      }
+      if (diagnosticSearchScope) {
+        diagnosticSearchScope.addEventListener('change', () => {
+          runDiagnosticSearch();
+        });
+      }
 
       window.addEventListener('hashchange', handleHashNavigation);
 
@@ -3377,5 +3631,70 @@ def create_reader_app(root: Path) -> FastAPI:
                 "scope": scope,
             }
         )
+
+    @app.get("/api/token-search")
+    def api_token_search(
+        path: str = Query(..., description="Relative path to a chapter within the book"),
+        surface: str = Query(..., description="Exact surface to search for"),
+        scope: str = Query("book", description="Scope: 'book' or 'chapter'"),
+    ) -> JSONResponse:
+        if not path or not surface:
+            raise HTTPException(status_code=400, detail="path and surface are required")
+        rel_path = Path(path)
+        if rel_path.is_absolute():
+            raise HTTPException(status_code=400, detail="Path must be relative to the root")
+        chapter_path = (resolved_root / rel_path).resolve()
+        try:
+            chapter_path.relative_to(resolved_root)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Path escapes the root directory")
+        if not chapter_path.exists() or not chapter_path.is_file():
+            raise HTTPException(status_code=404, detail="Chapter not found")
+        normalized_surface = surface.strip()
+        if not normalized_surface:
+            raise HTTPException(status_code=400, detail="surface cannot be empty")
+        results: list[dict[str, object]] = []
+
+        def _append_matches(txt_path: Path) -> None:
+            token_path = txt_path.with_name(txt_path.name + ".token.json")
+            tokens, _, _ = _load_token_payload(token_path)
+            for idx, token in enumerate(tokens):
+                if token.get("surface") != normalized_surface:
+                    continue
+                entry = {
+                    "surface": token.get("surface"),
+                    "reading": token.get("reading"),
+                    "sources": token.get("sources") or [],
+                    "pos": token.get("pos"),
+                    "accent": token.get("accent"),
+                    "connection": token.get("connection"),
+                    "context_prefix": token.get("context_prefix"),
+                    "context_suffix": token.get("context_suffix"),
+                    "index": idx,
+                    "chapter_path": _relative_to_root(resolved_root, txt_path).as_posix(),
+                    "chapter_name": txt_path.name,
+                }
+                results.append(entry)
+
+        scope_value = (scope or "book").strip().lower()
+        if scope_value not in {"book", "chapter"}:
+            raise HTTPException(status_code=400, detail="scope must be 'book' or 'chapter'")
+
+        if scope_value == "chapter":
+            _append_matches(chapter_path)
+        else:
+            book_dir = chapter_path.parent
+            if not book_dir.exists():
+                raise HTTPException(status_code=404, detail="Book not found for path")
+            for candidate in sorted(book_dir.glob("*.txt")):
+                if (
+                    not candidate.is_file()
+                    or is_original_text_file(candidate)
+                    or candidate.name.endswith(".partial.txt")
+                ):
+                    continue
+                _append_matches(candidate)
+
+        return JSONResponse({"results": results})
 
     return app
