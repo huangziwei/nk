@@ -1985,12 +1985,83 @@ INDEX_HTML = """<!DOCTYPE html>
         if (!container || !container.contains(range.commonAncestorContainer)) {
           return null;
         }
-        const preSelectionRange = document.createRange();
-        preSelectionRange.selectNodeContents(container);
-        preSelectionRange.setEnd(range.startContainer, range.startOffset);
-        const start = preSelectionRange.toString().length;
-        const selectedText = range.toString();
-        const end = start + selectedText.length;
+
+        const parseOffset = (value) => {
+          const num = Number(value);
+          return Number.isFinite(num) ? num : null;
+        };
+
+        const findChunkBoundary = (node) => {
+          let current = node;
+          while (current && current !== container) {
+            if (current.nodeType === Node.ELEMENT_NODE) {
+              const start = parseOffset(current.getAttribute('data-offset-start'));
+              const end = parseOffset(current.getAttribute('data-offset-end'));
+              if (start !== null && end !== null) {
+                return { node: current, start, end };
+              }
+            }
+            current = current.parentNode;
+          }
+          return null;
+        };
+
+        const offsetWithinBoundary = (boundary, targetNode, targetOffset) => {
+          if (!boundary) return null;
+          let total = 0;
+          const walker = document.createTreeWalker(
+            boundary.node,
+            NodeFilter.SHOW_TEXT,
+            {
+              acceptNode: (n) => {
+                const parent = n.parentElement;
+                if (parent && parent.tagName === 'RT') {
+                  return NodeFilter.FILTER_REJECT;
+                }
+                return NodeFilter.FILTER_ACCEPT;
+              },
+            },
+          );
+          let current = walker.nextNode();
+          while (current) {
+            if (current === targetNode) {
+              const textLen = current.textContent ? current.textContent.length : 0;
+              const delta = Math.max(0, Math.min(textLen, targetOffset));
+              return total + delta;
+            }
+            total += current.textContent ? current.textContent.length : 0;
+            current = walker.nextNode();
+          }
+          return null;
+        };
+
+        const startBoundary = findChunkBoundary(range.startContainer);
+        const endBoundary = findChunkBoundary(range.endContainer);
+        if (!startBoundary || !endBoundary) {
+          return null;
+        }
+        const startDelta = offsetWithinBoundary(startBoundary, range.startContainer, range.startOffset);
+        const endDelta = offsetWithinBoundary(endBoundary, range.endContainer, range.endOffset);
+        if (startDelta === null || endDelta === null) {
+          return null;
+        }
+        let start = startBoundary.start + startDelta;
+        let end = endBoundary.start + endDelta;
+        const transformedTextValue =
+          state.chapterPayload && typeof state.chapterPayload.text === 'string'
+            ? state.chapterPayload.text
+            : null;
+        if (transformedTextValue) {
+          const maxLen = transformedTextValue.length;
+          start = Math.max(0, Math.min(start, maxLen));
+          end = Math.max(0, Math.min(end, maxLen));
+        }
+        if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+          return null;
+        }
+        const selectedText = transformedTextValue
+          ? transformedTextValue.slice(start, end)
+          : range.toString();
         return {
           range,
           text: selectedText,
@@ -2082,12 +2153,12 @@ INDEX_HTML = """<!DOCTYPE html>
 
         const isOriginalView = key === 'original';
 
-        const pushTextSegment = (value) => {
+        const pushTextSegment = (value, start) => {
           if (value) {
-            segments.push({ type: 'text', text: value });
+            segments.push({ type: 'text', text: value, start, end: start + value.length });
           }
         };
-        const pushTokenSegment = (value, entry) => {
+        const pushTokenSegment = (value, entry, start) => {
           if (!value) {
             return;
           }
@@ -2096,23 +2167,25 @@ INDEX_HTML = """<!DOCTYPE html>
             text: value,
             token: entry.token,
             index: entry.index,
+            start,
+            end: start + value.length,
           });
         };
 
         ordered.forEach((entry) => {
           const start = Math.max(entry.start, cursor);
           if (start > cursor) {
-            pushTextSegment(text.slice(cursor, start));
+            pushTextSegment(text.slice(cursor, start), cursor);
           }
           const end = Math.max(start, entry.end);
           if (end > start) {
-            pushTokenSegment(text.slice(start, end), entry);
+            pushTokenSegment(text.slice(start, end), entry, start);
           }
           cursor = Math.max(cursor, entry.end);
         });
 
         if (cursor < length) {
-          pushTextSegment(text.slice(cursor));
+          pushTextSegment(text.slice(cursor), cursor);
         }
 
         const linesContainer = document.createElement('div');
@@ -2141,7 +2214,7 @@ INDEX_HTML = """<!DOCTYPE html>
           currentLineNodes = [];
         };
 
-        const appendSegmentContent = (segment, chunk) => {
+        const appendSegmentContent = (segment, chunk, chunkStart, chunkEnd) => {
           if (!chunk) {
             return;
           }
@@ -2149,7 +2222,12 @@ INDEX_HTML = """<!DOCTYPE html>
             if (key === 'transformed') {
               const originalSurface = segment.token.surface || '';
               if (originalSurface && chunk === originalSurface) {
-                currentLineNodes.push(document.createTextNode(chunk));
+                const textSpan = document.createElement('span');
+                textSpan.className = 'text-chunk';
+                textSpan.dataset.offsetStart = String(chunkStart);
+                textSpan.dataset.offsetEnd = String(chunkEnd);
+                textSpan.textContent = chunk;
+                currentLineNodes.push(textSpan);
                 return;
               }
             }
@@ -2157,20 +2235,28 @@ INDEX_HTML = """<!DOCTYPE html>
             span.className = 'token-chunk';
             span.dataset.tokenIndex = String(segment.index);
             span.title = `${segment.token.surface || ''} → ${segment.token.reading || ''}`;
-              span.tabIndex = 0;
-              const annotation = isOriginalView ? (segment.token.reading || '') : (segment.token.surface || '');
-              const trimmedAnnotation = annotation && annotation.trim();
-              if (trimmedAnnotation) {
-                const ruby = document.createElement('ruby');
+            span.dataset.offsetStart = String(chunkStart);
+            span.dataset.offsetEnd = String(chunkEnd);
+            span.tabIndex = 0;
+            const annotation = isOriginalView ? (segment.token.reading || '') : (segment.token.surface || '');
+            const trimmedAnnotation = annotation && annotation.trim();
+            if (trimmedAnnotation) {
+              const ruby = document.createElement('ruby');
               const rb = document.createElement('span');
               rb.textContent = chunk;
+              rb.setAttribute('data-offset-start', String(chunkStart));
+              rb.setAttribute('data-offset-end', String(chunkEnd));
               ruby.appendChild(rb);
               const rt = document.createElement('rt');
               rt.textContent = annotation;
               ruby.appendChild(rt);
               span.appendChild(ruby);
             } else {
-              span.textContent = chunk;
+              const rb = document.createElement('span');
+              rb.textContent = chunk;
+              rb.setAttribute('data-offset-start', String(chunkStart));
+              rb.setAttribute('data-offset-end', String(chunkEnd));
+              span.appendChild(rb);
             }
             attachHighlightHandlers(span, segment.index);
             span.addEventListener('click', (event) => {
@@ -2195,7 +2281,12 @@ INDEX_HTML = """<!DOCTYPE html>
             });
             currentLineNodes.push(span);
           } else {
-            currentLineNodes.push(document.createTextNode(chunk));
+            const span = document.createElement('span');
+            span.className = 'text-chunk';
+            span.dataset.offsetStart = String(chunkStart);
+            span.dataset.offsetEnd = String(chunkEnd);
+            span.textContent = chunk;
+            currentLineNodes.push(span);
           }
         };
 
@@ -2206,13 +2297,13 @@ INDEX_HTML = """<!DOCTYPE html>
             if (newlineIndex === -1) {
               const finalChunk = segment.text.slice(start);
               if (finalChunk) {
-                appendSegmentContent(segment, finalChunk);
+                appendSegmentContent(segment, finalChunk, segment.start + start, segment.start + segment.text.length);
               }
               break;
             }
             const chunk = segment.text.slice(start, newlineIndex);
             if (chunk) {
-              appendSegmentContent(segment, chunk);
+              appendSegmentContent(segment, chunk, segment.start + start, segment.start + newlineIndex);
             }
             flushLine();
             start = newlineIndex + 1;

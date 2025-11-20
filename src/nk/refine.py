@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass, replace
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Iterable
 
@@ -315,17 +316,72 @@ def create_token_from_selection(
         delta = len(replacement_text) - len(segment)
         _shift_tokens(tokens, end, delta)
         end = start + len(replacement_text)
+
+    original_text: str | None = None
+    try:
+        original_path = text_path.with_name(f"{text_path.stem}.original.txt")
+        original_text = original_path.read_text(encoding="utf-8")
+    except OSError:
+        original_text = None
+
+    def _build_offset_mapper(source: str, target: str):
+        matcher = SequenceMatcher(None, source, target, autojunk=False)
+        opcodes = matcher.get_opcodes()
+
+        def _map(value: int) -> int:
+            if value <= 0:
+                return 0
+            for tag, i1, i2, j1, j2 in opcodes:
+                if value < j1:
+                    return i1
+                if j1 <= value <= j2:
+                    if tag == "equal":
+                        return i1 + (value - j1)
+                    t_len = j2 - j1
+                    s_len = i2 - i1
+                    if t_len == 0:
+                        return i1
+                    ratio = (value - j1) / t_len
+                    mapped = int(round(i1 + ratio * s_len))
+                    if mapped < i1:
+                        return i1
+                    if mapped > i2:
+                        return i2
+                    return mapped
+            return len(source)
+
+        return _map
+
+    if original_text is not None:
+        map_to_original = _build_offset_mapper(original_text, text)
+        original_start = map_to_original(start)
+        original_end = map_to_original(end)
+        original_len = len(original_text)
+        original_start = max(0, min(original_start, original_len))
+        original_end = max(original_start, min(original_end, original_len))
+        if original_end <= original_start:
+            raise ValueError("Selection could not be mapped to original text.")
+        surface_segment = original_text[original_start:original_end]
+        context_prefix = original_text[max(0, original_start - 3) : original_start]
+        context_suffix = original_text[original_end : original_end + 3]
+    else:
+        original_start = start
+        original_end = end
+        surface_segment = segment
+        context_prefix = text[max(0, start - 3) : start]
+        context_suffix = text[end : end + 3]
+
     reading_val = reading or replacement_text
-    surface_val = surface or segment
+    surface_val = surface or surface_segment
     new_token = ChapterToken(
         surface=surface_val,
-        start=start,
-        end=end,
+        start=original_start,
+        end=original_end,
         reading=reading_val,
         fallback_reading=reading_val,
         reading_source="override",
-        context_prefix=text[max(0, start - 3) : start],
-        context_suffix=text[end : end + 3],
+        context_prefix=context_prefix,
+        context_suffix=context_suffix,
         accent_type=accent,
         pos=pos,
         transformed_start=start,
