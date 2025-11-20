@@ -1622,6 +1622,7 @@ INDEX_HTML = """<!DOCTYPE html>
     const voiceResetBtn = document.getElementById('voice-reset');
     const voiceStatus = document.getElementById('voice-status');
     const booksSortSelect = document.getElementById('books-sort');
+    const booksSortWrapper = booksSortSelect ? booksSortSelect.closest('.sort-select') : null;
     const pendingEpubPanel = document.getElementById('pending-epubs');
     const pendingEpubList = document.getElementById('pending-epub-list');
     const pendingEpubAllBtn = document.getElementById('epub-chapterize-all');
@@ -3322,6 +3323,10 @@ INDEX_HTML = """<!DOCTYPE html>
         renderPendingEpubs();
       }
     }
+    function setSortSelectVisibility(show) {
+      if (!booksSortWrapper) return;
+      booksSortWrapper.classList.toggle('hidden', !show);
+    }
 
     function renderBooks() {
       if (!booksGrid) return;
@@ -3333,6 +3338,7 @@ INDEX_HTML = """<!DOCTYPE html>
         : false;
       const showUpload = !isRecentView && !hasRealCollections;
       const hasBooks = Array.isArray(state.books) && state.books.length > 0;
+      setSortSelectVisibility(hasBooks && !isRecentView);
       if (!showUpload && !hasBooks) {
         booksGrid.classList.add('hidden');
         return;
