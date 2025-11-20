@@ -1124,7 +1124,7 @@ INDEX_HTML = """<!DOCTYPE html>
       <section class="panel" id="diagnostics-panel" hidden>
         <div class="panel-heading">
           <h2>diagnostics</h2>
-          <button type="button" class="secondary" id="overrides-open" disabled>Book overrides</button>
+          <button type="button" class="secondary" id="overrides-open" disabled>View custom tokens</button>
         </div>
         <div class="diagnostic-grid" id="diagnostic-summary">
           <div class="diagnostic-empty">Load a chapter to view diagnostics.</div>
@@ -1154,11 +1154,11 @@ INDEX_HTML = """<!DOCTYPE html>
     <div class="modal-card overrides-card" role="dialog" aria-modal="true" aria-labelledby="overrides-title">
       <div class="overrides-header">
         <div>
-          <h3 id="overrides-title">Book overrides</h3>
+          <h3 id="overrides-title">All custom tokens in</h3>
           <p class="modal-meta" id="overrides-meta">Edit custom_token.json for this book.</p>
         </div>
         <div class="overrides-actions">
-          <button type="button" class="secondary" id="overrides-add">Add override</button>
+          <button type="button" class="secondary" id="overrides-add">Add a new entry</button>
           <button type="button" class="secondary" id="overrides-close">Close</button>
         </div>
       </div>
@@ -1204,7 +1204,7 @@ INDEX_HTML = """<!DOCTYPE html>
           <div class="overrides-buttons">
             <button type="button" class="danger secondary" id="override-delete">Delete selected</button>
             <span class="overrides-error" id="overrides-error"></span>
-            <button type="submit" id="override-save">Save overrides</button>
+            <button type="submit" id="override-save">Save changes to file</button>
           </div>
         </form>
       </div>
@@ -1325,7 +1325,9 @@ INDEX_HTML = """<!DOCTYPE html>
       function currentBookId() {
         if (!state.selectedPath) return null;
         const parts = state.selectedPath.split('/');
-        return parts.length ? parts[0] : null;
+        if (!parts.length) return null;
+        parts.pop();
+        return parts.join('/');
       }
 
       function updateOverridesButton() {
@@ -1872,7 +1874,7 @@ INDEX_HTML = """<!DOCTYPE html>
         overridesState.bookId = bookId;
         setOverridesError('');
         if (overridesMeta) {
-          overridesMeta.textContent = `Editing custom_token.json for ${bookId}`;
+          overridesMeta.textContent = `custom_token.json for ${bookId}`;
         }
         fetchJSON(`/api/books/${encodeURIComponent(bookId)}/overrides`)
           .then((payload) => {
@@ -4185,7 +4187,9 @@ def create_reader_app(root: Path) -> FastAPI:
             )
         return chapter_path
 
-    def _read_overrides(book_dir: Path) -> tuple[list[dict[str, object]], bool, float | None]:
+    def _read_overrides(
+        book_dir: Path,
+    ) -> tuple[list[dict[str, object]], bool, float | None]:
         overrides_path = book_dir / "custom_token.json"
         if not overrides_path.exists():
             return [], False, None
@@ -4219,7 +4223,9 @@ def create_reader_app(root: Path) -> FastAPI:
     def _normalize_override_entry(entry: Mapping[str, object]) -> dict[str, object]:
         pattern = entry.get("pattern")
         if not isinstance(pattern, str) or not pattern.strip():
-            raise HTTPException(status_code=400, detail="pattern is required for each override.")
+            raise HTTPException(
+                status_code=400, detail="pattern is required for each override."
+            )
         regex = bool(entry.get("regex"))
         replacement = entry.get("replacement")
         if replacement is not None and not isinstance(replacement, str):
@@ -4323,7 +4329,9 @@ def create_reader_app(root: Path) -> FastAPI:
         )
 
     @app.put("/api/books/{book_id:path}/overrides")
-    def api_update_overrides(book_id: str, payload: dict[str, object] = Body(...)) -> JSONResponse:
+    def api_update_overrides(
+        book_id: str, payload: dict[str, object] = Body(...)
+    ) -> JSONResponse:
         book_dir = _resolve_book_dir(resolved_root, book_id)
         if not isinstance(payload, dict):
             raise HTTPException(status_code=400, detail="Invalid payload.")
