@@ -2050,6 +2050,9 @@ INDEX_HTML = """<!DOCTYPE html>
           const surface = surfaceRaw.trim();
           const readingRaw = typeof token.reading === 'string' ? token.reading : '';
           const reading = readingRaw.trim();
+          const tokenSources = Array.isArray(token.sources)
+            ? token.sources.filter((src) => typeof src === 'string' && src.trim())
+            : [];
           const hasAccent = Number.isFinite(token.accent);
           const hasSource = Array.isArray(token.sources) && token.sources.length > 0;
           if (!surface) {
@@ -2081,6 +2084,7 @@ INDEX_HTML = """<!DOCTYPE html>
               total: 0,
               readings: new Map(),
               sampleIndices: [],
+              sourceCounts: new Map(),
             };
             surfaceMap.set(surface, entry);
           }
@@ -2088,16 +2092,32 @@ INDEX_HTML = """<!DOCTYPE html>
           if (entry.sampleIndices.length < 5) {
             entry.sampleIndices.push(index);
           }
+          tokenSources.forEach((source) => {
+            const normalizedSource = source.trim();
+            if (!normalizedSource) return;
+            entry.sourceCounts.set(
+              normalizedSource,
+              (entry.sourceCounts.get(normalizedSource) || 0) + 1
+            );
+          });
           const readingKey = reading || '—';
           let readingEntry = entry.readings.get(readingKey);
           if (!readingEntry) {
-            readingEntry = { reading: readingKey, count: 0, indices: [] };
+            readingEntry = { reading: readingKey, count: 0, indices: [], sourceCounts: new Map() };
             entry.readings.set(readingKey, readingEntry);
           }
           readingEntry.count += 1;
           if (readingEntry.indices.length < 3) {
             readingEntry.indices.push(index);
           }
+          tokenSources.forEach((source) => {
+            const normalizedSource = source.trim();
+            if (!normalizedSource) return;
+            readingEntry.sourceCounts.set(
+              normalizedSource,
+              (readingEntry.sourceCounts.get(normalizedSource) || 0) + 1
+            );
+          });
         });
         const surfaces = Array.from(surfaceMap.values());
         stats.uniqueSurfaces = surfaces.length;
@@ -2110,6 +2130,9 @@ INDEX_HTML = """<!DOCTYPE html>
                 count: item.count,
                 share: entry.total ? item.count / entry.total : 0,
                 indices: item.indices,
+                sources: Array.from(item.sourceCounts.entries())
+                  .map(([name, count]) => ({ name, count }))
+                  .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
               }))
               .sort(
                 (a, b) =>
@@ -2120,6 +2143,9 @@ INDEX_HTML = """<!DOCTYPE html>
             const primaryShare = primary.share;
             const flagged = primaryShare < 0.9 || readings.length >= 3;
             const score = (1 - primaryShare) * entry.total;
+            const sources = Array.from(entry.sourceCounts.entries())
+              .map(([name, count]) => ({ name, count }))
+              .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
             return {
               surface: entry.surface,
               total: entry.total,
@@ -2128,6 +2154,7 @@ INDEX_HTML = """<!DOCTYPE html>
               flagged,
               sampleIndices: entry.sampleIndices,
               score,
+              sources,
             };
           })
           .sort(
@@ -2226,14 +2253,30 @@ INDEX_HTML = """<!DOCTYPE html>
             const count = document.createElement('span');
             count.textContent = `${entry.total} token${entry.total === 1 ? '' : 's'}`;
             meta.appendChild(count);
+            const sourceLabel = entry.sources && entry.sources.length
+              ? entry.sources
+                  .slice(0, 3)
+                  .map((src) => `${src.name} (${src.count})`)
+                  .join(', ')
+              : 'unknown';
+            const sources = document.createElement('span');
+            sources.textContent = `Sources: ${sourceLabel}`;
+            meta.appendChild(sources);
             header.appendChild(meta);
             card.appendChild(header);
             const readingsLabel = document.createElement('div');
             readingsLabel.className = 'diagnostic-readings';
             readingsLabel.textContent = entry.readings
-              .map(
-                (reading) => `${reading.reading} (${reading.count}/${entry.total}, ${formatPercent(reading.share)})`
-              )
+              .map((reading) => {
+                const srcLabel = reading.sources && reading.sources.length
+                  ? reading.sources
+                      .slice(0, 2)
+                      .map((src) => `${src.name} ${src.count}`)
+                      .join(', ')
+                  : '';
+                const sourceSuffix = srcLabel ? `; ${srcLabel}` : '';
+                return `${reading.reading} (${reading.count}/${entry.total}, ${formatPercent(reading.share)}${sourceSuffix})`;
+              })
               .join(' · ');
             card.appendChild(readingsLabel);
             if (entry.sampleIndices && entry.sampleIndices.length) {
