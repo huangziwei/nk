@@ -5936,30 +5936,6 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         statuses = _status_snapshot(canonical_id)
         return JSONResponse({"status": statuses})
 
-    @app.delete("/api/books/{book_id:path}")
-    def api_delete_book(book_id: str) -> JSONResponse:
-        canonical_id, book_path = _resolve_book(book_id)
-        with build_lock:
-            in_progress = any(
-                key[0] == canonical_id for key in active_build_jobs.keys()
-            )
-        if in_progress:
-            raise HTTPException(
-                status_code=409,
-                detail="Cannot delete this book while chapters are building.",
-            )
-        with status_lock:
-            chapter_status.pop(canonical_id, None)
-        try:
-            shutil.rmtree(book_path)
-        except FileNotFoundError:
-            raise HTTPException(status_code=404, detail="Book not found.")
-        except OSError as exc:
-            raise HTTPException(
-                status_code=500, detail=f"Failed to delete book: {exc}"
-            ) from exc
-        return JSONResponse({"deleted": True, "book": canonical_id})
-
     @app.post("/api/books/{book_id:path}/reprocess")
     def api_reprocess_book(book_id: str) -> JSONResponse:
         canonical_id, book_path = _resolve_book(book_id)
@@ -6091,6 +6067,30 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         if not updated:
             raise HTTPException(status_code=404, detail="Bookmark not found.")
         return JSONResponse(bookmarks)
+
+    @app.delete("/api/books/{book_id:path}")
+    def api_delete_book(book_id: str) -> JSONResponse:
+        canonical_id, book_path = _resolve_book(book_id)
+        with build_lock:
+            in_progress = any(
+                key[0] == canonical_id for key in active_build_jobs.keys()
+            )
+        if in_progress:
+            raise HTTPException(
+                status_code=409,
+                detail="Cannot delete this book while chapters are building.",
+            )
+        with status_lock:
+            chapter_status.pop(canonical_id, None)
+        try:
+            shutil.rmtree(book_path)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Book not found.")
+        except OSError as exc:
+            raise HTTPException(
+                status_code=500, detail=f"Failed to delete book: {exc}"
+            ) from exc
+        return JSONResponse({"deleted": True, "book": canonical_id})
 
     @app.post("/api/books/{book_id:path}/tts-defaults")
     def api_update_tts_defaults(
