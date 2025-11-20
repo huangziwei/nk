@@ -772,6 +772,15 @@ def _chapterize_epub(
         cover_image=cover,
         ruby_evidence=ruby_evidence,
     )
+    try:
+        overrides = load_override_config(output_dir)
+    except ValueError as exc:
+        console.print(f"[nk] Warn: failed to load custom_token.json: {exc}", style="yellow")
+        overrides = []
+    if overrides:
+        refined = refine_book(output_dir, overrides)
+        if refined and not progress_display:
+            console.print(f"[nk] Applied {refined} override(s) from custom_token.json", style="dim")
     if progress_display and task_id is not None:
         task = progress_display.tasks[task_id]
         final_total = task.total or max(task.completed, len(chapters)) or 1

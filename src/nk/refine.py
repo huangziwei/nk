@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Iterable
 
-from .book_io import TOKEN_METADATA_VERSION
+from .book_io import TOKEN_METADATA_VERSION, is_original_text_file
 from .tokens import ChapterToken, deserialize_chapter_tokens, serialize_chapter_tokens
 
 PRIMARY_OVERRIDE_FILENAME = "custom_token.json"
@@ -136,7 +136,7 @@ def refine_book(book_dir: Path, overrides: Iterable[OverrideRule]) -> int:
         return 0
     refined = 0
     for txt_path in sorted(book_dir.glob("*.txt")):
-        if txt_path.name.endswith(".partial.txt"):
+        if txt_path.name.endswith(".partial.txt") or is_original_text_file(txt_path):
             continue
         if refine_chapter(txt_path, override_list):
             refined += 1
@@ -289,6 +289,44 @@ def _apply_override_rule(
         except re.error as exc:
             raise ValueError(f"Invalid pattern '{rule.pattern}': {exc}") from exc
     changed = False
+    def _overlaps(start: int, end: int) -> bool:
+        for tok in tokens:
+            bounds = _token_transformed_bounds(tok)
+            if not bounds:
+                continue
+            t_start, t_end = bounds
+            if end > t_start and start < t_end:
+                return True
+        return False
+
+    def _add_token(
+        original_start: int,
+        original_end: int,
+        transformed_start: int,
+        transformed_end: int,
+        segment: str,
+        replacement_text: str | None,
+    ) -> None:
+        replacement = replacement_text if replacement_text is not None else segment
+        reading_val = rule.reading or replacement
+        surface_val = rule.surface or replacement
+        token = ChapterToken(
+            surface=surface_val,
+            start=original_start,
+            end=original_end,
+            reading=reading_val,
+            fallback_reading=reading_val,
+            reading_source="override",
+            context_prefix=text[max(0, original_start - 3) : original_start],
+            context_suffix=text[original_end : original_end + 3],
+            accent_type=rule.accent,
+            pos=rule.pos,
+            transformed_start=transformed_start,
+            transformed_end=transformed_end,
+        )
+        tokens.append(token)
+
+    # Pass 1: update existing tokens
     for token in tokens:
         bounds = _token_transformed_bounds(token)
         if not bounds:
@@ -317,11 +355,9 @@ def _apply_override_rule(
         if token.reading_source != "override":
             token.reading_source = "override"
             token_changed = True
-        if rule.surface:
-            targeting_surface = rule.surface
-            if token.surface != targeting_surface:
-                token.surface = targeting_surface
-                token_changed = True
+        if rule.surface and token.surface != rule.surface:
+            token.surface = rule.surface
+            token_changed = True
         if rule.pos and token.pos != rule.pos:
             token.pos = rule.pos
             token_changed = True
@@ -330,6 +366,46 @@ def _apply_override_rule(
             token_changed = True
         if token_changed:
             changed = True
+
+    if changed:
+        return text, True
+
+    # Pass 2: find matches in text without existing tokens (e.g., ASCII headings)
+    snapshot = text
+    raw_matches: list[tuple[int, int, str]] = []
+    if compiled:
+        for match in compiled.finditer(snapshot):
+            raw_matches.append((match.start(), match.end(), match.group(0)))
+    else:
+        search_pos = 0
+        while True:
+            idx = snapshot.find(rule.pattern, search_pos)
+            if idx == -1:
+                break
+            raw_matches.append((idx, idx + len(rule.pattern), rule.pattern))
+            search_pos = idx + len(rule.pattern)
+
+    if not raw_matches:
+        return text, False
+
+    delta = 0
+    for start, end, segment in raw_matches:
+        adj_start = start + delta
+        adj_end = end + delta
+        if _overlaps(adj_start, adj_end):
+            continue
+        replacement_text = _resolve_replacement(rule)
+        if replacement_text is not None and replacement_text != segment:
+            text = f"{text[:adj_start]}{replacement_text}{text[adj_end:]}"
+            change_delta = len(replacement_text) - len(segment)
+            _shift_tokens(tokens, adj_end, change_delta)
+            adj_end = adj_start + len(replacement_text)
+            delta += change_delta
+        _add_token(start, end, adj_start, adj_end, segment, replacement_text)
+        changed = True
+
+    if changed:
+        tokens.sort(key=lambda token: (_token_transformed_start(token), _token_transformed_end(token)))
     return text, changed
 
 

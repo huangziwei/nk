@@ -121,7 +121,6 @@ class BookTTSDefaults:
         )
 
 
-
 def _slugify_for_filename(text: str) -> str:
     cleaned_chars: list[str] = []
     for ch in text.strip():
@@ -166,7 +165,9 @@ def _chapter_basename(index: int, chapter: ChapterText, used_names: set[str]) ->
     return candidate
 
 
-def _write_chapter_texts(output_dir: Path, chapters: Iterable[ChapterText]) -> list[ChapterFileRecord]:
+def _write_chapter_texts(
+    output_dir: Path, chapters: Iterable[ChapterText]
+) -> list[ChapterFileRecord]:
     output_dir.mkdir(parents=True, exist_ok=True)
     used_names: set[str] = set()
     records: list[ChapterFileRecord] = []
@@ -205,10 +206,14 @@ def _maybe_write_token_metadata(
         "text_sha1": hashlib.sha1(text.encode("utf-8")).hexdigest(),
         "tokens": serialize_chapter_tokens(tokens),
     }
-    token_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    token_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
-def _resolve_book_title(chapters: Iterable[ChapterText], output_dir: Path) -> str | None:
+def _resolve_book_title(
+    chapters: Iterable[ChapterText], output_dir: Path
+) -> str | None:
     for chapter in chapters:
         if chapter.book_title:
             return chapter.book_title
@@ -247,7 +252,9 @@ def _write_cover_image(output_dir: Path, cover: CoverImage) -> Path | None:
     return cover_path
 
 
-def _write_ruby_evidence(output_dir: Path, payload: list[dict[str, object]] | None) -> Path | None:
+def _write_ruby_evidence(
+    output_dir: Path, payload: list[dict[str, object]] | None
+) -> Path | None:
     path = output_dir / RUBY_EVIDENCE_FILENAME
     if not payload:
         path.unlink(missing_ok=True)
@@ -269,9 +276,7 @@ def _write_m4b_manifest(
     for record in records:
         mp3_name = record.path.with_suffix(".mp3").name
         chapter_title = (
-            record.chapter.original_title
-            or record.chapter.title
-            or record.path.stem
+            record.chapter.original_title or record.chapter.title or record.path.stem
         )
         tracks.append(
             {
@@ -290,7 +295,9 @@ def _write_m4b_manifest(
     if cover_path is not None and cover_path.exists():
         payload["cover"] = cover_path.name
     manifest_path = output_dir / M4B_MANIFEST_FILENAME
-    manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     return manifest_path
 
 
@@ -309,14 +316,16 @@ def ensure_cover_is_square(cover_path: Path) -> None:
             except AttributeError:  # pragma: no cover - older Pillow
                 resample = Image.LANCZOS if hasattr(Image, "LANCZOS") else Image.BICUBIC
             dominant = (
-                img.resize((1, 1), resample=resample)
-                .convert("RGB")
-                .getpixel((0, 0))
+                img.resize((1, 1), resample=resample).convert("RGB").getpixel((0, 0))
             )
             canvas = Image.new("RGB", (size, size), dominant)
             offset = ((size - width) // 2, (size - height) // 2)
             canvas.paste(img, offset)
-            save_kwargs = {"quality": 92} if cover_path.suffix.lower() in {".jpg", ".jpeg"} else {}
+            save_kwargs = (
+                {"quality": 92}
+                if cover_path.suffix.lower() in {".jpg", ".jpeg"}
+                else {}
+            )
             canvas.save(cover_path, **save_kwargs)
     except Exception:  # pragma: no cover - best effort padding
         return
@@ -330,16 +339,10 @@ def _ensure_custom_token_template(output_dir: Path) -> None:
     template = {
         "overrides": [
             {
-                "pattern": "テイアラ",
-                "replacement": "ティアラ",
-                "reading": "ティアラ",
-                "accent": 2,
-                "surface": "天愛星",
-            },
-            {
-                "pattern": "クラウゼル",
-                "reading": "クラウゼル",
-                "accent": 2,
+                "pattern": "CONTENTS",
+                "reading": "コンテンツ",
+                "accent": 3,
+                "surface": "CONTENTS",
             },
         ]
     }
@@ -394,6 +397,7 @@ def write_book_package(
     source_epub: Path | None = None,
     cover_image: CoverImage | None = None,
     ruby_evidence: list[dict[str, object]] | None = None,
+    apply_overrides: bool = True,
 ) -> BookPackage:
     previous_metadata = load_book_metadata(output_dir)
     records = _write_chapter_texts(output_dir, chapters)
@@ -422,6 +426,19 @@ def write_book_package(
     )
     ruby_evidence_path = _write_ruby_evidence(output_dir, ruby_evidence)
     _ensure_custom_token_template(output_dir)
+    if apply_overrides:
+        from .refine import load_override_config, refine_book
+
+        try:
+            overrides = load_override_config(output_dir)
+        except ValueError:
+            overrides = []
+        if overrides:
+            try:
+                refine_book(output_dir, overrides)
+            except ValueError:
+                # If overrides are invalid, leave the original text; user can fix and rerun refine.
+                pass
     return BookPackage(
         output_dir=output_dir,
         chapter_records=records,
@@ -461,7 +478,8 @@ def regenerate_m4b_manifest(
         txt_files = sorted(
             p
             for p in book_dir.glob("*.txt")
-            if not p.name.endswith(".original.txt") and not p.name.endswith(".partial.txt")
+            if not p.name.endswith(".original.txt")
+            and not p.name.endswith(".partial.txt")
         )
         for idx, txt in enumerate(txt_files, start=1):
             metadata.chapters.setdefault(
@@ -479,9 +497,7 @@ def regenerate_m4b_manifest(
     for filename, chapter_meta in chapters:
         mp3_name = Path(filename).with_suffix(".mp3").name
         chapter_title = (
-            chapter_meta.original_title
-            or chapter_meta.title
-            or Path(filename).stem
+            chapter_meta.original_title or chapter_meta.title or Path(filename).stem
         )
         index = chapter_meta.index
         tracks.append(
@@ -503,7 +519,9 @@ def regenerate_m4b_manifest(
     if cover_path is not None and cover_path.exists():
         payload["cover"] = cover_path.name
     manifest_path = book_dir / M4B_MANIFEST_FILENAME
-    manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     return manifest_path
 
 
@@ -545,7 +563,9 @@ def load_book_metadata(book_dir: Path) -> LoadedBookMetadata | None:
                 index = int(index_val)
             chapters[file_name] = ChapterMetadata(
                 index=index,
-                title=entry.get("title") if isinstance(entry.get("title"), str) else None,
+                title=entry.get("title")
+                if isinstance(entry.get("title"), str)
+                else None,
                 original_title=entry.get("original_title")
                 if isinstance(entry.get("original_title"), str)
                 else None,
@@ -571,7 +591,11 @@ def load_token_metadata(chapter_path: Path) -> ChapterTokenMetadata | None:
     except (OSError, json.JSONDecodeError):
         return None
     tokens_payload = payload.get("tokens")
-    tokens = deserialize_chapter_tokens(tokens_payload) if isinstance(tokens_payload, list) else []
+    tokens = (
+        deserialize_chapter_tokens(tokens_payload)
+        if isinstance(tokens_payload, list)
+        else []
+    )
     text_sha1 = payload.get("text_sha1")
     if not isinstance(text_sha1, str):
         text_sha1 = None
@@ -634,6 +658,7 @@ def update_book_tts_defaults(
     )
     return True
 
+
 __all__ = [
     "BookPackage",
     "ChapterFileRecord",
@@ -652,6 +677,8 @@ __all__ = [
     "update_book_tts_defaults",
     "write_book_package",
 ]
+
+
 @dataclass
 class ChapterTokenMetadata:
     text_sha1: str | None

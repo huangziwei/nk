@@ -296,6 +296,51 @@ def test_refine_supports_legacy_custom_pitch_file(tmp_path: Path) -> None:
     assert len(rules) == 1
 
 
+def test_override_rules_create_tokens_for_plain_text(tmp_path: Path) -> None:
+    book_dir = tmp_path / "plain"
+    book_dir.mkdir()
+    chapter = book_dir / "001.txt"
+    chapter.write_text("CONTENTS\n本編", encoding="utf-8")
+    token_path = book_dir / "001.txt.token.json"
+    _write_token_file(token_path, [], "CONTENTS\n本編")
+    overrides = {
+        "overrides": [
+            {
+                "pattern": "CONTENTS",
+                "reading": "コンテンツ",
+                "surface": "CONTENTS",
+            }
+        ]
+    }
+    (book_dir / "custom_token.json").write_text(json.dumps(overrides, ensure_ascii=False), encoding="utf-8")
+    rules = load_override_config(book_dir)
+    updated = refine_book(book_dir, rules)
+    assert updated == 1
+    assert "コンテンツ" in chapter.read_text(encoding="utf-8")
+    payload = json.loads(token_path.read_text(encoding="utf-8"))
+    tokens = payload["tokens"]
+    assert any(token.get("surface") == "CONTENTS" and token.get("reading") == "コンテンツ" for token in tokens)
+
+
+def test_refine_skips_original_text_files(tmp_path: Path) -> None:
+    book_dir = tmp_path / "skip_original"
+    book_dir.mkdir()
+    transformed = book_dir / "001.txt"
+    transformed.write_text("CONTENTS", encoding="utf-8")
+    original = book_dir / "001.original.txt"
+    original.write_text("CONTENTS_ORIGINAL", encoding="utf-8")
+    token_path = book_dir / "001.txt.token.json"
+    _write_token_file(token_path, [], "CONTENTS")
+    overrides = {"overrides": [{"pattern": "CONTENTS", "reading": "コンテンツ", "surface": "CONTENTS"}]}
+    (book_dir / "custom_token.json").write_text(json.dumps(overrides, ensure_ascii=False), encoding="utf-8")
+    rules = load_override_config(book_dir)
+    refined = refine_book(book_dir, rules)
+    assert refined == 1
+    assert transformed.read_text(encoding="utf-8") == "コンテンツ"
+    # Original text must remain untouched
+    assert original.read_text(encoding="utf-8") == "CONTENTS_ORIGINAL"
+
+
 def test_append_override_entry_creates_file(tmp_path: Path) -> None:
     book_dir = tmp_path / "book_append"
     book_dir.mkdir()

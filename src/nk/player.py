@@ -1596,6 +1596,7 @@ INDEX_HTML = """<!DOCTYPE html>
     const lastPlayStatus = document.getElementById('last-play-status');
     const bookmarkAddBtn = document.getElementById('bookmark-add');
     const bookmarkList = document.getElementById('bookmark-list');
+    const bookmarkPanel = document.getElementById('bookmark-panel');
     const noteModal = document.getElementById('note-modal');
     const noteTextarea = document.getElementById('note-input');
     const noteModalMeta = document.getElementById('note-modal-meta');
