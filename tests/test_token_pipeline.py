@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from nk.core import _RubySpan, _build_chapter_tokens_from_original, _render_text_from_tokens
+from nk.tokens import ChapterToken
 
 
 @dataclass
@@ -110,3 +111,27 @@ def test_translation_ruby_preserves_gikun_reading() -> None:
     rendered, _ = _render_text_from_tokens(text, tokens, preserve_unambiguous=True)
     assert "化け物" in rendered
     assert "誰か" in rendered
+
+
+def test_ambiguous_unidic_surfaces_are_forced_to_katakana() -> None:
+    text = "守衛さんと守衛室から"
+    tokens = [
+        ChapterToken(
+            surface="守衛",
+            start=text.index("守衛"),
+            end=text.index("守衛") + 2,
+            reading="モリエ",
+            reading_source="unidic",
+        ),
+        ChapterToken(
+            surface="守衛",
+            start=text.rindex("守衛"),
+            end=text.rindex("守衛") + 2,
+            reading="シュエイ",
+            reading_source="unidic",
+        ),
+    ]
+    rendered, _ = _render_text_from_tokens(text, tokens, preserve_unambiguous=True)
+    assert "守衛" not in rendered
+    assert "モリエ" in rendered
+    assert "シュエイ" in rendered

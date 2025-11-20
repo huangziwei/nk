@@ -1155,6 +1155,10 @@ def _render_text_from_tokens(
     if not tokens:
         normalized = _normalize_ellipsis_with_offsets(text, None)
         return normalized, []
+    if preserve_unambiguous:
+        # Re-evaluate ambiguous UniDic surfaces so partial transforms always
+        # kana-ize multi-reading kanji even when token flags were never set.
+        _flag_unidic_ambiguous_tokens(tokens)
     output: list[str] = []
     cursor = 0
     out_pos = 0
