@@ -13,6 +13,7 @@ from .library import list_books_sorted
 from .refine import (
     append_override_entry,
     edit_single_token,
+    create_token_from_selection,
     load_override_config,
     refine_book,
     refine_chapter,
@@ -488,6 +489,36 @@ INDEX_HTML = """<!DOCTYPE html>
       cursor: pointer;
       font-weight: 600;
       font-size: 0.85rem;
+    }
+    .selection-toolbar {
+      position: absolute;
+      background: var(--panel-alt);
+      border: 1px solid var(--outline);
+      border-radius: 10px;
+      padding: 0.35rem 0.6rem;
+      display: inline-flex;
+      gap: 0.4rem;
+      align-items: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      z-index: 150;
+    }
+    .selection-toolbar.hidden {
+      display: none;
+    }
+    .selection-toolbar button {
+      border-radius: 8px;
+      border: 1px solid var(--outline);
+      background: var(--accent-soft);
+      color: var(--text);
+      padding: 0.25rem 0.65rem;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+    .selection-toolbar button.secondary {
+      background: transparent;
+      border-color: rgba(255,255,255,0.2);
+      color: var(--muted);
     }
     .diagnostic-card {
       background: var(--panel-alt);
@@ -1129,6 +1160,20 @@ INDEX_HTML = """<!DOCTYPE html>
       const diagnosticSearchInput = document.getElementById('diagnostic-search-input');
       const diagnosticSearchScope = document.getElementById('diagnostic-search-scope');
       const diagnosticSearchResults = document.getElementById('diagnostic-search-results');
+      const selectionToolbar = document.createElement('div');
+      selectionToolbar.className = 'selection-toolbar hidden';
+      const selectionAddButton = document.createElement('button');
+      selectionAddButton.type = 'button';
+      selectionAddButton.textContent = 'Add token';
+      const selectionCancelButton = document.createElement('button');
+      selectionCancelButton.type = 'button';
+      selectionCancelButton.className = 'secondary';
+      selectionCancelButton.textContent = 'Cancel';
+      selectionToolbar.appendChild(selectionAddButton);
+      selectionToolbar.appendChild(selectionCancelButton);
+      document.body.appendChild(selectionToolbar);
+      let selectionRange = null;
+      let selectionViewportRect = null;
       const transformedMeta = document.getElementById('transformed-meta');
       const originalMeta = document.getElementById('original-meta');
       const transformedText = document.getElementById('transformed-text');
@@ -1213,6 +1258,7 @@ INDEX_HTML = """<!DOCTYPE html>
       let refineContext = null;
       let refineBusy = false;
       let diagnosticSearchTimer = null;
+      let selectionAnchor = null;
       const UPLOAD_POLL_INTERVAL = 4000;
       const initialHashPath = getChapterPathFromHash();
       if (initialHashPath) {
@@ -1258,6 +1304,53 @@ INDEX_HTML = """<!DOCTYPE html>
           closeRefineModal();
         }
       });
+
+      function submitCreateToken(payload) {
+        if (!state.selectedPath) {
+          setRefineError('Select a chapter before creating a token.');
+          return;
+        }
+        if (
+          !payload
+          || typeof payload.start !== 'number'
+          || typeof payload.end !== 'number'
+          || payload.end <= payload.start
+        ) {
+          setRefineError('Invalid selection.');
+          return;
+        }
+        const body = {
+          start: payload.start,
+          end: payload.end,
+          path: state.selectedPath,
+        };
+        if (payload.replacement) body.replacement = payload.replacement;
+        if (payload.reading) body.reading = payload.reading;
+        if (payload.surface) body.surface = payload.surface;
+        if (payload.pos) body.pos = payload.pos;
+        if (typeof payload.accent === 'number') body.accent = payload.accent;
+        setRefineBusy(true);
+        setRefineError('');
+        const params = new URLSearchParams();
+        params.set('path', state.selectedPath);
+        fetchJSON(`/api/create-token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...body, path: state.selectedPath }),
+        })
+          .then(() => {
+            closeRefineModal();
+            state.pendingHighlightIndex = null;
+            openChapter(state.selectedPath, { autoCollapse: false });
+          })
+          .catch((error) => {
+            setRefineError(error.message || 'Failed to create token.');
+          })
+          .finally(() => {
+            setRefineBusy(false);
+          });
+      }
+
       function submitRefine(scope) {
         if (!state.selectedPath) {
           setRefineError('Select a chapter before applying overrides.');
@@ -1285,6 +1378,25 @@ INDEX_HTML = """<!DOCTYPE html>
             return;
           }
           accentPayload = parsed;
+        }
+        if (
+          normalizedScope === 'token'
+          && refineContext
+          && refineContext.selection
+          && (typeof refineContext.selection.start === 'number')
+          && (typeof refineContext.selection.end === 'number')
+        ) {
+          // Treat as create-token when selection is provided and no token index is set
+          submitCreateToken({
+            start: refineContext.selection.start,
+            end: refineContext.selection.end,
+            replacement,
+            reading,
+            surface,
+            pos,
+            accent: accentPayload,
+          });
+          return;
         }
         if (
           normalizedScope === 'token' &&
@@ -1528,6 +1640,7 @@ INDEX_HTML = """<!DOCTYPE html>
         const token = (context && context.token) || {};
         const chunk = typeof (context && context.text) === 'string' ? context.text : '';
         const view = context && context.view ? context.view : 'transformed';
+        const selection = context && context.selection ? context.selection : null;
         const tokenIndex =
           context && typeof context.index === 'number' && Number.isFinite(context.index)
             ? context.index
@@ -1570,7 +1683,11 @@ INDEX_HTML = """<!DOCTYPE html>
           if (state.selectedPath) {
             parts.push(state.selectedPath);
           }
-          if (surfaceLabel || readingLabel) {
+          if (selection && typeof selection.start === 'number' && typeof selection.end === 'number') {
+            parts.push(
+              `${surfaceLabel || chunk || '—'} → ${readingLabel || chunk || '—'} @ ${selection.start}–${selection.end}`
+            );
+          } else if (surfaceLabel || readingLabel) {
             parts.push(`${surfaceLabel || '—'} → ${readingLabel || '—'}`);
           }
           if (tokenIndex !== null) {
@@ -1592,6 +1709,9 @@ INDEX_HTML = """<!DOCTYPE html>
           });
         }
         refineContext = { token, view, text: chunk, index: tokenIndex };
+        if (selection) {
+          refineContext.selection = selection;
+        }
         setRefineError('');
         setRefineBusy(false);
         refineModal.classList.remove('hidden');
@@ -1842,11 +1962,42 @@ INDEX_HTML = """<!DOCTYPE html>
         }
       }
 
+      function hideSelectionToolbar() {
+        selectionRange = null;
+        selectionViewportRect = null;
+        selectionToolbar.classList.add('hidden');
+      }
+
       function attachHighlightHandlers(element, index) {
         element.addEventListener('mouseenter', () => setHighlighted(index));
         element.addEventListener('mouseleave', () => setHighlighted(null));
         element.addEventListener('focus', () => setHighlighted(index));
         element.addEventListener('blur', () => setHighlighted(null));
+      }
+
+      function selectionTextAndOffsets() {
+        const selection = window.getSelection ? window.getSelection() : null;
+        if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+          return null;
+        }
+        const range = selection.getRangeAt(0);
+        const container = transformedText;
+        if (!container || !container.contains(range.commonAncestorContainer)) {
+          return null;
+        }
+        const preSelectionRange = document.createRange();
+        preSelectionRange.selectNodeContents(container);
+        preSelectionRange.setEnd(range.startContainer, range.startOffset);
+        const start = preSelectionRange.toString().length;
+        const selectedText = range.toString();
+        const end = start + selectedText.length;
+        return {
+          range,
+          text: selectedText,
+          start,
+          end,
+          rect: range.getBoundingClientRect(),
+        };
       }
 
       function createOffsetConverter(text) {
@@ -2006,11 +2157,11 @@ INDEX_HTML = """<!DOCTYPE html>
             span.className = 'token-chunk';
             span.dataset.tokenIndex = String(segment.index);
             span.title = `${segment.token.surface || ''} → ${segment.token.reading || ''}`;
-             span.tabIndex = 0;
-            const annotation = isOriginalView ? (segment.token.reading || '') : (segment.token.surface || '');
-            const trimmedAnnotation = annotation && annotation.trim();
-            if (trimmedAnnotation) {
-              const ruby = document.createElement('ruby');
+              span.tabIndex = 0;
+              const annotation = isOriginalView ? (segment.token.reading || '') : (segment.token.surface || '');
+              const trimmedAnnotation = annotation && annotation.trim();
+              if (trimmedAnnotation) {
+                const ruby = document.createElement('ruby');
               const rb = document.createElement('span');
               rb.textContent = chunk;
               ruby.appendChild(rb);
@@ -2395,6 +2546,17 @@ INDEX_HTML = """<!DOCTYPE html>
         const suffix = result.context_suffix || '';
         const surface = result.surface || '';
         return `${prefix}${surface}${suffix}`;
+      }
+
+      function positionSelectionToolbar() {
+        if (!selectionToolbar || !selectionViewportRect) return;
+        const rect = selectionViewportRect;
+        const scrollX = window.scrollX || window.pageXOffset;
+        const scrollY = window.scrollY || window.pageYOffset;
+        const top = rect.top + scrollY - selectionToolbar.offsetHeight - 8;
+        const left = rect.left + scrollX + rect.width / 2 - selectionToolbar.offsetWidth / 2;
+        selectionToolbar.style.top = `${Math.max(8, top)}px`;
+        selectionToolbar.style.left = `${Math.max(8, left)}px`;
       }
 
       function renderSearchResults(results, query, scope) {
@@ -2914,6 +3076,9 @@ INDEX_HTML = """<!DOCTYPE html>
         state.chapterPayload = null;
         state.tokens = [];
         state.pendingHighlightIndex = null;
+        selectionRange = null;
+        selectionViewportRect = null;
+        hideSelectionToolbar();
         closeRefineModal();
         setHighlighted(null);
         setChapterNavLabel('');
@@ -3192,6 +3357,63 @@ INDEX_HTML = """<!DOCTYPE html>
           runDiagnosticSearch();
         });
       }
+
+      function openSelectionAsToken() {
+        if (!selectionRange || !selectionViewportRect) {
+          hideSelectionToolbar();
+          return;
+        }
+        const selection = selectionTextAndOffsets();
+        if (!selection || !selection.text) {
+          hideSelectionToolbar();
+          return;
+        }
+        const selectionContext = {
+          selection: { start: selection.start, end: selection.end },
+          text: selection.text,
+          token: { surface: selection.text, reading: selection.text, sources: ['selection'] },
+          view: 'transformed',
+        };
+        hideSelectionToolbar();
+        openRefineModal(selectionContext);
+      }
+
+      function handleSelectionChange() {
+        const info = selectionTextAndOffsets();
+        if (!info || !info.text || info.text.trim().length === 0) {
+          hideSelectionToolbar();
+          return;
+        }
+        selectionRange = info.range;
+        selectionViewportRect = info.rect;
+        selectionAddButton.disabled = false;
+        selectionToolbar.classList.remove('hidden');
+        positionSelectionToolbar();
+      }
+
+      selectionAddButton.addEventListener('click', () => {
+        openSelectionAsToken();
+      });
+      selectionCancelButton.addEventListener('click', () => {
+        hideSelectionToolbar();
+        const sel = window.getSelection ? window.getSelection() : null;
+        if (sel) sel.removeAllRanges();
+      });
+
+      if (transformedText) {
+        transformedText.addEventListener('mouseup', () => {
+          setTimeout(handleSelectionChange, 0);
+        });
+        transformedText.addEventListener('keyup', (event) => {
+          if (event.key === 'Shift') return;
+          setTimeout(handleSelectionChange, 0);
+        });
+      }
+      document.addEventListener('scroll', () => {
+        if (!selectionToolbar.classList.contains('hidden')) {
+          positionSelectionToolbar();
+        }
+      });
 
       window.addEventListener('hashchange', handleHashNavigation);
 
@@ -3696,5 +3918,62 @@ def create_reader_app(root: Path) -> FastAPI:
                 _append_matches(candidate)
 
         return JSONResponse({"results": results})
+
+    @app.post("/api/create-token")
+    def api_create_token(payload: dict[str, object] = Body(...)) -> JSONResponse:
+        if not isinstance(payload, Mapping):
+            raise HTTPException(status_code=400, detail="Invalid payload.")
+        path_value = payload.get("path")
+        if not isinstance(path_value, str) or not path_value.strip():
+            raise HTTPException(status_code=400, detail="path is required.")
+        rel_path = Path(path_value)
+        if rel_path.is_absolute():
+            raise HTTPException(status_code=400, detail="path must be relative.")
+        chapter_path = (resolved_root / rel_path).resolve()
+        try:
+            chapter_path.relative_to(resolved_root)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Path escapes root.") from exc
+        if (
+            not chapter_path.exists()
+            or not chapter_path.is_file()
+            or chapter_path.suffix.lower() != ".txt"
+        ):
+            raise HTTPException(status_code=404, detail="Chapter not found.")
+        start = payload.get("start")
+        end = payload.get("end")
+        if not isinstance(start, int) or not isinstance(end, int):
+            raise HTTPException(status_code=400, detail="start and end must be integers.")
+        if end <= start or start < 0:
+            raise HTTPException(status_code=400, detail="Invalid selection range.")
+        replacement = payload.get("replacement")
+        reading_val = payload.get("reading")
+        surface_val = payload.get("surface")
+        pos_val = payload.get("pos")
+        accent_val = payload.get("accent")
+        if replacement is not None and not isinstance(replacement, str):
+            replacement = None
+        if reading_val is not None and not isinstance(reading_val, str):
+            reading_val = None
+        if surface_val is not None and not isinstance(surface_val, str):
+            surface_val = None
+        if pos_val is not None and not isinstance(pos_val, str):
+            pos_val = None
+        if accent_val is not None and not isinstance(accent_val, int):
+            accent_val = None
+        try:
+            updated = create_token_from_selection(
+                chapter_path,
+                start,
+                end,
+                replacement=replacement,
+                reading=reading_val,
+                surface=surface_val,
+                pos=pos_val,
+                accent=accent_val,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return JSONResponse({"updated": 1 if updated else 0})
 
     return app

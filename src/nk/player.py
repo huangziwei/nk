@@ -5876,6 +5876,53 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
             raise HTTPException(status_code=404, detail="Cover not found")
         return FileResponse(cover_path)
 
+    @app.post("/api/books/{book_id:path}/chapters/{chapter_id}/tokens")
+    async def api_create_token(
+        book_id: str,
+        chapter_id: str,
+        payload: dict[str, object] = Body(...),
+    ) -> JSONResponse:
+        _, book_path = _resolve_book(book_id)
+        chapter_path = book_path / chapter_id
+        if not chapter_path.exists():
+            raise HTTPException(status_code=404, detail="Chapter not found")
+        try:
+            start = int(payload.get("start"))  # type: ignore[arg-type]
+            end = int(payload.get("end"))  # type: ignore[arg-type]
+        except Exception:
+            raise HTTPException(status_code=400, detail="start and end must be integers")
+        if start < 0 or end <= start:
+            raise HTTPException(status_code=400, detail="Invalid selection bounds")
+        replacement = payload.get("replacement")
+        reading = payload.get("reading")
+        surface = payload.get("surface")
+        pos = payload.get("pos")
+        accent = payload.get("accent")
+        if replacement is not None and not isinstance(replacement, str):
+            replacement = None
+        if reading is not None and not isinstance(reading, str):
+            reading = None
+        if surface is not None and not isinstance(surface, str):
+            surface = None
+        if pos is not None and not isinstance(pos, str):
+            pos = None
+        if accent is not None and not isinstance(accent, int):
+            accent = None
+        try:
+            created = create_token_from_selection(
+                chapter_path,
+                start,
+                end,
+                replacement=replacement,
+                reading=reading,
+                surface=surface,
+                pos=pos,
+                accent=accent,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return JSONResponse({"updated": 1 if created else 0})
+
     @app.post("/api/books/{book_id:path}/chapters/{chapter_id}/prepare")
     async def api_prepare_chapter(
         book_id: str,

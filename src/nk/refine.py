@@ -279,6 +279,73 @@ def edit_single_token(
     return True
 
 
+def create_token_from_selection(
+    text_path: Path,
+    start: int,
+    end: int,
+    *,
+    replacement: str | None = None,
+    reading: str | None = None,
+    surface: str | None = None,
+    pos: str | None = None,
+    accent: int | None = None,
+) -> bool:
+    if start < 0 or end <= start:
+        raise ValueError("Invalid selection bounds.")
+    token_path = text_path.with_name(text_path.name + ".token.json")
+    try:
+        text = text_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ValueError(f"Failed to read chapter: {exc}") from exc
+    if end > len(text):
+        raise ValueError("Selection exceeds text length.")
+    try:
+        payload = json.loads(token_path.read_text(encoding="utf-8"))
+        version = payload.get("version", 1)
+        tokens_payload = payload.get("tokens")
+        existing_tokens = deserialize_chapter_tokens(tokens_payload) if isinstance(tokens_payload, list) else []
+    except (OSError, json.JSONDecodeError):
+        version = TOKEN_METADATA_VERSION
+        existing_tokens = []
+    tokens = [replace(token) for token in existing_tokens]
+    segment = text[start:end]
+    replacement_text = replacement if replacement is not None else segment
+    if replacement_text != segment:
+        text = f"{text[:start]}{replacement_text}{text[end:]}"
+        delta = len(replacement_text) - len(segment)
+        _shift_tokens(tokens, end, delta)
+        end = start + len(replacement_text)
+    reading_val = reading or replacement_text
+    surface_val = surface or segment
+    new_token = ChapterToken(
+        surface=surface_val,
+        start=start,
+        end=end,
+        reading=reading_val,
+        fallback_reading=reading_val,
+        reading_source="override",
+        context_prefix=text[max(0, start - 3) : start],
+        context_suffix=text[end : end + 3],
+        accent_type=accent,
+        pos=pos,
+        transformed_start=start,
+        transformed_end=end,
+        reading_validated=False,
+    )
+    tokens.append(new_token)
+    tokens.sort(key=lambda token: (_token_transformed_start(token), _token_transformed_end(token)))
+    normalized_for_hash = text.strip()
+    sha1 = hashlib.sha1(normalized_for_hash.encode("utf-8")).hexdigest()
+    new_payload = {
+        "version": max(version, TOKEN_METADATA_VERSION),
+        "text_sha1": sha1,
+        "tokens": serialize_chapter_tokens(tokens),
+    }
+    token_path.write_text(json.dumps(new_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    text_path.write_text(text, encoding="utf-8")
+    return True
+
+
 def _apply_override_rule(
     text: str, tokens: list[ChapterToken], rule: OverrideRule
 ) -> tuple[str, bool]:
