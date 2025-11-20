@@ -701,6 +701,28 @@ INDEX_HTML = """<!DOCTYPE html>
       margin: 0.3rem 0 1rem;
       font-size: 0.9rem;
     }
+    .refine-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: -0.4rem 0 0.8rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .refine-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.15rem 0.65rem;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      font-size: 0.8rem;
+    }
+    .refine-chip.warn {
+      color: var(--warn);
+      border-color: rgba(252,211,77,0.55);
+    }
     .form-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -906,6 +928,7 @@ INDEX_HTML = """<!DOCTYPE html>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="refine-title">
       <h3 id="refine-title">Refine token</h3>
       <p id="refine-context">Choose a token to begin.</p>
+      <div id="refine-meta" class="refine-meta"></div>
       <form id="refine-form" class="modal-form">
         <div class="form-grid">
           <label class="form-field">
@@ -1089,6 +1112,7 @@ INDEX_HTML = """<!DOCTYPE html>
       const refineCancel = document.getElementById('refine-cancel');
       const refineError = document.getElementById('refine-error');
       const refineContextLabel = document.getElementById('refine-context');
+      const refineMeta = document.getElementById('refine-meta');
       let alignFrame = null;
       const SORT_STORAGE_KEY = 'nkReaderSortOrder';
       const SORT_OPTIONS = ['author', 'recent', 'played'];
@@ -1419,10 +1443,12 @@ INDEX_HTML = """<!DOCTYPE html>
           context && typeof context.index === 'number' && Number.isFinite(context.index)
             ? context.index
             : null;
+        const surfaceLabel = token.surface || chunk || '';
+        const readingLabel = token.reading || '';
         const defaultPattern =
           view === 'transformed' && chunk
             ? chunk
-            : (token.reading || chunk || token.surface || '');
+            : (readingLabel || surfaceLabel);
         const defaultReplacement = chunk || '';
         const defaultReading = token.reading || chunk || '';
         const accentValue =
@@ -1455,8 +1481,6 @@ INDEX_HTML = """<!DOCTYPE html>
           if (state.selectedPath) {
             parts.push(state.selectedPath);
           }
-          const surfaceLabel = token.surface || chunk || '';
-          const readingLabel = token.reading || '';
           if (surfaceLabel || readingLabel) {
             parts.push(`${surfaceLabel || '—'} → ${readingLabel || '—'}`);
           }
@@ -1464,6 +1488,19 @@ INDEX_HTML = """<!DOCTYPE html>
             parts.push(`Token #${tokenIndex}`);
           }
           refineContextLabel.textContent = parts.join(' · ');
+        }
+        if (refineMeta) {
+          const metaBits = [];
+          const sources = Array.isArray(token.sources) ? token.sources : [];
+          const sourceLabel = sources.length ? sources.join(', ') : 'unknown';
+          metaBits.push({ label: 'Source', value: sourceLabel });
+          refineMeta.innerHTML = '';
+          metaBits.forEach((bit) => {
+            const chip = document.createElement('span');
+            chip.className = 'refine-chip';
+            chip.textContent = `${bit.label}: ${bit.value}`;
+            refineMeta.appendChild(chip);
+          });
         }
         refineContext = { token, view, text: chunk, index: tokenIndex };
         setRefineError('');
@@ -2991,6 +3028,12 @@ def _convert_token_entry(entry: Mapping[str, object]) -> dict[str, object]:
         reading_source = entry.get("reading_source")
         if isinstance(reading_source, str) and reading_source:
             normalized_sources = [reading_source]
+    context_prefix = entry.get("context_prefix")
+    if not isinstance(context_prefix, str):
+        context_prefix = ""
+    context_suffix = entry.get("context_suffix")
+    if not isinstance(context_suffix, str):
+        context_suffix = ""
     return {
         "surface": surface,
         "reading": reading,
@@ -2998,6 +3041,8 @@ def _convert_token_entry(entry: Mapping[str, object]) -> dict[str, object]:
         "accent": accent,
         "connection": connection,
         "sources": normalized_sources,
+        "context_prefix": context_prefix,
+        "context_suffix": context_suffix,
         "start": {
             "original": start_original_value,
             "transformed": transformed_start
