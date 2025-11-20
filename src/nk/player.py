@@ -79,7 +79,7 @@ def _normalize_sort_mode(value: str | None) -> str:
     raise HTTPException(status_code=400, detail="Invalid sort mode.")
 
 
-INDEX_HTML = """<!DOCTYPE html>
+INDEX_HTML = r"""<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
