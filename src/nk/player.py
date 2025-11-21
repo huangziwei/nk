@@ -1669,6 +1669,40 @@ INDEX_HTML = r"""<!DOCTYPE html>
       }
     }
 
+    function isIpLikeHost(hostname) {
+      if (!hostname) return false;
+      const lower = hostname.toLowerCase();
+      if (lower === 'localhost' || lower === '0.0.0.0' || lower === '::1') {
+        return true;
+      }
+      if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) {
+        return true;
+      }
+      return hostname.includes(':');
+    }
+
+    // Keep reader links aligned with how the player was reached (hostname vs IP).
+    function normalizeReaderUrl(baseUrl) {
+      if (!baseUrl) return null;
+      try {
+        const parsed = new URL(baseUrl, window.location.href);
+        const originHost = window.location.hostname;
+        if (
+          originHost
+          && parsed.hostname
+          && originHost !== parsed.hostname
+          && isIpLikeHost(parsed.hostname)
+        ) {
+          parsed.hostname = originHost;
+        }
+        return parsed.toString();
+      } catch (err) {
+        return baseUrl;
+      }
+    }
+
+    const readerUrl = normalizeReaderUrl(readerBaseUrl);
+
     const DEFAULT_VOICE = {
       speaker: 2,
       speed: 1,
@@ -1697,7 +1731,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
       parentPrefix: '',
       pendingEpubs: [],
       epubBusy: new Set(),
-      readerUrl: readerBaseUrl,
+      readerUrl,
     };
     const libraryCache = new Map();
     const LIBRARY_CACHE_LIMIT = 10;
