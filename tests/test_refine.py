@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from nk.refine import append_override_entry, edit_single_token, load_override_config, refine_book
+from nk.refine import append_override_entry, edit_single_token, load_override_config, refine_book, remove_token
 
 
 def _write_token_file(path: Path, tokens: list[dict[str, object]], text: str) -> None:
@@ -98,6 +98,49 @@ def test_edit_single_token_validates_index(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError):
         edit_single_token(chapter, 5, reading="アマ")
+
+
+def test_remove_token_updates_metadata(tmp_path: Path) -> None:
+    book_dir = tmp_path / "book_remove"
+    book_dir.mkdir()
+    chapter = book_dir / "001.txt"
+    text = "アメとユキ"
+    chapter.write_text(text, encoding="utf-8")
+    token_path = book_dir / "001.txt.token.json"
+    _write_token_file(
+        token_path,
+        [
+            {"surface": "雨", "reading": "アメ", "accent": 0, "start": 0, "end": 1, "transformed_start": 0, "transformed_end": 2},
+            {"surface": "雪", "reading": "ユキ", "accent": 1, "start": 2, "end": 3, "transformed_start": 3, "transformed_end": 5},
+        ],
+        text,
+    )
+
+    removed = remove_token(chapter, 0)
+    assert removed
+    assert chapter.read_text(encoding="utf-8") == "雨とユキ"
+    payload = json.loads(token_path.read_text(encoding="utf-8"))
+    tokens = payload["tokens"]
+    assert len(tokens) == 1
+    assert tokens[0]["surface"] == "雪"
+    assert tokens[0]["transformed_start"] == 2
+    assert tokens[0]["transformed_end"] == 4
+    assert payload["text_sha1"] == hashlib.sha1("雨とユキ".encode("utf-8")).hexdigest()
+
+
+def test_remove_token_validates_index(tmp_path: Path) -> None:
+    book_dir = tmp_path / "book_remove_invalid"
+    book_dir.mkdir()
+    chapter = book_dir / "001.txt"
+    chapter.write_text("アメ", encoding="utf-8")
+    token_path = book_dir / "001.txt.token.json"
+    _write_token_file(
+        token_path,
+        [{"surface": "アメ", "reading": "アメ", "accent": 0, "start": 0, "end": 2, "transformed_start": 0, "transformed_end": 2}],
+        "アメ",
+    )
+    with pytest.raises(ValueError):
+        remove_token(chapter, 1)
 
 
 def test_refine_applies_replacement_to_tokens(tmp_path: Path) -> None:

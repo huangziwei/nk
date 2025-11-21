@@ -15,6 +15,7 @@ from .refine import (
     create_token_from_selection,
     edit_single_token,
     load_override_config,
+    remove_token,
     refine_book,
     refine_chapter,
 )
@@ -1252,6 +1253,9 @@ INDEX_HTML = """<!DOCTYPE html>
           <div class="modal-note" id="refine-error"></div>
           <div class="modal-button-group">
             <button type="button" class="secondary" id="refine-cancel">Cancel</button>
+            <button type="button" class="danger secondary" id="refine-delete-token" disabled>
+              Remove token
+            </button>
             <button type="button" data-scope="token" class="secondary" id="refine-submit-token">
               Save token
             </button>
@@ -1434,6 +1438,7 @@ INDEX_HTML = """<!DOCTYPE html>
       const refineSubmitBook = document.getElementById('refine-submit-book');
       const refineSubmitChapter = document.getElementById('refine-submit-chapter');
       const refineSubmitToken = document.getElementById('refine-submit-token');
+      const refineDeleteToken = document.getElementById('refine-delete-token');
       const refineCancel = document.getElementById('refine-cancel');
       const refineError = document.getElementById('refine-error');
       const refineContextLabel = document.getElementById('refine-context');
@@ -1685,8 +1690,51 @@ INDEX_HTML = """<!DOCTYPE html>
               setRefineError(error.message || 'Failed to apply override.');
             })
             .finally(() => {
-              setRefineBusy(false);
-            });
+            setRefineBusy(false);
+          });
+      }
+
+      function removeCurrentToken() {
+        if (!state.selectedPath) {
+          setRefineError('Select a chapter before removing tokens.');
+          return;
+        }
+        if (!refineContext || typeof refineContext.index !== 'number') {
+          setRefineError('Select a token to remove.');
+          return;
+        }
+        const tokenIndex = refineContext.index;
+        if (refineDeleteToken) {
+          refineDeleteToken.textContent = 'Removing token…';
+        }
+        setRefineBusy(true);
+        setRefineError('');
+        fetchJSON('/api/remove-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: state.selectedPath, token_index: tokenIndex }),
+        })
+          .then((result) => {
+            const chapterLabel = result && result.chapter ? result.chapter : state.selectedPath;
+            const removed = result && typeof result.removed === 'boolean' ? result.removed : true;
+            const statusMessage = removed
+              ? `Removed token #${tokenIndex} from ${chapterLabel}.`
+              : `No token removed in ${chapterLabel}.`;
+            renderStatus(statusMessage);
+            closeRefineModal();
+            if (state.selectedPath) {
+              openChapter(state.selectedPath, { autoCollapse: false, preserveScroll: true });
+            }
+          })
+          .catch((error) => {
+            setRefineError(error.message || 'Failed to remove token.');
+          })
+          .finally(() => {
+            if (refineDeleteToken) {
+              refineDeleteToken.textContent = 'Remove token';
+            }
+            setRefineBusy(false);
+          });
       }
 
       if (refineForm) {
@@ -1702,6 +1750,12 @@ INDEX_HTML = """<!DOCTYPE html>
             const scopeValue = (button.dataset.scope || 'book').toLowerCase();
             submitRefine(scopeValue);
           });
+        });
+      }
+      if (refineDeleteToken) {
+        refineDeleteToken.addEventListener('click', (event) => {
+          event.preventDefault();
+          removeCurrentToken();
         });
       }
       if (overridesOpenBtn) {
@@ -2054,9 +2108,26 @@ INDEX_HTML = """<!DOCTYPE html>
         }
       }
 
+      function canRemoveCurrentToken() {
+        return (
+          !!refineContext
+          && typeof refineContext.index === 'number'
+          && Number.isFinite(refineContext.index)
+        );
+      }
+
+      function updateRefineButtons() {
+        if (refineDeleteToken) {
+          refineDeleteToken.disabled = refineBusy || !canRemoveCurrentToken();
+        }
+      }
+
       function setRefineBusy(busy) {
         refineBusy = busy;
-        if (!refineForm) return;
+        if (!refineForm) {
+          updateRefineButtons();
+          return;
+        }
         const controls = refineForm.querySelectorAll('input, button, textarea');
         controls.forEach((control) => {
           if (control === refineCancel) {
@@ -2074,6 +2145,7 @@ INDEX_HTML = """<!DOCTYPE html>
         if (refineSubmitToken) {
           refineSubmitToken.textContent = busy ? 'Saving token…' : 'Save token';
         }
+        updateRefineButtons();
       }
 
       function closeRefineModal() {
@@ -4560,6 +4632,47 @@ def create_reader_app(root: Path) -> FastAPI:
                 "chapter": rel_path.as_posix(),
                 "book": book_rel.as_posix(),
                 "scope": scope,
+            }
+        )
+
+    @app.post("/api/remove-token")
+    def api_remove_token(payload: dict[str, object] = Body(...)) -> JSONResponse:
+        if not isinstance(payload, Mapping):
+            raise HTTPException(status_code=400, detail="Invalid payload.")
+        path_value = payload.get("path")
+        if not isinstance(path_value, str) or not path_value.strip():
+            raise HTTPException(status_code=400, detail="path is required.")
+        rel_path = Path(path_value)
+        if rel_path.is_absolute():
+            raise HTTPException(status_code=400, detail="path must be relative.")
+        chapter_path = (resolved_root / rel_path).resolve()
+        try:
+            chapter_path.relative_to(resolved_root)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Path escapes root.") from exc
+        if (
+            not chapter_path.exists()
+            or not chapter_path.is_file()
+            or chapter_path.suffix.lower() != ".txt"
+        ):
+            raise HTTPException(status_code=404, detail="Chapter not found.")
+        token_index = payload.get("token_index")
+        if not isinstance(token_index, int) or token_index < 0:
+            raise HTTPException(
+                status_code=400, detail="token_index is required and must be non-negative."
+            )
+        try:
+            removed = remove_token(chapter_path, token_index)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        book_dir = chapter_path.parent
+        book_rel = _relative_to_root(resolved_root, book_dir)
+        return JSONResponse(
+            {
+                "removed": bool(removed),
+                "chapter": rel_path.as_posix(),
+                "book": book_rel.as_posix(),
+                "token_index": token_index,
             }
         )
 

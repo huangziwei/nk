@@ -316,6 +316,56 @@ def edit_single_token(
     return True
 
 
+def remove_token(text_path: Path, token_index: int) -> bool:
+    if token_index < 0:
+        raise ValueError("token_index must be non-negative.")
+    token_path = text_path.with_name(text_path.name + ".token.json")
+    if not token_path.exists():
+        raise ValueError("Token metadata not found for this chapter.")
+    try:
+        payload = json.loads(token_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Failed to parse token metadata: {token_path}") from exc
+    tokens_payload = payload.get("tokens")
+    if not isinstance(tokens_payload, list):
+        raise ValueError("Token file is missing a 'tokens' array.")
+    tokens = deserialize_chapter_tokens(tokens_payload)
+    if token_index >= len(tokens):
+        raise ValueError("token_index is out of range for this chapter.")
+    target = tokens[token_index]
+    del tokens[token_index]
+    try:
+        text_value = text_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ValueError(f"Failed to read chapter: {exc}") from exc
+    text_changed = False
+    bounds = _token_transformed_bounds(target)
+    if bounds:
+        start, end = bounds
+        if end > start and end <= len(text_value):
+            replacement = target.surface.strip() if target.surface else None
+            if replacement:
+                segment = text_value[start:end]
+                if segment != replacement:
+                    text_value = f"{text_value[:start]}{replacement}{text_value[end:]}"
+                    delta = len(replacement) - len(segment)
+                    _shift_tokens(tokens, end, delta, exclude=target)
+                    text_changed = True
+    if text_changed:
+        text_path.write_text(text_value, encoding="utf-8")
+    tokens.sort(key=lambda token: (_token_transformed_start(token), _token_transformed_end(token)))
+    normalized_for_hash = text_value.strip()
+    sha1 = hashlib.sha1(normalized_for_hash.encode("utf-8")).hexdigest()
+    version = payload.get("version", 1)
+    new_payload = {
+        "version": max(version, TOKEN_METADATA_VERSION),
+        "text_sha1": sha1,
+        "tokens": serialize_chapter_tokens(tokens),
+    }
+    token_path.write_text(json.dumps(new_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return True
+
+
 def create_token_from_selection(
     text_path: Path,
     start: int,
@@ -645,4 +695,11 @@ def _token_transformed_end(token: ChapterToken) -> int:
     return _token_transformed_start(token)
 
 
-__all__ = ["load_override_config", "refine_book", "refine_chapter", "edit_single_token"]
+__all__ = [
+    "load_override_config",
+    "refine_book",
+    "refine_chapter",
+    "edit_single_token",
+    "remove_token",
+    "create_token_from_selection",
+]
