@@ -154914,22 +154914,6 @@
         ]
     },
     {
-        "base": "3",
-        "reading": "みっ",
-        "count": 7,
-        "suffix": "つの",
-        "suffixes": [
-            {
-                "value": "つの",
-                "count": 6
-            },
-            {
-                "value": "つあって",
-                "count": 1
-            }
-        ]
-    },
-    {
         "base": "斎藤",
         "reading": "さいとう",
         "count": 6,
