@@ -15,9 +15,9 @@ from .refine import (
     create_token_from_selection,
     edit_single_token,
     load_override_config,
-    remove_token,
     refine_book,
     refine_chapter,
+    remove_token,
 )
 from .uploads import UploadJob, UploadManager
 from .web_assets import NK_APPLE_TOUCH_ICON_PNG, NK_FAVICON_URL
@@ -973,14 +973,39 @@ INDEX_HTML = """<!DOCTYPE html>
     .modal-actions {
       margin-top: 1.2rem;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 0.8rem;
-      flex-wrap: wrap;
+      flex-direction: column;
+      gap: 0.85rem;
     }
     .modal-button-group {
       display: flex;
       gap: 0.5rem;
+    }
+    .modal-actions-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      width: 100%;
+    }
+    .modal-button-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .modal-button-row.end {
+      justify-content: flex-end;
+    }
+    .modal-actions-label {
+      color: var(--muted);
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+    .modal-button-group.token-actions {
+      justify-content: flex-end;
+    }
+    .modal-button-group.override-actions {
+      justify-content: flex-end;
     }
     .modal-actions button {
       border-radius: 999px;
@@ -1251,20 +1276,32 @@ INDEX_HTML = """<!DOCTYPE html>
         </div>
         <div class="modal-actions">
           <div class="modal-note" id="refine-error"></div>
-          <div class="modal-button-group">
-            <button type="button" class="secondary" id="refine-cancel">Cancel</button>
-            <button type="button" class="danger secondary" id="refine-delete-token" disabled>
-              Remove token
-            </button>
-            <button type="button" data-scope="token" class="secondary" id="refine-submit-token">
-              Save token
-            </button>
-            <button type="button" data-scope="chapter" class="secondary" id="refine-submit-chapter">
-              Override chapter
-            </button>
-            <button type="button" data-scope="book" id="refine-submit-book">
-              Override book
-            </button>
+          <div class="modal-actions-rows">
+            <div class="modal-button-row">
+              <span class="modal-actions-label">Apply changes to current token</span>
+              <div class="modal-button-group token-actions">
+                <button type="button" class="danger secondary" id="refine-delete-token" disabled>
+                  Remove token
+                </button>
+                <button type="button" data-scope="token" id="refine-submit-token">
+                  Save token
+                </button>
+              </div>
+            </div>
+            <div class="modal-button-row">
+              <span class="modal-actions-label">Apply changes to all matching tokens</span>
+              <div class="modal-button-group override-actions">
+                <button type="button" data-scope="chapter" class="secondary" id="refine-submit-chapter">
+                  This chapter only
+                </button>
+                <button type="button" data-scope="book" class="secondary" id="refine-submit-book">
+                  The whole book
+                </button>
+              </div>
+            </div>
+            <div class="modal-button-row end">
+              <button type="button" class="secondary" id="refine-cancel">Cancel</button>
+            </div>
           </div>
         </div>
       </form>
@@ -1704,6 +1741,14 @@ INDEX_HTML = """<!DOCTYPE html>
           return;
         }
         const tokenIndex = refineContext.index;
+        const tokenLabel =
+          (refineContext.token && (refineContext.token.surface || refineContext.token.reading))
+          || refineContext.text
+          || `token #${tokenIndex}`;
+        const confirmed = window.confirm(`Remove ${tokenLabel}? This restores the transformed text to its original surface.`);
+        if (!confirmed) {
+          return;
+        }
         if (refineDeleteToken) {
           refineDeleteToken.textContent = 'Removing token…';
         }
@@ -2137,10 +2182,10 @@ INDEX_HTML = """<!DOCTYPE html>
           }
         });
         if (refineSubmitBook) {
-          refineSubmitBook.textContent = busy ? 'Overriding book…' : 'Override book';
+          refineSubmitBook.textContent = busy ? 'Applying to whole book…' : 'The whole book';
         }
         if (refineSubmitChapter) {
-          refineSubmitChapter.textContent = busy ? 'Overriding chapter…' : 'Override chapter';
+          refineSubmitChapter.textContent = busy ? 'Applying to chapter…' : 'This chapter only';
         }
         if (refineSubmitToken) {
           refineSubmitToken.textContent = busy ? 'Saving token…' : 'Save token';
@@ -4659,7 +4704,8 @@ def create_reader_app(root: Path) -> FastAPI:
         token_index = payload.get("token_index")
         if not isinstance(token_index, int) or token_index < 0:
             raise HTTPException(
-                status_code=400, detail="token_index is required and must be non-negative."
+                status_code=400,
+                detail="token_index is required and must be non-negative.",
             )
         try:
             removed = remove_token(chapter_path, token_index)

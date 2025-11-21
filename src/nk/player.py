@@ -2114,6 +2114,11 @@ INDEX_HTML = r"""<!DOCTYPE html>
       });
       state.uploadJobs = normalized;
       renderUploadJobs();
+      if (normalized.length) {
+        startUploadPolling();
+      } else {
+        stopUploadPolling();
+      }
       const hasNewSuccess = normalized.some(
         job => job.status === 'success' && prevStatuses.get(job.id) !== 'success'
       );
@@ -2135,8 +2140,17 @@ INDEX_HTML = r"""<!DOCTYPE html>
       }
     }
 
+    function stopUploadPolling() {
+      if (uploadPollTimer === null) return;
+      window.clearInterval(uploadPollTimer);
+      uploadPollTimer = null;
+    }
+
     function startUploadPolling() {
       if (uploadPollTimer !== null) {
+        return;
+      }
+      if (!state.uploadJobs.length) {
         return;
       }
       uploadPollTimer = window.setInterval(() => {
@@ -4642,7 +4656,6 @@ INDEX_HTML = r"""<!DOCTYPE html>
     ensureUploadCard();
     renderUploadJobs();
     loadUploads();
-    startUploadPolling();
 
     setBookmarks({ manual: [], last_played: null });
 
