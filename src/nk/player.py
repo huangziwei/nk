@@ -3705,6 +3705,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
     function chapterStatusInfo(ch) {
       const status = ch.build_status;
       if (status) {
+        if (status.state === 'queued') {
+          return { label: 'Queued', className: 'warning' };
+        }
         if (status.state === 'building') {
           const total = typeof status.chunk_count === 'number' && status.chunk_count > 0 ? status.chunk_count : null;
           const current = typeof status.chunk_index === 'number' && status.chunk_index > 0 ? status.chunk_index : 0;
@@ -3753,11 +3756,12 @@ INDEX_HTML = r"""<!DOCTYPE html>
         if (primaryBtn) {
           primaryBtn.textContent = chapterPrimaryLabel(chapter);
           const isBuilding = chapter.build_status && chapter.build_status.state === 'building';
+          const isQueued = chapter.build_status && chapter.build_status.state === 'queued';
           const isAborting = chapter.build_status && chapter.build_status.state === 'aborting';
           primaryBtn.disabled = Boolean(isAborting);
-          primaryBtn.classList.toggle('danger', Boolean(isBuilding || isAborting));
+          primaryBtn.classList.toggle('danger', Boolean(isBuilding || isQueued || isAborting));
           primaryBtn.onclick = () => {
-            if (isBuilding) {
+            if (isBuilding || isQueued) {
               handlePromise(abortChapter(chapterIndex));
             } else if (chapter.mp3_exists) {
               handlePromise(playChapter(chapterIndex));
@@ -3768,7 +3772,12 @@ INDEX_HTML = r"""<!DOCTYPE html>
         }
         const restartBtn = node.querySelector('[data-role="restart-action"]');
         if (restartBtn) {
-          restartBtn.disabled = Boolean(chapter.build_status && (chapter.build_status.state === 'building' || chapter.build_status.state === 'aborting'));
+          restartBtn.disabled = Boolean(
+            chapter.build_status
+            && (chapter.build_status.state === 'building'
+              || chapter.build_status.state === 'queued'
+              || chapter.build_status.state === 'aborting')
+          );
         }
       });
     }
@@ -3819,6 +3828,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
     }
 
     function chapterPrimaryLabel(ch) {
+      if (ch.build_status && ch.build_status.state === 'queued') {
+        return 'Abort';
+      }
       if (ch.build_status && ch.build_status.state === 'building') {
         return 'Abort';
       }
@@ -3962,11 +3974,12 @@ INDEX_HTML = r"""<!DOCTYPE html>
         const playBtn = document.createElement('button');
         playBtn.textContent = chapterPrimaryLabel(ch);
         const isBuilding = ch.build_status && ch.build_status.state === 'building';
+        const isQueued = ch.build_status && ch.build_status.state === 'queued';
         const isAborting = ch.build_status && ch.build_status.state === 'aborting';
         playBtn.disabled = Boolean(isAborting);
-        playBtn.classList.toggle('danger', Boolean(isBuilding || isAborting));
+        playBtn.classList.toggle('danger', Boolean(isBuilding || isQueued || isAborting));
         playBtn.onclick = () => {
-          if (isBuilding) {
+          if (isBuilding || isQueued) {
             handlePromise(abortChapter(index));
           } else if (ch.mp3_exists) {
             handlePromise(playChapter(index));
@@ -3980,7 +3993,12 @@ INDEX_HTML = r"""<!DOCTYPE html>
         restartBtn.dataset.role = 'restart-action';
         restartBtn.textContent = 'Rebuild';
         restartBtn.className = 'secondary';
-        restartBtn.disabled = Boolean(ch.build_status && (ch.build_status.state === 'building' || ch.build_status.state === 'aborting'));
+        restartBtn.disabled = Boolean(
+          ch.build_status
+          && (ch.build_status.state === 'building'
+            || ch.build_status.state === 'queued'
+            || ch.build_status.state === 'aborting')
+        );
         restartBtn.onclick = () => {
           const chapter = state.chapters[index];
           const label = chapter ? chapter.title : 'this chapter';
@@ -6313,6 +6331,12 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
                 raise HTTPException(
                     status_code=409, detail="Chapter is already building."
                 )
+            _set_chapter_status(
+                book_key,
+                chapter_id,
+                state="queued",
+                message="Queued",
+            )
             future = loop.run_in_executor(None, work)
             active_build_jobs[job_key] = {"cancel": cancel_event, "future": future}
 
@@ -6324,8 +6348,22 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
                 status_code=409, detail="Build aborted by user."
             ) from None
         except (VoiceVoxUnavailableError, VoiceVoxError, FFmpegError) as exc:
+            _set_chapter_status(
+                book_key,
+                chapter_id,
+                state="error",
+                message=str(exc),
+                error=str(exc),
+            )
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         except Exception as exc:
+            _set_chapter_status(
+                book_key,
+                chapter_id,
+                state="error",
+                message=str(exc),
+                error=str(exc),
+            )
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         finally:
             with build_lock:
