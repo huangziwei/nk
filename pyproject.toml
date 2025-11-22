@@ -38,6 +38,9 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nk"]
+include = [
+    "src/nk/data/*.json",
+]
 
 [tool.hatch.envs.default]
 path = ".venv"

@@ -502,15 +502,16 @@ def _apply_override_rule(
         mapper_cache["mapper"] = mapper
         return mapper
 
-    def _overlaps(start: int, end: int) -> bool:
+    def _overlaps(start: int, end: int) -> list[ChapterToken]:
+        overlapping: list[ChapterToken] = []
         for tok in tokens:
             bounds = _token_transformed_bounds(tok)
             if not bounds:
                 continue
             t_start, t_end = bounds
             if end > t_start and start < t_end:
-                return True
-        return False
+                overlapping.append(tok)
+        return overlapping
 
     def _map_bounds(transformed_start: int, transformed_end: int) -> tuple[int, int]:
         mapper = _get_mapper()
@@ -615,8 +616,11 @@ def _apply_override_rule(
     for start, end, segment in raw_matches:
         adj_start = start + delta
         adj_end = end + delta
-        if _overlaps(adj_start, adj_end):
-            continue
+        overlapping_tokens = _overlaps(adj_start, adj_end)
+        if overlapping_tokens:
+            # User overrides should win; drop overlapping tokens so we can
+            # replace and inject the curated token.
+            tokens[:] = [tok for tok in tokens if tok not in overlapping_tokens]
         replacement_text = _resolve_replacement(rule)
         if replacement_text is not None and replacement_text != segment:
             text = f"{text[:adj_start]}{replacement_text}{text[adj_end:]}"

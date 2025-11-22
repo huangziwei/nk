@@ -12,6 +12,11 @@ try:
 except Exception:  # pragma: no cover - optional image padding
     Image = None  # type: ignore[assignment]
 
+try:  # pragma: no cover - importlib backport for older Python
+    from importlib import resources
+except ImportError:  # pragma: no cover
+    import importlib_resources as resources  # type: ignore
+
 from .core import ChapterText, CoverImage
 from .tokens import ChapterToken, deserialize_chapter_tokens, serialize_chapter_tokens
 
@@ -23,6 +28,18 @@ _CUSTOM_TOKEN_FILENAME = "custom_token.json"
 _LEGACY_CUSTOM_PITCH_FILENAME = "custom_pitch.json"
 _TOKEN_SUFFIX = ".token.json"
 TOKEN_METADATA_VERSION = 2
+_TEMPLATE_RESOURCE = "nk.data"
+_TEMPLATE_FILENAME = "custom_token_template.json"
+_LEGACY_TEMPLATE_PAYLOAD = {
+    "overrides": [
+        {
+            "pattern": "CONTENTS",
+            "reading": "コンテンツ",
+            "accent": 3,
+            "surface": "CONTENTS",
+        },
+    ]
+}
 
 
 def is_original_text_file(path: Path) -> bool:
@@ -332,21 +349,53 @@ def ensure_cover_is_square(cover_path: Path) -> None:
         return
 
 
+def _load_default_override_template() -> dict:
+    """
+    Load the packaged custom_token template JSON so the default can be edited
+    without touching code. Falls back to the legacy hard-coded payload if the
+    resource is missing.
+    """
+    try:
+        template_path = resources.files(_TEMPLATE_RESOURCE).joinpath(_TEMPLATE_FILENAME)
+        payload = json.loads(template_path.read_text("utf-8"))
+        if isinstance(payload, dict):
+            return payload
+    except (FileNotFoundError, ModuleNotFoundError, OSError, json.JSONDecodeError):
+        pass
+    return _LEGACY_TEMPLATE_PAYLOAD
+
+
+def _is_legacy_template(payload: object) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    overrides = payload.get("overrides")
+    if not isinstance(overrides, list) or len(overrides) != 1:
+        return False
+    entry = overrides[0]
+    if not isinstance(entry, dict):
+        return False
+    return (
+        entry.get("pattern") == "CONTENTS"
+        and entry.get("reading") == "コンテンツ"
+        and entry.get("surface") == "CONTENTS"
+    )
+
+
 def _ensure_custom_token_template(output_dir: Path) -> None:
     template_path = output_dir / _CUSTOM_TOKEN_FILENAME
     legacy_path = output_dir / _LEGACY_CUSTOM_PITCH_FILENAME
+    template = _load_default_override_template()
     if template_path.exists() or legacy_path.exists():
-        return
-    template = {
-        "overrides": [
-            {
-                "pattern": "CONTENTS",
-                "reading": "コンテンツ",
-                "accent": 3,
-                "surface": "CONTENTS",
-            },
-        ]
-    }
+        if not template_path.exists():
+            return
+        try:
+            existing = json.loads(template_path.read_text("utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return  # don't clobber a file the user may want to fix manually
+        overrides = existing.get("overrides") if isinstance(existing, dict) else None
+        is_empty = not isinstance(overrides, list) or len(overrides) == 0
+        if not is_empty and not _is_legacy_template(existing):
+            return
     template_path.write_text(
         json.dumps(template, ensure_ascii=False, indent=2),
         encoding="utf-8",
