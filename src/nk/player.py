@@ -1639,6 +1639,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
     const SPEED_STORAGE_KEY = 'nk-player-speed';
     const SEEK_STEP = 15;
     const PREVIOUS_CHAPTER_RESTART_THRESHOLD = 5;
+    const RESUME_TARGET_TOLERANCE = 0.5;
     let isScrubbing = false;
     let playbackRateIndex = PLAYBACK_RATES.indexOf(1);
     const voiceSpeakerInput = document.getElementById('voice-speaker');
@@ -2277,8 +2278,26 @@ INDEX_HTML = r"""<!DOCTYPE html>
         });
     }
 
+    function normalizeBookmarkEntry(entry) {
+      if (!entry || typeof entry !== 'object') return null;
+      const chapter = typeof entry.chapter === 'string' ? entry.chapter.trim() : '';
+      if (!chapter) return null;
+      const time = Number(entry.time);
+      if (!Number.isFinite(time) || time < 0) return null;
+      let id = null;
+      if (typeof entry.id === 'string' && entry.id.trim()) {
+        id = entry.id.trim();
+      } else {
+        id = `bm_${Math.random().toString(16).slice(2)}`;
+      }
+      const label = typeof entry.label === 'string' ? entry.label : null;
+      return { id, chapter, time, label };
+    }
+
     function setBookmarks(payload) {
-      const manual = Array.isArray(payload?.manual) ? payload.manual.slice() : [];
+      const manual = Array.isArray(payload?.manual)
+        ? payload.manual.map(normalizeBookmarkEntry).filter(Boolean)
+        : [];
       const last = payload?.last_played;
       state.bookmarks = {
         manual,
@@ -2326,6 +2345,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
         actions.className = 'actions';
         const playBtn = document.createElement('button');
         playBtn.dataset.role = 'primary-action';
+        playBtn.dataset.bookmarkId = entry.id || '';
+        playBtn.dataset.bookmarkTime = String(entry.time || 0);
+        playBtn.dataset.bookmarkChapter = entry.chapter || '';
+        playBtn.type = 'button';
         playBtn.textContent = 'Play';
         playBtn.onclick = () => {
           handlePromise(playBookmark(entry));
@@ -2426,6 +2449,28 @@ INDEX_HTML = r"""<!DOCTYPE html>
       }
     }
 
+    function enforceResumeTarget(seconds) {
+      if (!Number.isFinite(seconds) || seconds <= 0) return;
+      let attempts = 0;
+      const maxAttempts = 3;
+      const nudge = () => {
+        const current = Number.isFinite(player.currentTime) ? player.currentTime : 0;
+        if (Math.abs(current - seconds) <= RESUME_TARGET_TOLERANCE) {
+          return;
+        }
+        attempts += 1;
+        try {
+          player.currentTime = seconds;
+        } catch {
+          // ignore seek errors
+        }
+        if (attempts < maxAttempts) {
+          setTimeout(nudge, 200);
+        }
+      };
+      setTimeout(nudge, 200);
+    }
+
     async function refreshBookmarks() {
       if (!state.currentBook) return;
       try {
@@ -2445,7 +2490,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
         alert('Chapter not found for this bookmark.');
         return;
       }
-      await playChapter(index, { resumeTime: entry.time || 0 });
+      const resumeValue = Number(entry.time);
+      await playChapter(index, { resumeTime: Number.isFinite(resumeValue) ? resumeValue : 0 });
     }
 
     async function deleteBookmark(bookmarkId) {
@@ -4451,6 +4497,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
       }
       try {
         await player.play();
+        if (Number.isFinite(resumeTime) && resumeTime > 0) {
+          enforceResumeTarget(resumeTime);
+        }
         statusLine.textContent = 'Playing';
       } catch {
         statusLine.textContent = 'Tap play to start audio.';
@@ -4761,11 +4810,11 @@ INDEX_HTML = r"""<!DOCTYPE html>
 
     if (bookmarkAddBtn) {
       bookmarkAddBtn.onclick = () => {
-      const chapter = currentChapter();
-      if (!chapter) {
-        alert('Select a chapter before adding bookmarks.');
-        return;
-      }
+        const chapter = currentChapter();
+        if (!chapter) {
+          alert('Select a chapter before adding bookmarks.');
+          return;
+        }
         if (!Number.isFinite(player.currentTime) || player.currentTime < 1) {
           alert('Play the audio to the desired position before bookmarking.');
           return;
@@ -4773,6 +4822,19 @@ INDEX_HTML = r"""<!DOCTYPE html>
         handlePromise(createBookmarkForCurrent(player.currentTime, null));
       };
     }
+
+    document.addEventListener('click', event => {
+      const btn = event.target && event.target.closest('button[data-bookmark-id]');
+      if (!btn) return;
+      const bookmarkId = btn.dataset.bookmarkId || '';
+      if (!bookmarkId) return;
+      const entry = (state.bookmarks.manual || []).find(bm => bm && bm.id === bookmarkId);
+      if (!entry) {
+        statusLine.textContent = 'Bookmark not found.';
+        return;
+      }
+      handlePromise(playBookmark(entry));
+    });
 
     playBookBtn.onclick = () => handlePromise(resumeLastPlay());
     restartBookBtn.onclick = () => handlePromise(playBook(true));
