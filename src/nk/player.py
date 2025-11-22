@@ -1725,6 +1725,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
         lastPlayed: null,
       },
       localBuilds: new Set(),
+      cancelledBuilds: new Set(),
       uploadJobs: [],
       librarySortOrder: 'author',
       libraryPrefix: '',
@@ -3705,6 +3706,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
     function chapterStatusInfo(ch) {
       const status = ch.build_status;
       if (status) {
+        if (status.state === 'cancelled') {
+          return { label: 'Cancelled', className: 'muted' };
+        }
         if (status.state === 'queued') {
           return { label: 'Queued', className: 'warning' };
         }
@@ -3720,7 +3724,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
           return { label, className: 'warning' };
         }
         if (status.state === 'aborting') {
-          return { label: 'Aborting…', className: 'warning' };
+          const label = status.was_queued ? 'Cancelling…' : 'Aborting…';
+          return { label, className: 'warning' };
         }
         if (status.state === 'aborted') {
           return { label: 'Aborted', className: 'muted' };
@@ -3785,6 +3790,17 @@ INDEX_HTML = r"""<!DOCTYPE html>
     function applyStatusUpdates(statusMap) {
       state.chapters.forEach(ch => {
         const nextStatus = statusMap[ch.id] || null;
+        const wasCancelled =
+          state.cancelledBuilds && state.cancelledBuilds.has(ch.id);
+        if (wasCancelled) {
+          if (nextStatus) {
+            state.cancelledBuilds.delete(ch.id);
+          } else {
+            state.cancelledBuilds.delete(ch.id);
+            ch.build_status = null;
+            return;
+          }
+        }
         const hasLocal = state.localBuilds && state.localBuilds.has(ch.id);
         if (nextStatus) {
           ch.build_status = nextStatus;
@@ -3829,13 +3845,13 @@ INDEX_HTML = r"""<!DOCTYPE html>
 
     function chapterPrimaryLabel(ch) {
       if (ch.build_status && ch.build_status.state === 'queued') {
-        return 'Abort';
+        return 'Cancel';
       }
       if (ch.build_status && ch.build_status.state === 'building') {
         return 'Abort';
       }
       if (ch.build_status && ch.build_status.state === 'aborting') {
-        return 'Aborting…';
+        return ch.build_status.was_queued ? 'Cancelling…' : 'Aborting…';
       }
       return ch.mp3_exists ? 'Play' : 'Build';
     }
@@ -4191,6 +4207,11 @@ INDEX_HTML = r"""<!DOCTYPE html>
       } else {
         state.localBuilds = new Set();
       }
+      if (state.cancelledBuilds) {
+        state.cancelledBuilds.clear();
+      } else {
+        state.cancelledBuilds = new Set();
+      }
       if (!preserveSelection) {
         state.autoAdvance = false;
         state.currentChapterIndex = -1;
@@ -4250,6 +4271,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
       if (state.localBuilds) {
         state.localBuilds.add(chapter.id);
       }
+      if (state.cancelledBuilds) {
+        state.cancelledBuilds.delete(chapter.id);
+      }
       const clearLocalBuild = () => {
         if (state.localBuilds) {
           state.localBuilds.delete(chapter.id);
@@ -4305,6 +4329,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
       if (!state.currentBook) return;
       const chapter = state.chapters[index];
       if (!chapter) return;
+      const wasQueued = Boolean(chapter.build_status && chapter.build_status.state === 'queued');
       const res = await fetch(
         `/api/books/${encodeURIComponent(state.currentBook.id)}/chapters/${encodeURIComponent(chapter.id)}/abort`,
         { method: 'POST' }
@@ -4313,11 +4338,22 @@ INDEX_HTML = r"""<!DOCTYPE html>
         const detail = await readErrorResponse(res);
         throw new Error(detail);
       }
-      setChapterStatusLabel(chapter.id, 'Aborting…', 'badge warning');
-      chapter.build_status = { state: 'aborting' };
-      renderChapters(summaryForChapters());
+      if (wasQueued) {
+        if (state.cancelledBuilds) {
+          state.cancelledBuilds.add(chapter.id);
+        }
+        chapter.build_status = { state: 'cancelled' };
+        renderChapters(summaryForChapters());
+      } else {
+        setChapterStatusLabel(chapter.id, 'Aborting…', 'badge warning');
+        chapter.build_status = { state: 'aborting', was_queued: wasQueued };
+        renderChapters(summaryForChapters());
+      }
+      if (state.localBuilds) {
+        state.localBuilds.delete(chapter.id);
+      }
       if (state.currentChapterIndex === index) {
-        statusLine.textContent = 'Aborting build...';
+        statusLine.textContent = wasQueued ? 'Cancelled build.' : 'Aborting build...';
       }
       refreshStatuses();
     }
