@@ -3619,7 +3619,12 @@ INDEX_HTML = r"""<!DOCTYPE html>
                 }
                 return res.json();
               })
-              .then(() => {
+              .then((payload) => {
+                if (payload && payload.job) {
+                  const dedupedJobs = state.uploadJobs.filter(job => job && job.id !== payload.job.id);
+                  applyUploadJobs([payload.job, ...dedupedJobs]);
+                }
+                loadUploads();
                 handlePromise(loadBooks(state.libraryPrefix || '', { skipHistory: true }));
               })
               .catch(err => {
