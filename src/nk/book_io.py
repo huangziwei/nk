@@ -381,23 +381,70 @@ def _is_legacy_template(payload: object) -> bool:
     )
 
 
+def _normalize_overrides(payload: object) -> list[dict[str, object]]:
+    if not isinstance(payload, dict):
+        return []
+    overrides = payload.get("overrides")
+    if not isinstance(overrides, list):
+        return []
+    normalized: list[dict[str, object]] = []
+    for entry in overrides:
+        if isinstance(entry, dict):
+            normalized.append(entry)
+    return normalized
+
+
+def _merge_overrides(
+    template_overrides: list[dict[str, object]],
+    book_overrides: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    def _key(entry: dict[str, object]) -> tuple[bool, str | None, str | None]:
+        regex = bool(entry.get("regex"))
+        pattern = entry.get("pattern") if isinstance(entry.get("pattern"), str) else None
+        match_surface = entry.get("match_surface")
+        surface = entry.get("surface")
+        surface_key = (
+            match_surface
+            if isinstance(match_surface, str) and match_surface
+            else surface
+            if isinstance(surface, str)
+            else None
+        )
+        return (regex, pattern, surface_key)
+
+    merged: dict[tuple[bool, str | None, str | None], dict[str, object]] = {}
+    for entry in template_overrides:
+        if not isinstance(entry, dict):
+            continue
+        merged[_key(entry)] = entry
+    for entry in book_overrides:
+        if not isinstance(entry, dict):
+            continue
+        merged[_key(entry)] = entry  # book-specific rule wins on conflict
+    return list(merged.values())
+
+
 def _ensure_custom_token_template(output_dir: Path) -> None:
     template_path = output_dir / _CUSTOM_TOKEN_FILENAME
     legacy_path = output_dir / _LEGACY_CUSTOM_PITCH_FILENAME
+    if legacy_path.exists() and not template_path.exists():
+        return  # preserve legacy file so refine can migrate it
     template = _load_default_override_template()
-    if template_path.exists() or legacy_path.exists():
-        if not template_path.exists():
-            return
+    template_overrides = _normalize_overrides(template)
+    book_overrides: list[dict[str, object]] = []
+    if template_path.exists():
         try:
-            existing = json.loads(template_path.read_text("utf-8"))
+            existing_payload = json.loads(template_path.read_text("utf-8"))
         except (OSError, json.JSONDecodeError):
             return  # don't clobber a file the user may want to fix manually
-        overrides = existing.get("overrides") if isinstance(existing, dict) else None
-        is_empty = not isinstance(overrides, list) or len(overrides) == 0
-        if not is_empty and not _is_legacy_template(existing):
-            return
+        book_overrides = _normalize_overrides(existing_payload)
+        if not book_overrides and not _is_legacy_template(existing_payload):
+            book_overrides = []
+    merged_overrides = _merge_overrides(template_overrides, book_overrides)
+    if book_overrides and merged_overrides == book_overrides:
+        return  # nothing new to add
     template_path.write_text(
-        json.dumps(template, ensure_ascii=False, indent=2),
+        json.dumps({"overrides": merged_overrides}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
