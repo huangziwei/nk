@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import os
 import shutil
 import tempfile
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
-import threading
 from typing import Mapping
 from uuid import uuid4
 
@@ -119,6 +121,7 @@ class UploadJob:
         self.book_dir_rel: str | None = None
         self.created_at = datetime.now(timezone.utc)
         self.updated_at = self.created_at
+        self.timed_out = False
         if source_path is None:
             self.temp_dir = Path(tempfile.mkdtemp(prefix="nk-upload-"))
             self.temp_path = self.temp_dir / self.filename
@@ -139,6 +142,8 @@ class UploadJob:
 
     def set_error(self, message: str) -> None:
         with self.lock:
+            if self.timed_out:
+                return
             self.status = "error"
             self.error = message
             self.message = message
@@ -152,6 +157,8 @@ class UploadJob:
         event: str | None,
     ) -> None:
         with self.lock:
+            if self.timed_out:
+                return
             self.progress_index = index
             self.progress_total = total
             self.progress_label = label
@@ -162,6 +169,8 @@ class UploadJob:
 
     def mark_success(self) -> None:
         with self.lock:
+            if self.timed_out:
+                return
             self.status = "success"
             self.book_dir_rel = _relative_path_or_name(self.root, self.output_dir)
             if self.book_dir_rel:
@@ -207,13 +216,41 @@ class UploadJob:
         if self._owns_temp and self.temp_dir is not None:
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
+    def mark_timeout(self, message: str) -> None:
+        with self.lock:
+            if self.status != "running":
+                return
+            self.timed_out = True
+            self.status = "error"
+            self.error = message
+            self.message = message
+            self.progress_event = "timeout"
+            self._touch()
+
 
 class UploadManager:
-    def __init__(self, root: Path, max_workers: int = 1) -> None:
+    def __init__(self, root: Path, max_workers: int = 2) -> None:
         self.root = root
         self.lock = threading.Lock()
-        self.executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="nk-upload")
+        workers = max_workers
+        env_workers = os.getenv("NK_UPLOAD_WORKERS")
+        if env_workers:
+            try:
+                parsed = int(env_workers)
+                if parsed > 0:
+                    workers = parsed
+            except ValueError:
+                workers = max_workers
+        workers = max(1, min(workers, 8))
+        self.executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="nk-upload")
         self.jobs: dict[str, UploadJob] = {}
+        self.watchdog_interval = 10  # seconds
+        self.timeout_seconds = 600  # mark running jobs stale after 10 minutes without updates
+        self._stop_event = threading.Event()
+        self._watchdog_thread = threading.Thread(
+            target=self._watchdog_loop, name="nk-upload-watchdog", daemon=True
+        )
+        self._watchdog_thread.start()
 
     def enqueue(self, job: UploadJob) -> UploadJob:
         with self.lock:
@@ -229,6 +266,29 @@ class UploadManager:
 
     def shutdown(self) -> None:
         self.executor.shutdown(wait=False, cancel_futures=False)
+        self._stop_event.set()
+        if self._watchdog_thread.is_alive():
+            self._watchdog_thread.join(timeout=1)
+
+    def _watchdog_loop(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                now = datetime.now(timezone.utc)
+                with self.lock:
+                    jobs = list(self.jobs.values())
+                for job in jobs:
+                    with job.lock:
+                        status = job.status
+                        delta = (now - job.updated_at).total_seconds()
+                    if status != "running":
+                        continue
+                    if delta >= self.timeout_seconds:
+                        job.mark_timeout(
+                            "Upload stuck: no progress for 10 minutes; marked failed."
+                        )
+            except Exception:
+                pass
+            time.sleep(self.watchdog_interval)
 
     def _run_job(self, job: UploadJob) -> None:
         job.set_status("running", "Preparing upload…")
