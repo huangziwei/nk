@@ -1158,10 +1158,10 @@ INDEX_HTML = """<!DOCTYPE html>
           <div class="diagnostic-empty">Load a chapter to view diagnostics.</div>
         </div>
         <div class="diagnostic-search">
-          <input type="search" id="diagnostic-search-input" placeholder="Search surface (exact) across book" aria-label="Search token surface">
+          <input type="search" id="diagnostic-search-input" placeholder="Search surface (exact)" aria-label="Search token surface">
           <select id="diagnostic-search-scope" aria-label="Search scope">
-            <option value="book" selected>Whole book</option>
-            <option value="chapter">This chapter</option>
+            <option value="book">Whole book</option>
+            <option value="chapter" selected>This chapter</option>
           </select>
         </div>
         <div class="diagnostic-results" id="diagnostic-search-results"></div>
