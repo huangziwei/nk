@@ -286,6 +286,54 @@ def test_refine_limits_matches_with_surface(tmp_path: Path) -> None:
     assert second["accent"] == 0
 
 
+def test_refine_skips_replacement_when_surface_mismatch(tmp_path: Path) -> None:
+    book_dir = tmp_path / "surface_mismatch"
+    book_dir.mkdir()
+    chapter = book_dir / "001.txt"
+    text = "トリヤマセキエン"
+    chapter.write_text(text, encoding="utf-8")
+    original = book_dir / "001.original.txt"
+    original.write_text("鳥山石燕", encoding="utf-8")
+    token_path = book_dir / "001.txt.token.json"
+    _write_token_file(
+        token_path,
+        [
+            {
+                "surface": "鳥山石燕",
+                "reading": "トリヤマセキエン",
+                "accent": 0,
+                "start": 0,
+                "end": 4,
+                "transformed_start": 0,
+                "transformed_end": len(text),
+            }
+        ],
+        text,
+    )
+    overrides = {
+        "overrides": [
+            {
+                "pattern": "セキ",
+                "replacement": "アカ",
+                "reading": "アカ",
+                "surface": "赤",
+                "pos": "接頭辞",
+            }
+        ]
+    }
+    (book_dir / "custom_token.json").write_text(json.dumps(overrides, ensure_ascii=False), encoding="utf-8")
+    rules = load_override_config(book_dir)
+    refined = refine_book(book_dir, rules)
+    assert refined == 0
+    assert chapter.read_text(encoding="utf-8") == text
+    payload = json.loads(token_path.read_text(encoding="utf-8"))
+    tokens = payload["tokens"]
+    assert len(tokens) == 1
+    token = tokens[0]
+    assert token["surface"] == "鳥山石燕"
+    assert token["reading"] == "トリヤマセキエン"
+
+
 def test_refine_shifts_transformed_offsets(tmp_path: Path) -> None:
     book_dir = tmp_path / "offsets"
     book_dir.mkdir()
