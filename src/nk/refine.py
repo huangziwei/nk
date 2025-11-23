@@ -628,6 +628,11 @@ def _apply_override_rule(
             _shift_tokens(tokens, adj_end, change_delta)
             adj_end = adj_start + len(replacement_text)
             delta += change_delta
+        expected_surface = rule.match_surface or rule.surface
+        if expected_surface and original_text is not None:
+            o_start, o_end = _map_bounds(adj_start, adj_end)
+            if original_text[o_start:o_end] != expected_surface:
+                continue
         _add_token(adj_start, adj_end, segment, replacement_text)
         changed = True
 
