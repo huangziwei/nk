@@ -62,7 +62,7 @@ from .tts import (
     synthesize_texts_to_mp3,
     set_debug_logging,
 )
-from .refine import load_override_config, refine_book, refine_chapter
+from .refine import OverrideRule, load_override_config, refine_book, refine_chapter
 from .reader import create_reader_app
 from .player import PlayerConfig, create_app
 from .logging_utils import build_uvicorn_log_config
@@ -784,8 +784,23 @@ def _chapterize_epub(
         progress=_progress_callback,
         transform=transform,
     )
+    base_total = len(chapters) or 1
     if progress_display and task_id is not None:
-        progress_display.update(task_id, description=f"{book_label} · writing…")
+        task = progress_display.tasks[task_id]
+        base_total = task.total or base_total
+        progress_display.update(
+            task_id,
+            total=base_total + 1,
+            completed=min(task.completed, base_total),
+            description=f"{book_label} · writing…",
+        )
+    else:
+        console.print(f"[nk] Writing {book_label}…", style="dim")
+    if progress_display and task_id is not None:
+        task = progress_display.tasks[task_id]
+        base_completed = min(task.completed, base_total)
+    else:
+        base_completed = base_total
     cover = get_epub_cover(str(epub_path))
     write_book_package(
         output_dir,
@@ -793,21 +808,47 @@ def _chapterize_epub(
         source_epub=epub_path,
         cover_image=cover,
         ruby_evidence=ruby_evidence,
+        apply_overrides=False,
     )
+    overrides: list[OverrideRule] = []
     try:
         overrides = load_override_config(output_dir)
     except ValueError as exc:
         console.print(f"[nk] Warn: failed to load custom_token.json: {exc}", style="yellow")
-        overrides = []
-    if overrides:
-        refined = refine_book(output_dir, overrides)
-        if refined and not progress_display:
-            console.print(f"[nk] Applied {refined} override(s) from custom_token.json", style="dim")
     if progress_display and task_id is not None:
         task = progress_display.tasks[task_id]
-        final_total = task.total or max(task.completed, len(chapters)) or 1
-        progress_display.update(task_id, completed=final_total, description=f"{book_label} · complete")
+        completed_after_write = min(task.completed, task.total - 1 if task.total else base_completed)
+        progress_display.update(
+            task_id,
+            completed=completed_after_write + 1,
+            description=f"{book_label} · writing…",
+        )
+        if overrides:
+            progress_display.update(
+                task_id,
+                total=(task.total or (base_total + 1)) + 1,
+                description=f"{book_label} · applying overrides…",
+            )
     else:
+        if overrides:
+            console.print(f"[nk] Applying overrides for {book_label}…", style="dim")
+    try:
+        refined = refine_book(output_dir, overrides) if overrides else 0
+    except ValueError as exc:
+        console.print(f"[nk] Warn: failed to apply overrides: {exc}", style="yellow")
+        refined = 0
+    if progress_display and task_id is not None:
+        task = progress_display.tasks[task_id]
+        final_total = task.total or max(task.completed, base_total + (1 if overrides else 0), len(chapters)) or 1
+        progress_display.update(
+            task_id,
+            total=final_total,
+            completed=min(task.completed + (1 if overrides else 0), final_total),
+            description=f"{book_label} · complete",
+        )
+    else:
+        if refined:
+            console.print(f"[nk] Applied {refined} override(s) from custom_token.json", style="dim")
         console.print(f"  → {output_dir}", style="dim")
 
 
