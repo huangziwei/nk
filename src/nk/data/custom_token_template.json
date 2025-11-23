@@ -1,70 +1,76 @@
 {
-  "overrides": [
-    {
-      "pattern": "CONTENTS",
-      "reading": "コンテンツ",
-      "accent": 3,
-      "surface": "CONTENTS"
-    },
-    {
-      "pattern": "イチ章",
-      "replacement": "一章",
-      "reading": "イチショウ",
-      "surface": "一章"
-    },
-    {
-      "pattern": "ニ章",
-      "replacement": "二章",
-      "reading": "ニショウ",
-      "surface": "二章"
-    },
-    {
-      "pattern": "サン章",
-      "replacement": "三章",
-      "reading": "サンショウ",
-      "surface": "三章"
-    },
-    {
-      "pattern": "ヨン章",
-      "replacement": "四章",
-      "reading": "ヨンショウ",
-      "surface": "四章"
-    },
-    {
-      "pattern": "ゴ章",
-      "replacement": "五章",
-      "reading": "ゴショウ",
-      "surface": "五章"
-    },
-    {
-      "pattern": "ロク章",
-      "replacement": "六章",
-      "reading": "ロクショウ",
-      "surface": "六章"
-    },
-    {
-      "pattern": "ナナ章",
-      "replacement": "七章",
-      "reading": "ナナショウ",
-      "surface": "七章"
-    },
-    {
-      "pattern": "ハチ章",
-      "replacement": "八章",
-      "reading": "ハチショウ",
-      "surface": "八章"
-    },
-    {
-      "pattern": "キュウ章",
-      "replacement": "九章",
-      "reading": "キュウショウ",
-      "surface": "九章"
-    },
-    {
-      "pattern": "ジュウ章",
-      "replacement": "十章",
-      "reading": "ジュッショウ",
-      "surface": "十章"
-    }
-  ]
+    "overrides": [
+        {
+            "pattern": "CONTENTS",
+            "reading": "コンテンツ",
+            "accent": 3,
+            "surface": "CONTENTS"
+        },
+        {
+            "pattern": "イチ章",
+            "replacement": "一章",
+            "reading": "イチショウ",
+            "surface": "一章"
+        },
+        {
+            "pattern": "ニ章",
+            "replacement": "二章",
+            "reading": "ニショウ",
+            "surface": "二章"
+        },
+        {
+            "pattern": "サン章",
+            "replacement": "三章",
+            "reading": "サンショウ",
+            "surface": "三章"
+        },
+        {
+            "pattern": "ヨン章",
+            "replacement": "四章",
+            "reading": "ヨンショウ",
+            "surface": "四章"
+        },
+        {
+            "pattern": "ゴ章",
+            "replacement": "五章",
+            "reading": "ゴショウ",
+            "surface": "五章"
+        },
+        {
+            "pattern": "ロク章",
+            "replacement": "六章",
+            "reading": "ロクショウ",
+            "surface": "六章"
+        },
+        {
+            "pattern": "ナナ章",
+            "replacement": "七章",
+            "reading": "ナナショウ",
+            "surface": "七章"
+        },
+        {
+            "pattern": "ハチ章",
+            "replacement": "八章",
+            "reading": "ハチショウ",
+            "surface": "八章"
+        },
+        {
+            "pattern": "キュウ章",
+            "replacement": "九章",
+            "reading": "キュウショウ",
+            "surface": "九章"
+        },
+        {
+            "pattern": "ジュウ章",
+            "replacement": "十章",
+            "reading": "ジュッショウ",
+            "surface": "十章"
+        },
+        {
+            "pattern": "ナンを",
+            "replacement": "ナニを",
+            "reading": "ナニを",
+            "surface": "何を"
+        }
+    ]
 }

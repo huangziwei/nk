@@ -2527,7 +2527,23 @@ INDEX_HTML = """<!DOCTYPE html>
       function scrollTokenIntoView(index) {
         if (index === null || index === undefined) return;
         const selector = `[data-token-index="${index}"]`;
-        const node = document.querySelector(selector);
+        const originalVisible = originalPanel && !originalPanel.classList.contains('hidden');
+        const transformedVisible = transformedPanel && !transformedPanel.classList.contains('hidden');
+        const preferredContainers = [];
+        if (originalVisible && originalText) {
+          preferredContainers.push(originalText);
+        }
+        if (transformedVisible && transformedText && !originalVisible) {
+          preferredContainers.push(transformedText);
+        }
+        let node = null;
+        for (const container of preferredContainers) {
+          node = container.querySelector(selector);
+          if (node) break;
+        }
+        if (!node) {
+          node = document.querySelector(selector);
+        }
         if (node && typeof node.scrollIntoView === 'function') {
           node.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
