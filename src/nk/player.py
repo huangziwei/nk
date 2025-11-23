@@ -1725,6 +1725,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
         manual: [],
         lastPlayed: null,
       },
+      lastPlayedBook: null,
       localBuilds: new Set(),
       buildQueue: [],
       activeBuild: null,
@@ -3374,14 +3375,157 @@ INDEX_HTML = r"""<!DOCTYPE html>
       }
     }
 
+    function createBookCard(book, options = {}) {
+      if (!book || typeof book !== 'object') {
+        return null;
+      }
+      const { featuredLabel = null } = options;
+      const card = document.createElement('article');
+      card.className = 'card';
+      const bookId = typeof book.path === 'string' && book.path ? book.path : book.id;
+      if (bookId) {
+        card.dataset.bookId = bookId;
+      }
+
+      const menuButton = document.createElement('button');
+      menuButton.type = 'button';
+      menuButton.className = 'card-menu-button';
+      const bookLabel = book.title || book.path || 'book';
+      menuButton.setAttribute('aria-label', `Options for ${bookLabel}`);
+      menuButton.setAttribute('aria-haspopup', 'true');
+      menuButton.setAttribute('aria-expanded', 'false');
+      menuButton.innerText = '⋯';
+      const menu = document.createElement('div');
+      menu.className = 'card-menu hidden';
+      menuButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggleCardMenu(menuButton, menu);
+      });
+      const addMenuItem = (label, className, handler) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.className = className || '';
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          closeCardMenu();
+          handler();
+        });
+        menu.appendChild(button);
+      };
+      if (book.epub_path) {
+        addMenuItem('Reprocess EPUB', '', () => {
+          const prompt = `Reprocess "${book.title || bookLabel}" from its EPUB? This will replace chapter text, metadata, and cover. Existing audio stays until rebuilt.`;
+          if (!window.confirm(prompt)) return;
+          fetch(`/api/books/${encodeURIComponent(bookId)}/reprocess`, { method: 'POST' })
+            .then(async res => {
+              if (!res.ok) {
+                const detail = await readErrorResponse(res);
+                throw new Error(detail);
+              }
+              return res.json();
+            })
+            .then((payload) => {
+              if (payload && payload.job) {
+                const dedupedJobs = state.uploadJobs.filter(job => job && job.id !== payload.job.id);
+                applyUploadJobs([payload.job, ...dedupedJobs]);
+              }
+              loadUploads();
+              handlePromise(loadBooks(state.libraryPrefix || '', { skipHistory: true }));
+            })
+            .catch(err => {
+              alert(`Failed to reprocess EPUB: ${err.message || err}`);
+            });
+        });
+      }
+      const deleteAction = document.createElement('button');
+      deleteAction.type = 'button';
+      deleteAction.className = 'danger';
+      deleteAction.textContent = 'Delete';
+      deleteAction.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        closeCardMenu();
+        openDeleteModal(book);
+      });
+      menu.appendChild(deleteAction);
+      card.appendChild(menuButton);
+      card.appendChild(menu);
+
+      if (book.cover_url) {
+        const coverWrapper = document.createElement('div');
+        coverWrapper.className = 'cover-wrapper';
+        const cover = document.createElement('img');
+        cover.className = 'cover';
+        cover.src = book.cover_url;
+        cover.alt = `${book.title} cover`;
+        coverWrapper.appendChild(cover);
+        const coverButton = document.createElement('button');
+        coverButton.className = 'cover-link';
+        coverButton.setAttribute('aria-label', `Open ${book.title}`);
+        coverWrapper.appendChild(coverButton);
+        coverWrapper.addEventListener('click', () => {
+          handlePromise(openBook(book));
+        });
+        card.appendChild(coverWrapper);
+      }
+
+      const title = document.createElement('div');
+      title.className = 'title';
+      title.textContent = book.title;
+      card.appendChild(title);
+
+      if (book.author) {
+        const author = document.createElement('div');
+        author.className = 'author';
+        author.textContent = book.author;
+        card.appendChild(author);
+      }
+
+      const badgesWrap = document.createElement('div');
+      badgesWrap.className = 'badges';
+      if (featuredLabel) {
+        badgesWrap.appendChild(badge(featuredLabel, 'muted'));
+      }
+      badgesWrap.appendChild(
+        badge(
+          `${book.completed_chapters}/${book.total_chapters} ready`,
+          book.completed_chapters === book.total_chapters && book.total_chapters > 0 ? 'success' : ''
+        )
+      );
+      if (book.pending_chapters > 0) {
+        badgesWrap.appendChild(badge(`${book.pending_chapters} pending`, 'warning'));
+      }
+      if (book.total_chapters === 0) {
+        badgesWrap.appendChild(badge('Empty', 'muted'));
+      }
+      card.appendChild(badgesWrap);
+
+      if (!book.cover_url) {
+        card.addEventListener('click', () => {
+          handlePromise(openBook(book));
+        });
+      }
+      return card;
+    }
+
     function renderCollections() {
       if (!collectionsGrid) return;
       collectionsGrid.innerHTML = '';
-      if (!state.collections.length) {
+      const isRoot = !normalizeLibraryPath(state.libraryPrefix);
+      const hasCollections = Array.isArray(state.collections) && state.collections.length > 0;
+      const lastPlayedCard = isRoot && state.lastPlayedBook
+        ? createBookCard(state.lastPlayedBook, { featuredLabel: 'Last Played' })
+        : null;
+      if (!hasCollections && !lastPlayedCard) {
         collectionsGrid.classList.add('hidden');
         return;
       }
       collectionsGrid.classList.remove('hidden');
+      if (lastPlayedCard) {
+        collectionsGrid.appendChild(lastPlayedCard);
+      }
       state.collections.forEach(collection => {
         if (!collection || typeof collection !== 'object') {
           return;
@@ -3621,131 +3765,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
         return;
       }
       state.books.forEach(book => {
-        const card = document.createElement('article');
-        card.className = 'card';
-        const bookId = typeof book.path === 'string' && book.path ? book.path : book.id;
-        if (bookId) {
-          card.dataset.bookId = bookId;
+        const card = createBookCard(book);
+        if (card) {
+          booksGrid.appendChild(card);
         }
-
-        const menuButton = document.createElement('button');
-        menuButton.type = 'button';
-        menuButton.className = 'card-menu-button';
-        const bookLabel = book.title || book.path || 'book';
-        menuButton.setAttribute('aria-label', `Options for ${bookLabel}`);
-        menuButton.setAttribute('aria-haspopup', 'true');
-        menuButton.setAttribute('aria-expanded', 'false');
-        menuButton.innerText = '⋯';
-        const menu = document.createElement('div');
-        menu.className = 'card-menu hidden';
-        menuButton.addEventListener('click', (event) => {
-          event.stopPropagation();
-          toggleCardMenu(menuButton, menu);
-        });
-        const addMenuItem = (label, className, handler) => {
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.textContent = label;
-          button.className = className || '';
-          button.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            closeCardMenu();
-            handler();
-          });
-          menu.appendChild(button);
-        };
-        if (book.epub_path) {
-          addMenuItem('Reprocess EPUB', '', () => {
-            const prompt = `Reprocess "${book.title || bookLabel}" from its EPUB? This will replace chapter text, metadata, and cover. Existing audio stays until rebuilt.`;
-            if (!window.confirm(prompt)) return;
-            fetch(`/api/books/${encodeURIComponent(bookId)}/reprocess`, { method: 'POST' })
-              .then(async res => {
-                if (!res.ok) {
-                  const detail = await readErrorResponse(res);
-                  throw new Error(detail);
-                }
-                return res.json();
-              })
-              .then((payload) => {
-                if (payload && payload.job) {
-                  const dedupedJobs = state.uploadJobs.filter(job => job && job.id !== payload.job.id);
-                  applyUploadJobs([payload.job, ...dedupedJobs]);
-                }
-                loadUploads();
-                handlePromise(loadBooks(state.libraryPrefix || '', { skipHistory: true }));
-              })
-              .catch(err => {
-                alert(`Failed to reprocess EPUB: ${err.message || err}`);
-              });
-          });
-        }
-        const deleteAction = document.createElement('button');
-        deleteAction.type = 'button';
-        deleteAction.className = 'danger';
-        deleteAction.textContent = 'Delete';
-        deleteAction.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          closeCardMenu();
-          openDeleteModal(book);
-        });
-        menu.appendChild(deleteAction);
-        card.appendChild(menuButton);
-        card.appendChild(menu);
-
-        if (book.cover_url) {
-          const coverWrapper = document.createElement('div');
-          coverWrapper.className = 'cover-wrapper';
-          const cover = document.createElement('img');
-          cover.className = 'cover';
-          cover.src = book.cover_url;
-          cover.alt = `${book.title} cover`;
-          coverWrapper.appendChild(cover);
-          const coverButton = document.createElement('button');
-          coverButton.className = 'cover-link';
-          coverButton.setAttribute('aria-label', `Open ${book.title}`);
-          coverWrapper.appendChild(coverButton);
-          coverWrapper.addEventListener('click', () => {
-            handlePromise(openBook(book));
-          });
-          card.appendChild(coverWrapper);
-        }
-
-        const title = document.createElement('div');
-        title.className = 'title';
-        title.textContent = book.title;
-        card.appendChild(title);
-
-        if (book.author) {
-          const author = document.createElement('div');
-          author.className = 'author';
-          author.textContent = book.author;
-          card.appendChild(author);
-        }
-
-        const badgesWrap = document.createElement('div');
-        badgesWrap.className = 'badges';
-        badgesWrap.appendChild(
-          badge(
-            `${book.completed_chapters}/${book.total_chapters} ready`,
-            book.completed_chapters === book.total_chapters && book.total_chapters > 0 ? 'success' : ''
-          )
-        );
-        if (book.pending_chapters > 0) {
-          badgesWrap.appendChild(badge(`${book.pending_chapters} pending`, 'warning'));
-        }
-        if (book.total_chapters === 0) {
-          badgesWrap.appendChild(badge('Empty', 'muted'));
-        }
-        card.appendChild(badgesWrap);
-
-        if (!book.cover_url) {
-          card.addEventListener('click', () => {
-            handlePromise(openBook(book));
-          });
-        }
-        booksGrid.appendChild(card);
       });
       scrollToLastBook();
     }
@@ -4116,6 +4139,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
         collections: Array.isArray(payload?.collections) ? payload.collections : [],
         books: Array.isArray(payload?.books) ? payload.books : [],
         pending_epubs: Array.isArray(payload?.pending_epubs) ? payload.pending_epubs : [],
+        last_played_book: payload && typeof payload.last_played_book === 'object' && payload.last_played_book
+          ? payload.last_played_book
+          : null,
       };
     }
 
@@ -4147,6 +4173,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
       state.collections = Array.isArray(payload.collections) ? payload.collections : [];
       state.books = Array.isArray(payload.books) ? payload.books : [];
       state.pendingEpubs = Array.isArray(payload.pending_epubs) ? payload.pending_epubs : [];
+      state.lastPlayedBook = payload.last_played_book || null;
       syncPendingEpubBusy();
       renderLibraryNav();
       renderCollections();
@@ -6056,10 +6083,16 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         if normalized_prefix == RECENTLY_PLAYED_PREFIX:
             recent_entries = _recently_played_books(root)
             books_payload: list[dict[str, object]] = []
+            last_played_payload: dict[str, object] | None = None
             for book_dir, _ in recent_entries:
                 payload = _book_payload(book_dir)
                 if payload:
                     books_payload.append(payload)
+            if recent_entries:
+                last_dir, last_ts = recent_entries[0]
+                last_played_payload = _book_payload(last_dir)
+                if last_played_payload is not None:
+                    last_played_payload["last_played_at"] = float(last_ts)
             return JSONResponse(
                 {
                     "prefix": RECENTLY_PLAYED_PREFIX,
@@ -6067,6 +6100,7 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
                     "collections": [],
                     "books": books_payload,
                     "pending_epubs": [],
+                    "last_played_book": last_played_payload,
                 }
             )
         prefix_value, prefix_path = _resolve_prefix(normalized_prefix)
@@ -6077,6 +6111,7 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
             )
         collections_payload = _list_collections(root, prefix_path)
         pending_epubs = _list_pending_epubs(root, prefix_path)
+        last_played_payload: dict[str, object] | None = None
         if not prefix_value:
             recent_entries = _recently_played_books(root)
             if recent_entries:
@@ -6087,6 +6122,10 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
                     cover_url = _cover_url_for_book_dir(root, book_dir)
                     if cover_url:
                         cover_samples.append(cover_url)
+                first_dir, first_ts = recent_entries[0]
+                last_played_payload = _book_payload(first_dir)
+                if last_played_payload is not None:
+                    last_played_payload["last_played_at"] = float(first_ts)
                 recent_payload = {
                     "id": RECENTLY_PLAYED_PREFIX,
                     "name": RECENTLY_PLAYED_LABEL,
@@ -6104,12 +6143,13 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         return JSONResponse(
             {
                 "prefix": prefix_value,
-                "parent_prefix": parent_prefix,
-                "collections": collections_payload,
-                "books": books_payload,
-                "pending_epubs": pending_epubs,
-            }
-        )
+                    "parent_prefix": parent_prefix,
+                    "collections": collections_payload,
+                    "books": books_payload,
+                    "pending_epubs": pending_epubs,
+                    "last_played_book": last_played_payload,
+                }
+            )
 
     @app.get("/api/books/{book_id:path}/chapters")
     def api_chapters(book_id: str) -> JSONResponse:
