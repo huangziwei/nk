@@ -324,7 +324,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
       display: flex;
       flex-direction: column;
       gap: 0.8rem;
-      padding: 1rem 1rem 1.1rem;
+      padding: 0.33rem;
     }
     .collection-card:hover {
       transform: translateY(-2px);
@@ -5723,7 +5723,9 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
     build_lock = threading.Lock()
     active_build_jobs: dict[tuple[str, str], dict[str, object]] = {}
 
-    def _epub_source_for_book(book_dir: Path, metadata: LoadedBookMetadata | None) -> Path | None:
+    def _epub_source_for_book(
+        book_dir: Path, metadata: LoadedBookMetadata | None
+    ) -> Path | None:
         candidates: list[Path] = []
         seen: set[Path] = set()
         book_name = book_dir.name.casefold()
@@ -6143,13 +6145,13 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         return JSONResponse(
             {
                 "prefix": prefix_value,
-                    "parent_prefix": parent_prefix,
-                    "collections": collections_payload,
-                    "books": books_payload,
-                    "pending_epubs": pending_epubs,
-                    "last_played_book": last_played_payload,
-                }
-            )
+                "parent_prefix": parent_prefix,
+                "collections": collections_payload,
+                "books": books_payload,
+                "pending_epubs": pending_epubs,
+                "last_played_book": last_played_payload,
+            }
+        )
 
     @app.get("/api/books/{book_id:path}/chapters")
     def api_chapters(book_id: str) -> JSONResponse:
@@ -6228,7 +6230,9 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
                 status_code=404,
                 detail="No EPUB file found for this book. Place an .epub in the book folder to reprocess.",
             )
-        job = UploadJob(root, epub_source.name, source_path=epub_source, output_dir=book_path)
+        job = UploadJob(
+            root, epub_source.name, source_path=epub_source, output_dir=book_path
+        )
         upload_manager.enqueue(job)
         return JSONResponse({"job": job.to_payload(), "book": canonical_id})
 
