@@ -5113,6 +5113,16 @@ def _recently_played_books(
     return entries
 
 
+def _split_recently_played(
+    root: Path,
+) -> tuple[tuple[Path, float] | None, list[tuple[Path, float]]]:
+    entries = _recently_played_books(root)
+    if not entries:
+        return None, []
+    head, *tail = entries
+    return head, tail
+
+
 def _epub_target_dir(root: Path, epub_path: Path) -> Path:
     parent = epub_path.parent
     try:
@@ -6083,15 +6093,15 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         sort_mode = _normalize_sort_mode(sort)
         normalized_prefix = _normalize_library_path(prefix)
         if normalized_prefix == RECENTLY_PLAYED_PREFIX:
-            recent_entries = _recently_played_books(root)
+            last_entry, recent_entries = _split_recently_played(root)
             books_payload: list[dict[str, object]] = []
             last_played_payload: dict[str, object] | None = None
             for book_dir, _ in recent_entries:
                 payload = _book_payload(book_dir)
                 if payload:
                     books_payload.append(payload)
-            if recent_entries:
-                last_dir, last_ts = recent_entries[0]
+            if last_entry:
+                last_dir, last_ts = last_entry
                 last_played_payload = _book_payload(last_dir)
                 if last_played_payload is not None:
                     last_played_payload["last_played_at"] = float(last_ts)
@@ -6115,7 +6125,12 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         pending_epubs = _list_pending_epubs(root, prefix_path)
         last_played_payload: dict[str, object] | None = None
         if not prefix_value:
-            recent_entries = _recently_played_books(root)
+            last_entry, recent_entries = _split_recently_played(root)
+            if last_entry:
+                last_dir, last_ts = last_entry
+                last_played_payload = _book_payload(last_dir)
+                if last_played_payload is not None:
+                    last_played_payload["last_played_at"] = float(last_ts)
             if recent_entries:
                 cover_samples: list[str] = []
                 for book_dir, _ in recent_entries:
@@ -6124,10 +6139,6 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
                     cover_url = _cover_url_for_book_dir(root, book_dir)
                     if cover_url:
                         cover_samples.append(cover_url)
-                first_dir, first_ts = recent_entries[0]
-                last_played_payload = _book_payload(first_dir)
-                if last_played_payload is not None:
-                    last_played_payload["last_played_at"] = float(first_ts)
                 recent_payload = {
                     "id": RECENTLY_PLAYED_PREFIX,
                     "name": RECENTLY_PLAYED_LABEL,
