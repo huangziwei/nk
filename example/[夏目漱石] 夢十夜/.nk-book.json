@@ -91,9 +91,20 @@
   "cover": "cover.jpg",
   "epub": "[夏目漱石] 夢十夜.epub",
   "tts_defaults": {
-    "speaker": 2,
+    "speaker": 13,
     "speed": 1.0,
     "pitch": -0.08,
     "intonation": 1.25
+  },
+  "tts_voices": {
+    "narrator": {
+      "speaker": 13
+    },
+    "female": {
+      "speaker": 2
+    },
+    "male": {
+      "speaker": 13
+    }
   }
 }

@@ -9,7 +9,9 @@
       "end": 3,
       "text": "夢十夜",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 2,
@@ -17,7 +19,9 @@
       "end": 9,
       "text": "夏目漱石",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     }
   ]
 }

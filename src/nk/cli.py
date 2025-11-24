@@ -39,6 +39,7 @@ from .book_io import (
     update_book_tts_defaults,
     write_book_package,
 )
+from .cast import cast_manifests
 from .chunk_manifest import write_chunk_manifests
 from .core import (
     _apply_mapping_with_pattern,
@@ -632,6 +633,22 @@ def build_deps_parser() -> argparse.ArgumentParser:
     _add_version_flag(ap)
     return ap
 
+
+def build_cast_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        description="Annotate chunk manifests with speaker/voice suggestions.",
+    )
+    _add_version_flag(ap)
+    ap.add_argument(
+        "target",
+        help="Path to a book directory or to one or more *.tts.json files.",
+    )
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing speaker/voice fields in manifests.",
+    )
+    return ap
 
 def _engine_thread_overrides(
     threads: int | None,
@@ -1681,6 +1698,22 @@ def _run_deps(args: argparse.Namespace) -> int:
     return 0 if all_ok else 1
 
 
+def _run_cast(args: argparse.Namespace) -> int:
+    target = Path(args.target).expanduser()
+    if not target.exists():
+        raise SystemExit(f"Target not found: {target}")
+    results = cast_manifests(target, force=bool(args.force))
+    if not results:
+        print("No chunk manifests found.")
+        return 0
+    total_updated = sum(res.updated_chunks for res in results)
+    total_chunks = sum(res.total_chunks for res in results)
+    for res in results:
+        print(f"{res.manifest_path}: updated {res.updated_chunks}/{res.total_chunks} chunks")
+    print(f"Total: updated {total_updated}/{total_chunks} chunks")
+    return 0
+
+
 def _run_play(args: argparse.Namespace) -> None:
     root = Path(args.root).expanduser().resolve()
     if not root.exists() or not root.is_dir():
@@ -1839,6 +1872,10 @@ def main(argv: list[str] | None = None) -> int:
         convert_parser = build_convert_parser()
         convert_args = convert_parser.parse_args(argv[1:])
         return _run_convert(convert_args)
+    if argv and argv[0] == "cast":
+        cast_parser = build_cast_parser()
+        cast_args = cast_parser.parse_args(argv[1:])
+        return _run_cast(cast_args)
     if argv and argv[0] == "deps":
         deps_parser = build_deps_parser()
         deps_args = deps_parser.parse_args(argv[1:])

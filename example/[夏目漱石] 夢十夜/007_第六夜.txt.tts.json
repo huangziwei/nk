@@ -9,7 +9,9 @@
       "end": 3,
       "text": "第六夜",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 2,
@@ -17,7 +19,9 @@
       "end": 77,
       "text": "運慶が護国寺の山門でニオウを刻んでいると云う評判だから、散歩ながら行って見ると、自分より先にもう大勢集まって、しきりにゲバヒョウをやっていた。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 3,
@@ -25,7 +29,9 @@
       "end": 242,
       "text": "山門の前五六間の所には、大きな赤松があって、その幹がナナめに山門の甍を隠して、遠い青空までノびている。松の緑と朱塗の門が互いにウツり合ってみごとに見える。その上松の位地が好い。門の左のハシをメザワリにならないように、ハスに切って行って、上になるほど幅を広く屋根までツキダしているのが何となく古風である。鎌倉時代とも思われる。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 4,
@@ -33,7 +39,9 @@
       "end": 313,
       "text": "ところが見ているものは、みんな自分と同じく、明治の人間である。そのウチでも車夫が一番多い。ツジマチをして退屈だから立っているに相違ない。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 5,
@@ -41,7 +49,9 @@
       "end": 325,
       "text": "「大きなもんだなあ」",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 0.1,
+      "needs_review": true
     },
     {
       "index": 6,
@@ -49,7 +59,9 @@
       "end": 332,
       "text": "と云っている。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 7,
@@ -57,7 +69,9 @@
       "end": 367,
       "text": "「人間をコシラえるよりもよっぽど骨が折れるだろう」とも云っている。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 0.1,
+      "needs_review": true
     },
     {
       "index": 8,
@@ -65,7 +79,9 @@
       "end": 378,
       "text": "そうかと思うと、",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 9,
@@ -73,7 +89,9 @@
       "end": 433,
       "text": "「へえニオウだね。今でもニオウをホるのかね。へえそうかね。ワッシゃまたニオウはみんな古いのばかりかと思ってた」",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 0.1,
+      "needs_review": true
     },
     {
       "index": 10,
@@ -81,7 +99,9 @@
       "end": 442,
       "text": "と云った男がある。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 11,
@@ -89,7 +109,9 @@
       "end": 521,
       "text": "「どうも強そうですね。なんだってえますぜ。昔から誰が強いって、ニオウほど強いヒトあ無いって云いますぜ。何でもヤマトダケノミコトよりも強いんだってえからね」",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 0.1,
+      "needs_review": true
     },
     {
       "index": 12,
@@ -97,7 +119,9 @@
       "end": 568,
       "text": "と話しかけた男もある。この男は尻をハショって、帽子をカブらずにいた。よほど無教育な男と見える。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 13,
@@ -105,7 +129,9 @@
       "end": 646,
       "text": "運慶は見物ニンの評判には委細トンジャクなく鑿と槌を動かしている。いっこう振り向きもしない。高い所に乗って、ニオウの顔のアタリをしきりにホりヌいて行く。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 14,
@@ -113,7 +139,9 @@
       "end": 803,
       "text": "運慶は頭に小さいエボシのようなものを乗せて、素袍だか何だかわからない大きな袖を背中でククっている。その様子がいかにも古くさい。わいわい云ってる見物ニンとはまるで釣り合が取れないようである。自分はどうして今時分まで運慶が生きているのかなと思った。どうも不思議な事があるものだと考えながら、やはり立って見ていた。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 15,
@@ -121,7 +149,9 @@
       "end": 882,
       "text": "しかし運慶のホウでは不思議とも奇体ともとんと感じ得ない様子で一生懸命に彫っている。アオムいてこの態度を眺めていた一人の若い男が、自分のホウを振り向いて、",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 16,
@@ -129,7 +159,9 @@
       "end": 935,
       "text": "「さすがは運慶だな。眼中に我々なしだ。天下の英雄はただニオウとワれとあるのみと云う態度だ。アッパれだ」",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 0.1,
+      "needs_review": true
     },
     {
       "index": 17,
@@ -137,7 +169,9 @@
       "end": 945,
       "text": "と云ってホめ出した。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 18,
@@ -145,7 +179,9 @@
       "end": 992,
       "text": "自分はこの言葉を面白いと思った。それでちょっと若い男のホウを見ると、若い男は、すかさず、",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 19,
@@ -153,7 +189,9 @@
       "end": 1026,
       "text": "「あの鑿と槌の使いカタを見たまえ。ダイジザイの妙境に達している」",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 0.1,
+      "needs_review": true
     },
     {
       "index": 20,
@@ -161,7 +199,9 @@
       "end": 1031,
       "text": "と云った。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 21,
@@ -169,7 +209,9 @@
       "end": 1200,
       "text": "運慶は今太いマユをイッスンの高さに横へ彫り抜いて、鑿の歯を竪に返すや否やハすに、上から槌をウちオロした。堅い木をヒとキザみにケズって、厚いキクズが槌の声に応じて飛んだと思ったら、小鼻のおっピラいた怒り鼻の側面がたちまち浮き上がって来た。そのトウの入れカタがいかにも無遠慮であった。そうして少しも疑念をサシハサんでおらんように見えた。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 22,
@@ -177,7 +219,9 @@
       "end": 1276,
       "text": "「よくああムゾウサに鑿を使って、思うようなマミエや鼻ができるものだな」と自分はあんまり感心したからヒトリゴトのように言った。するとさっきの若い男が、",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 0.1,
+      "needs_review": true
     },
     {
       "index": 23,
@@ -185,7 +229,9 @@
       "end": 1374,
       "text": "「なに、あれはマユや鼻を鑿で作るんじゃない。あの通りのマユや鼻が木のナカにウマっているのを、鑿と槌の力で掘り出すまでだ。まるで土のナカから石を掘り出すようなものだからけっして間違うはずはない」",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 0.1,
+      "needs_review": true
     },
     {
       "index": 24,
@@ -193,7 +239,9 @@
       "end": 1379,
       "text": "と云った。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 25,
@@ -201,7 +249,9 @@
       "end": 1472,
       "text": "自分はこの時始めて彫刻とはそんなものかと思い出した。はたしてそうなら誰にでもできる事だと思い出した。それで急に自分もニオウがホってみたくなったから見物をやめてさっそくウチへ帰った。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 26,
@@ -209,7 +259,9 @@
       "end": 1553,
       "text": "道具箱から鑿とカナズチを持ち出して、裏へ出て見ると、せんだってのアラシで倒れたカシを、マキにするつもりで、コビキにヒかせた手頃な奴が、たくさん積んであった。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 27,
@@ -217,7 +269,9 @@
       "end": 1745,
       "text": "自分は一番大きいのを選んで、勢いよくホり始めて見たが、不幸にして、ニオウは見当らなかった。その次のにも運悪く掘り当てる事ができなかった。三番目のにもニオウはいなかった。自分は積んであるタキギをカタっパシから彫って見たが、どれもこれもニオウをカクしているのはなかった。ついに明治の木にはとうていニオウはウマっていないものだと悟った。それで運慶が今日まで生きている理由もほぼ解った。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     }
   ]
 }

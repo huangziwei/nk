@@ -9,7 +9,9 @@
       "end": 24,
       "text": "底本:「夏目漱石全集10巻」ちくま文庫、筑摩書房",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 2,
@@ -17,7 +19,9 @@
       "end": 50,
       "text": "1988(昭和63)年7月26日第1刷発行",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 3,
@@ -25,7 +29,9 @@
       "end": 75,
       "text": "1996(平成8)年7月15日第5刷発行",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 4,
@@ -33,7 +39,9 @@
       "end": 102,
       "text": "底本の親本:「筑摩全集類聚版夏目漱石全集」筑摩書房",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 5,
@@ -41,7 +49,9 @@
       "end": 134,
       "text": "1971(昭和46)年4月~1972(昭和47)年1月",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 6,
@@ -49,7 +59,9 @@
       "end": 183,
       "text": "※底本は、物を数える際や地名などに用いる「ヶ」(区点番号5-86)を、大振りにつくっています。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 7,
@@ -57,7 +69,9 @@
       "end": 192,
       "text": "入力:野口英司",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 8,
@@ -65,7 +79,9 @@
       "end": 207,
       "text": "1997年12月16日公開",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 9,
@@ -73,7 +89,9 @@
       "end": 221,
       "text": "2013年7月17日修正",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 10,
@@ -81,7 +99,9 @@
       "end": 234,
       "text": "青空文庫作成ファイル:",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     },
     {
       "index": 11,
@@ -89,7 +109,9 @@
       "end": 323,
       "text": "このファイルは、インターネットの図書館、青空文庫(http://www.aozora.gr.jp/)で作られました。入力、校正、制作にあたったのは、ボランティアの皆さんです。",
       "speaker": "narrator",
-      "voice": 2
+      "voice": 13,
+      "confidence": 1.0,
+      "needs_review": false
     }
   ]
 }
