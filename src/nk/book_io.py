@@ -394,6 +394,21 @@ def _normalize_overrides(payload: object) -> list[dict[str, object]]:
     return normalized
 
 
+def _normalize_removals(payload: object) -> list[dict[str, object]]:
+    if not isinstance(payload, dict):
+        return []
+    remove = payload.get("remove")
+    if remove is None:
+        remove = payload.get("removals")
+    if not isinstance(remove, list):
+        return []
+    normalized: list[dict[str, object]] = []
+    for entry in remove:
+        if isinstance(entry, dict):
+            normalized.append(entry)
+    return normalized
+
+
 def _merge_overrides(
     template_overrides: list[dict[str, object]],
     book_overrides: list[dict[str, object]],
@@ -424,6 +439,27 @@ def _merge_overrides(
     return list(merged.values())
 
 
+def _merge_removals(
+    template_remove: list[dict[str, object]],
+    book_remove: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    def _key(entry: dict[str, object]) -> tuple[str | None, str | None]:
+        reading = entry.get("reading") if isinstance(entry.get("reading"), str) else None
+        surface = entry.get("surface") if isinstance(entry.get("surface"), str) else None
+        return (reading, surface)
+
+    merged: dict[tuple[str | None, str | None], dict[str, object]] = {}
+    for entry in template_remove:
+        if not isinstance(entry, dict):
+            continue
+        merged[_key(entry)] = entry
+    for entry in book_remove:
+        if not isinstance(entry, dict):
+            continue
+        merged[_key(entry)] = entry
+    return list(merged.values())
+
+
 def _ensure_custom_token_template(output_dir: Path) -> None:
     template_path = output_dir / _CUSTOM_TOKEN_FILENAME
     legacy_path = output_dir / _LEGACY_CUSTOM_PITCH_FILENAME
@@ -431,20 +467,37 @@ def _ensure_custom_token_template(output_dir: Path) -> None:
         return  # preserve legacy file so refine can migrate it
     template = _load_default_override_template()
     template_overrides = _normalize_overrides(template)
+    template_remove = _normalize_removals(template)
     book_overrides: list[dict[str, object]] = []
+    book_remove: list[dict[str, object]] = []
+    existing_payload: dict[str, object] | None = None
     if template_path.exists():
         try:
             existing_payload = json.loads(template_path.read_text("utf-8"))
         except (OSError, json.JSONDecodeError):
             return  # don't clobber a file the user may want to fix manually
         book_overrides = _normalize_overrides(existing_payload)
+        book_remove = _normalize_removals(existing_payload)
         if not book_overrides and not _is_legacy_template(existing_payload):
             book_overrides = []
     merged_overrides = _merge_overrides(template_overrides, book_overrides)
-    if book_overrides and merged_overrides == book_overrides:
-        return  # nothing new to add
+    merged_remove = _merge_removals(template_remove, book_remove)
+    merged_payload: dict[str, object] = {"overrides": merged_overrides}
+    include_remove = (
+        bool(template_remove)
+        or bool(book_remove)
+        or (existing_payload is not None and isinstance(existing_payload, dict) and "remove" in existing_payload)
+    )
+    if include_remove:
+        merged_payload["remove"] = merged_remove
+    if existing_payload is not None:
+        existing_norm: dict[str, object] = {"overrides": book_overrides}
+        if include_remove:
+            existing_norm["remove"] = book_remove
+        if merged_payload == existing_norm:
+            return  # nothing new to add
     template_path.write_text(
-        json.dumps({"overrides": merged_overrides}, ensure_ascii=False, indent=2),
+        json.dumps(merged_payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 

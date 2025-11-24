@@ -29,6 +29,12 @@ class OverrideRule:
     match_surface: str | None
 
 
+@dataclass
+class RemoveRule:
+    reading: str | None
+    surface: str | None
+
+
 def _build_offset_mapper(source: str | None, target: str | None):
     if source is None or target is None:
         return None
@@ -86,7 +92,7 @@ def ensure_override_file(book_dir: Path) -> Path:
     path = book_dir / PRIMARY_OVERRIDE_FILENAME
     if path.exists():
         return path
-    payload = {"overrides": []}
+    payload = {"overrides": [], "remove": []}
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
 
@@ -109,10 +115,10 @@ def append_override_entry(book_dir: Path, entry: dict[str, object]) -> Path:
     return path
 
 
-def load_override_config(book_dir: Path) -> list[OverrideRule]:
+def load_refine_config(book_dir: Path) -> tuple[list[OverrideRule], list[RemoveRule]]:
     config_path = ensure_override_file(book_dir)
     if not config_path.exists():
-        return []
+        return [], []
     try:
         raw = json.loads(config_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -121,6 +127,7 @@ def load_override_config(book_dir: Path) -> list[OverrideRule]:
     if not isinstance(overrides_payload, list):
         raise ValueError(f"{config_path.name} must contain an 'overrides' array.")
     overrides: list[OverrideRule] = []
+    removals: list[RemoveRule] = []
     for entry in overrides_payload:
         if not isinstance(entry, dict):
             continue
@@ -161,17 +168,51 @@ def load_override_config(book_dir: Path) -> list[OverrideRule]:
                 match_surface=match_surface,
             )
         )
+    remove_payload = raw.get("remove")
+    if remove_payload is None:
+        remove_payload = raw.get("removals")
+    if remove_payload is None:
+        remove_payload = []
+    if remove_payload is not None and not isinstance(remove_payload, list):
+        raise ValueError(f"{config_path.name} must contain a 'remove' array if provided.")
+    for entry in remove_payload:
+        if not isinstance(entry, dict):
+            continue
+        reading = entry.get("reading")
+        if reading is not None and not isinstance(reading, str):
+            reading = None
+        surface = entry.get("surface")
+        if surface is not None and not isinstance(surface, str):
+            surface = None
+        if reading is None and surface is None:
+            continue
+        removals.append(RemoveRule(reading=reading, surface=surface))
+    return overrides, removals
+
+
+def load_override_config(book_dir: Path) -> list[OverrideRule]:
+    overrides, _ = load_refine_config(book_dir)
     return overrides
+
+
+def load_removal_rules(book_dir: Path) -> list[RemoveRule]:
+    _, removals = load_refine_config(book_dir)
+    return removals
 
 
 def refine_book(
     book_dir: Path,
-    overrides: Iterable[OverrideRule],
+    overrides: Iterable[OverrideRule] | None,
     *,
+    removals: Iterable[RemoveRule] | None = None,
     progress: ProgressCallback | None = None,
 ) -> int:
-    override_list = list(overrides)
-    if not override_list:
+    if overrides is None and removals is None:
+        override_list, removal_list = load_refine_config(book_dir)
+    else:
+        override_list = list(overrides) if overrides is not None else load_override_config(book_dir)
+        removal_list = list(removals) if removals is not None else load_removal_rules(book_dir)
+    if not override_list and not removal_list:
         return 0
     refined = 0
     chapters: list[Path] = []
@@ -186,6 +227,7 @@ def refine_book(
         if refine_chapter(
             txt_path,
             override_list,
+            removals=removal_list,
             progress=progress,
             chapter_index=index,
             chapter_total=total_chapters,
@@ -196,15 +238,17 @@ def refine_book(
 
 def refine_chapter(
     text_path: Path,
-    overrides: Iterable[OverrideRule],
+    overrides: Iterable[OverrideRule] | None,
     *,
+    removals: Iterable[RemoveRule] | None = None,
     progress: ProgressCallback | None = None,
     chapter_index: int | None = None,
     chapter_total: int | None = None,
 ) -> bool:
+    override_list = list(overrides) if overrides is not None else []
+    removal_list = list(removals or [])
     text = text_path.read_text(encoding="utf-8")
     initial_text = text
-    override_list = list(overrides)
     try:
         original_path = text_path.with_name(f"{text_path.stem}.original.txt")
         original_text = original_path.read_text(encoding="utf-8")
@@ -274,7 +318,7 @@ def refine_chapter(
             "token_total": trackable_total,
         }
     )
-    if not override_list:
+    if not override_list and not removal_list:
         for tok in tokens:
             if _token_has_bounds(tok):
                 _mark_token_seen(tok)
@@ -291,6 +335,7 @@ def refine_chapter(
         return False
 
     overrides_applied = False
+    removals_applied = False
     for rule in override_list:
         text, changed = _apply_override_rule(
             text,
@@ -302,7 +347,16 @@ def refine_chapter(
         )
         if changed:
             overrides_applied = True
-    refined = text != initial_text or overrides_applied
+    if removal_list:
+        text, removed_changed = _apply_remove_rules(
+            text,
+            tokens,
+            removal_list,
+            on_token=_mark_token_seen,
+        )
+        if removed_changed:
+            removals_applied = True
+    refined = text != initial_text or overrides_applied or removals_applied
     if not refined:
         _emit_progress(
             {
@@ -847,6 +901,43 @@ def _apply_override_rule(
     return text, changed
 
 
+def _apply_remove_rules(
+    text: str,
+    tokens: list[ChapterToken],
+    rules: Iterable[RemoveRule],
+    *,
+    on_token: Callable[[ChapterToken], None] | None = None,
+) -> tuple[str, bool]:
+    rule_list = list(rules)
+    if not rule_list:
+        return text, False
+    changed = False
+    for token in list(tokens):
+        bounds = _token_transformed_bounds(token)
+        if on_token and bounds and bounds[1] > bounds[0]:
+            on_token(token)
+        if not any(_removal_matches_rule(token, rule) for rule in rule_list):
+            continue
+        if bounds:
+            start, end = bounds
+            if end > start and end <= len(text):
+                replacement = token.surface.strip() if token.surface else None
+                if replacement:
+                    segment = text[start:end]
+                    if segment != replacement:
+                        text = f"{text[:start]}{replacement}{text[end:]}"
+                        delta = len(replacement) - len(segment)
+                        _shift_tokens(tokens, end, delta, exclude=token)
+        try:
+            tokens.remove(token)
+        except ValueError:
+            pass
+        changed = True
+    if changed:
+        tokens.sort(key=lambda token: (_token_transformed_start(token), _token_transformed_end(token)))
+    return text, changed
+
+
 def _token_transformed_bounds(token: ChapterToken) -> tuple[int, int] | None:
     start = token.transformed_start
     end = token.transformed_end
@@ -880,6 +971,15 @@ def _token_matches_rule(
     return reading == rule.pattern
 
 
+def _removal_matches_rule(token: ChapterToken, rule: RemoveRule) -> bool:
+    if rule.surface and token.surface != rule.surface:
+        return False
+    token_reading = token.reading or token.fallback_reading
+    if rule.reading and token_reading != rule.reading:
+        return False
+    return True
+
+
 def _shift_tokens(
     tokens: list[ChapterToken], cutoff: int, delta: int, exclude: ChapterToken | None = None
 ) -> None:
@@ -911,7 +1011,10 @@ def _token_transformed_end(token: ChapterToken) -> int:
 
 
 __all__ = [
+    "RemoveRule",
     "load_override_config",
+    "load_refine_config",
+    "load_removal_rules",
     "refine_book",
     "refine_chapter",
     "edit_single_token",

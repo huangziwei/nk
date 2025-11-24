@@ -6,7 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from nk.refine import append_override_entry, edit_single_token, load_override_config, refine_book, remove_token
+from nk.refine import (
+    append_override_entry,
+    edit_single_token,
+    load_override_config,
+    load_refine_config,
+    refine_book,
+    remove_token,
+)
 
 
 def _write_token_file(path: Path, tokens: list[dict[str, object]], text: str) -> None:
@@ -420,6 +427,37 @@ def test_refine_overrides_covered_spans(tmp_path: Path) -> None:
     assert override_token["transformed_start"] == 0
     assert override_token["transformed_end"] == 4
     assert any(tok.get("surface") == "が" and tok.get("transformed_start") == 4 for tok in refined_tokens)
+
+
+def test_refine_removes_tokens_by_reading(tmp_path: Path) -> None:
+    book_dir = tmp_path / "remove_rule"
+    book_dir.mkdir()
+    chapter = book_dir / "001.txt"
+    text = "ヽ分"
+    chapter.write_text(text, encoding="utf-8")
+    token_path = book_dir / "001.txt.token.json"
+    _write_token_file(
+        token_path,
+        [
+            {"surface": "自", "reading": "ヽ", "start": 0, "end": 1, "transformed_start": 0, "transformed_end": 1},
+            {"surface": "分", "reading": "ブン", "start": 1, "end": 2, "transformed_start": 1, "transformed_end": 2},
+        ],
+        text,
+    )
+    config = {"overrides": [], "remove": [{"reading": "ヽ"}]}
+    (book_dir / "custom_token.json").write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
+    overrides, removals = load_refine_config(book_dir)
+    refined = refine_book(book_dir, overrides, removals=removals)
+    assert refined == 1
+    assert chapter.read_text(encoding="utf-8") == "自分"
+    payload = json.loads(token_path.read_text(encoding="utf-8"))
+    tokens = payload["tokens"]
+    assert len(tokens) == 1
+    token = tokens[0]
+    assert token["surface"] == "分"
+    assert token["reading"] == "ブン"
+    assert token["transformed_start"] == 1
+    assert token["transformed_end"] == 2
 
 
 def test_refine_supports_legacy_custom_pitch_file(tmp_path: Path) -> None:

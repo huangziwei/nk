@@ -15,6 +15,7 @@ from .refine import (
     create_token_from_selection,
     edit_single_token,
     load_override_config,
+    load_refine_config,
     refine_book,
     refine_chapter,
     remove_token,
@@ -4438,10 +4439,10 @@ def create_reader_app(root: Path) -> FastAPI:
 
     def _read_overrides(
         book_dir: Path,
-    ) -> tuple[list[dict[str, object]], bool, float | None]:
+    ) -> tuple[list[dict[str, object]], list[dict[str, object]], bool, float | None]:
         overrides_path = book_dir / "custom_token.json"
         if not overrides_path.exists():
-            return [], False, None
+            return [], [], False, None
         try:
             raw = json.loads(overrides_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
@@ -4459,6 +4460,16 @@ def create_reader_app(root: Path) -> FastAPI:
                 status_code=400,
                 detail="Overrides file must contain an 'overrides' array.",
             )
+        remove_payload = raw.get("remove")
+        if remove_payload is None:
+            remove_payload = raw.get("removals")
+        if remove_payload is None:
+            remove_payload = []
+        if remove_payload is not None and not isinstance(remove_payload, list):
+            raise HTTPException(
+                status_code=400,
+                detail="Overrides file must contain a 'remove' array if provided.",
+            )
         try:
             modified = overrides_path.stat().st_mtime
         except OSError:
@@ -4467,7 +4478,8 @@ def create_reader_app(root: Path) -> FastAPI:
         for entry in payload:
             if isinstance(entry, dict):
                 normalized.append(entry)
-        return normalized, True, modified
+        normalized_remove = _normalize_remove_payload(raw)
+        return normalized, normalized_remove, True, modified
 
     def _normalize_override_entry(entry: Mapping[str, object]) -> dict[str, object]:
         pattern = entry.get("pattern")
@@ -4507,6 +4519,33 @@ def create_reader_app(root: Path) -> FastAPI:
             **({"pos": pos} if pos else {}),
             **({"accent": accent} if accent is not None else {}),
         }
+
+    def _normalize_remove_entry(entry: Mapping[str, object]) -> dict[str, object]:
+        reading = entry.get("reading")
+        surface = entry.get("surface")
+        normalized: dict[str, object] = {}
+        if isinstance(reading, str) and reading.strip():
+            normalized["reading"] = reading.strip()
+        if isinstance(surface, str) and surface.strip():
+            normalized["surface"] = surface.strip()
+        return normalized
+
+    def _normalize_remove_payload(payload: object) -> list[dict[str, object]]:
+        if not isinstance(payload, Mapping):
+            return []
+        raw_remove = payload.get("remove")
+        if raw_remove is None:
+            raw_remove = payload.get("removals")
+        if not isinstance(raw_remove, list):
+            return []
+        cleaned: list[dict[str, object]] = []
+        for entry in raw_remove:
+            if not isinstance(entry, Mapping):
+                continue
+            normalized = _normalize_remove_entry(entry)
+            if normalized:
+                cleaned.append(normalized)
+        return cleaned
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> HTMLResponse:
@@ -4570,12 +4609,13 @@ def create_reader_app(root: Path) -> FastAPI:
     @app.get("/api/books/{book_id:path}/overrides")
     def api_get_overrides(book_id: str) -> JSONResponse:
         book_dir = _resolve_book_dir(resolved_root, book_id)
-        overrides, exists, modified = _read_overrides(book_dir)
+        overrides, remove_rules, exists, modified = _read_overrides(book_dir)
         return JSONResponse(
             {
                 "book": book_id,
                 "path": _relative_to_root(resolved_root, book_dir).as_posix(),
                 "overrides": overrides,
+                "remove": remove_rules,
                 "exists": exists,
                 "modified": modified,
             }
@@ -4591,14 +4631,33 @@ def create_reader_app(root: Path) -> FastAPI:
         overrides_payload = payload.get("overrides")
         if not isinstance(overrides_payload, list):
             raise HTTPException(status_code=400, detail="'overrides' must be an array.")
+        remove_payload = payload.get("remove")
+        if remove_payload is not None and not isinstance(remove_payload, list):
+            raise HTTPException(status_code=400, detail="'remove' must be an array when provided.")
         normalized: list[dict[str, object]] = []
+        normalized_remove: list[dict[str, object]] = []
         for entry in overrides_payload:
             if not isinstance(entry, Mapping):
                 continue
             normalized.append(_normalize_override_entry(entry))
+        if remove_payload is not None:
+            for entry in remove_payload:
+                if not isinstance(entry, Mapping):
+                    continue
+                cleaned = _normalize_remove_entry(entry)
+                if cleaned:
+                    normalized_remove.append(cleaned)
         overrides_path = book_dir / "custom_token.json"
+        if remove_payload is None:
+            try:
+                existing_raw = json.loads(overrides_path.read_text(encoding="utf-8"))
+                existing_remove = _normalize_remove_payload(existing_raw)
+                if existing_remove:
+                    normalized_remove = existing_remove
+            except Exception:
+                normalized_remove = normalized_remove
         overrides_path.write_text(
-            json.dumps({"overrides": normalized}, ensure_ascii=False, indent=2),
+            json.dumps({"overrides": normalized, "remove": normalized_remove}, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         try:
@@ -4610,6 +4669,7 @@ def create_reader_app(root: Path) -> FastAPI:
                 "book": book_id,
                 "path": _relative_to_root(resolved_root, book_dir).as_posix(),
                 "overrides": normalized,
+                "remove": normalized_remove,
                 "exists": True,
                 "modified": modified,
             }
@@ -4790,12 +4850,12 @@ def create_reader_app(root: Path) -> FastAPI:
             scope = "chapter"
         try:
             override_path = append_override_entry(book_dir, entry)
-            overrides = load_override_config(book_dir)
+            overrides, removals = load_refine_config(book_dir)
             if scope == "chapter":
-                refined_value = refine_chapter(chapter_path, overrides)
+                refined_value = refine_chapter(chapter_path, overrides, removals=removals)
                 updated = 1 if refined_value else 0
             else:
-                updated = refine_book(book_dir, overrides)
+                updated = refine_book(book_dir, overrides, removals=removals)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         override_rel = _relative_to_root(resolved_root, override_path)
