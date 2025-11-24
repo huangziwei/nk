@@ -149,11 +149,6 @@ If MeCab splits a word incorrectly or assigns the wrong accent, add a `custom_to
       "reading": "ティアラ",
       "accent": 2,
       "surface": "天愛星"
-    },
-    {
-      "pattern": "クラウゼル",
-      "reading": "クラウゼル",
-      "accent": 2
     }
   ]
 }

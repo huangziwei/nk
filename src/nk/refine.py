@@ -5,6 +5,7 @@ import json
 import re
 from dataclasses import dataclass, replace
 from difflib import SequenceMatcher
+from bisect import bisect_left
 from pathlib import Path
 from typing import Callable, Iterable
 
@@ -641,11 +642,15 @@ def _apply_override_rule(
         transformed_end: int,
         segment: str,
         replacement_text: str | None,
+        original_bounds: tuple[int, int] | None = None,
     ) -> None:
         replacement = replacement_text if replacement_text is not None else segment
         reading_val = rule.reading or replacement
         surface_val = rule.surface or replacement
-        original_start, original_end = _map_bounds(transformed_start, transformed_end)
+        if original_bounds is not None:
+            original_start, original_end = original_bounds
+        else:
+            original_start, original_end = _map_bounds(transformed_start, transformed_end)
         token = ChapterToken(
             surface=surface_val,
             start=original_start,
@@ -713,71 +718,129 @@ def _apply_override_rule(
             changed = True
 
     # Rebuild coverage after potential shifts in pass 1.
-    tokens_with_bounds = [
-        tok for tok in tokens if _token_transformed_bounds(tok) and _token_transformed_bounds(tok)[1] > _token_transformed_bounds(tok)[0]
-    ]
-    tokens_with_bounds.sort(key=lambda tok: _token_transformed_start(tok))
-
-    # Derive gaps in transformed text not covered by existing tokens.
-    merged: list[tuple[int, int]] = []
-    for tok in tokens_with_bounds:
-        bounds = _token_transformed_bounds(tok)
-        if not bounds:
-            continue
-        start, end = bounds
-        if not merged or start > merged[-1][1]:
-            merged.append((start, end))
-        else:
-            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
-    gaps: list[list[int]] = []
-    cursor = 0
     text_len = len(text)
-    for start, end in merged:
-        if cursor < start:
-            gaps.append([cursor, start])
-        cursor = max(cursor, end)
-    if cursor < text_len:
-        gaps.append([cursor, text_len])
 
-    # Pass 2: search only within uncovered gaps (plain text or missing token offsets).
-    for gap_index, (gap_start, gap_end) in enumerate(gaps):
-        search_pos = gap_start
-        while search_pos < gap_end:
-            if compiled:
-                match = compiled.search(text, search_pos, gap_end)
-                if not match:
-                    break
-                start, end = match.span()
-                segment = match.group(0)
-            else:
-                start = text.find(rule.pattern, search_pos, gap_end)
-                if start == -1:
-                    break
-                end = start + len(rule.pattern)
-                segment = rule.pattern
+    def _build_token_index() -> tuple[list[tuple[int, int, ChapterToken]], list[int]]:
+        indexed: list[tuple[int, int, ChapterToken]] = []
+        for tok in tokens:
+            bounds = _token_transformed_bounds(tok)
+            if bounds and bounds[1] > bounds[0]:
+                indexed.append((bounds[0], bounds[1], tok))
+        indexed.sort(key=lambda entry: entry[0])
+        starts = [entry[0] for entry in indexed]
+        return indexed, starts
 
-            expected_surface = rule.match_surface or rule.surface
-            if expected_surface and original_text is not None:
+    token_index, token_starts = _build_token_index()
+    bounds_dirty = False
+
+    # Pass 2: search across the full transformed text so overrides can replace spans that already have tokens.
+    search_pos = 0
+    while search_pos < text_len:
+        if bounds_dirty:
+            token_index, token_starts = _build_token_index()
+            bounds_dirty = False
+        if compiled:
+            match = compiled.search(text, search_pos)
+            if not match:
+                break
+            start, end = match.span()
+            segment = match.group(0)
+        else:
+            start = text.find(rule.pattern, search_pos)
+            if start == -1:
+                break
+            end = start + len(rule.pattern)
+            segment = rule.pattern
+
+        expected_surface = rule.match_surface or rule.surface
+        replacement_text = _resolve_replacement(rule)
+        expected_reading = rule.reading or replacement_text or segment
+        overlapping: list[ChapterToken] = []
+        overlaps_outside_span = False
+        already_applied = False
+        overlap_surface_combined: str | None = None
+        overlap_original_bounds: tuple[int, int] | None = None
+
+        start_idx = bisect_left(token_starts, start)
+        idx = start_idx
+        while idx < len(token_index) and token_index[idx][0] < end:
+            t_start, t_end, token = token_index[idx]
+            overlapping.append(token)
+            if t_start < start or t_end > end:
+                overlaps_outside_span = True
+            if (
+                t_start == start
+                and t_end == end
+                and (expected_reading is None or token.reading == expected_reading or token.fallback_reading == expected_reading)
+                and (rule.surface is None or token.surface == rule.surface)
+                and (rule.match_surface is None or token.surface == rule.match_surface)
+                and (rule.pos is None or token.pos == rule.pos)
+                and (rule.accent is None or token.accent_type == rule.accent)
+                and (replacement_text is None or replacement_text == segment)
+            ):
+                already_applied = True
+            idx += 1
+        idx = start_idx - 1
+        while idx >= 0 and token_index[idx][1] > start:
+            t_start, t_end, token = token_index[idx]
+            overlapping.append(token)
+            if t_start < start or t_end > end:
+                overlaps_outside_span = True
+            if (
+                t_start == start
+                and t_end == end
+                and (expected_reading is None or token.reading == expected_reading or token.fallback_reading == expected_reading)
+                and (rule.surface is None or token.surface == rule.surface)
+                and (rule.match_surface is None or token.surface == rule.match_surface)
+                and (rule.pos is None or token.pos == rule.pos)
+                and (rule.accent is None or token.accent_type == rule.accent)
+                and (replacement_text is None or replacement_text == segment)
+            ):
+                already_applied = True
+            idx -= 1
+
+        if overlapping:
+            sorted_overlap = sorted(overlapping, key=_token_transformed_start)
+            overlap_surface_combined = "".join(tok.surface or "" for tok in sorted_overlap)
+            if all(tok.start is not None and tok.end is not None for tok in sorted_overlap):
+                overlap_original_bounds = (
+                    min(tok.start for tok in sorted_overlap if tok.start is not None),
+                    max(tok.end for tok in sorted_overlap if tok.end is not None),
+                )
+
+        if expected_surface:
+            if overlap_surface_combined is not None:
+                if overlap_surface_combined != expected_surface:
+                    search_pos = end
+                    continue
+            elif original_text is not None:
                 o_start, o_end = _map_bounds(start, end)
                 if original_text[o_start:o_end] != expected_surface:
                     search_pos = end
                     continue
 
-            replacement_text = _resolve_replacement(rule)
-            new_end = end
-            if replacement_text is not None and replacement_text != segment:
-                text = f"{text[:start]}{replacement_text}{text[end:]}"
-                change_delta = len(replacement_text) - len(segment)
-                new_end = start + len(replacement_text)
-                _shift_tokens(tokens, end, change_delta)
-                gap_end += change_delta
-                for later in range(gap_index + 1, len(gaps)):
-                    gaps[later][0] += change_delta
-                    gaps[later][1] += change_delta
-                changed = True
-            _add_token(start, new_end, segment, replacement_text)
-            changed = True
+        new_end = end
+        if already_applied or overlaps_outside_span:
             search_pos = new_end if new_end > start else end
+            continue
+
+        if overlapping:
+            tokens[:] = [tok for tok in tokens if tok not in overlapping]
+            bounds_dirty = True
+            changed = True
+
+        if replacement_text is not None and replacement_text != segment:
+            text = f"{text[:start]}{replacement_text}{text[end:]}"
+            change_delta = len(replacement_text) - len(segment)
+            new_end = start + len(replacement_text)
+            _shift_tokens(tokens, end, change_delta)
+            text_len += change_delta
+            changed = True
+            bounds_dirty = True
+        _add_token(start, new_end, segment, replacement_text, original_bounds=overlap_original_bounds)
+        bounds_dirty = True
+        changed = True
+        search_pos = new_end if new_end > start else end
 
     if changed:
         tokens.sort(key=lambda token: (_token_transformed_start(token), _token_transformed_end(token)))

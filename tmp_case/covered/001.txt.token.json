@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "text_sha1": "e1d0b701660f534986d1fb8b4709bc1d999f14ae",
+  "tokens": [
+    {
+      "surface": "正崎",
+      "start": 0,
+      "end": 2,
+      "reading": "セイザキ",
+      "reading_source": "override",
+      "fallback_reading": "セイザキ",
+      "context_prefix": "",
+      "context_suffix": "ザキが",
+      "accent": null,
+      "connection": null,
+      "pos": null,
+      "transformed_start": 0,
+      "transformed_end": 4,
+      "validated": false,
+      "block_surface_preservation": false
+    },
+    {
+      "surface": "が",
+      "start": 2,
+      "end": 3,
+      "reading": "ガ",
+      "reading_source": null,
+      "fallback_reading": null,
+      "context_prefix": "",
+      "context_suffix": "",
+      "accent": 0,
+      "connection": null,
+      "pos": null,
+      "transformed_start": 4,
+      "transformed_end": 5,
+      "validated": false,
+      "block_surface_preservation": false
+    },
+    {
+      "surface": "来た",
+      "start": 3,
+      "end": 5,
+      "reading": "キタ",
+      "reading_source": null,
+      "fallback_reading": null,
+      "context_prefix": "",
+      "context_suffix": "",
+      "accent": 0,
+      "connection": null,
+      "pos": null,
+      "transformed_start": 5,
+      "transformed_end": 7,
+      "validated": false,
+      "block_surface_preservation": false
+    }
+  ]
+}
