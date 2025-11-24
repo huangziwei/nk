@@ -1463,20 +1463,122 @@ def _run_refine(args: argparse.Namespace) -> int:
     if not overrides:
         print(f"No overrides found in {book_dir / 'custom_token.json'}")
         return 0
-    if chapter_path:
-        refined = refine_chapter(chapter_path, overrides)
-        rel = chapter_path.relative_to(book_dir)
-        if refined:
-            print(f"Refined {rel}")
+    console = Console()
+    progress_display: Progress | None = None
+    progress_task: int | None = None
+
+    def _format_chapter_label(
+        path_value: object, index_value: object, total_value: object
+    ) -> str:
+        path_label = ""
+        if isinstance(path_value, Path):
+            try:
+                path_label = str(path_value.relative_to(book_dir))
+            except ValueError:
+                path_label = path_value.name
+        elif isinstance(path_value, str):
+            path_label = path_value
+        prefix = ""
+        if isinstance(index_value, int):
+            prefix = str(index_value)
+            if isinstance(total_value, int) and total_value > 0:
+                prefix = f"{index_value}/{total_value}"
+        if prefix and path_label:
+            return f"{prefix} {path_label}"
+        return path_label or prefix
+
+    def _progress_handler(event: dict[str, object]) -> None:
+        nonlocal progress_task
+        event_type = event.get("event")
+        if progress_display is not None and progress_task is not None:
+            if event_type == "chapter_start":
+                token_total = event.get("token_total")
+                if isinstance(token_total, int) and token_total > 0:
+                    current_total = progress_display.tasks[progress_task].total or 0
+                    progress_display.update(progress_task, total=current_total + token_total)
+                label = _format_chapter_label(
+                    event.get("path"),
+                    event.get("index"),
+                    event.get("total"),
+                )
+                if label:
+                    progress_display.update(progress_task, chapter=label)
+            elif event_type == "token_progress":
+                total_delta = event.get("total_delta")
+                if isinstance(total_delta, int) and total_delta > 0:
+                    current_total = progress_display.tasks[progress_task].total or 0
+                    progress_display.update(progress_task, total=current_total + total_delta)
+                advance = event.get("advance")
+                if isinstance(advance, int) and advance > 0:
+                    progress_display.advance(progress_task, advance)
+            elif event_type == "chapter_done":
+                label = _format_chapter_label(
+                    event.get("path"),
+                    event.get("index"),
+                    event.get("total"),
+                )
+                if label:
+                    progress_display.update(progress_task, chapter=label)
+            return
+        if event_type == "chapter_start":
+            label = _format_chapter_label(
+                event.get("path"),
+                event.get("index"),
+                event.get("total"),
+            )
+            token_total = event.get("token_total")
+            token_text = f" ({token_total} tokens)" if isinstance(token_total, int) and token_total > 0 else ""
+            if label:
+                print(f"[nk refine] {label}{token_text}")
+        elif event_type == "chapter_done":
+            label = _format_chapter_label(
+                event.get("path"),
+                event.get("index"),
+                event.get("total"),
+            )
+            if label:
+                status = "updated" if event.get("changed") else "no changes"
+                print(f"[nk refine] {label} -> {status}")
+
+    if console.is_terminal:
+        progress_display = Progress(
+            SpinnerColumn(),
+            TextColumn("{task.fields[chapter]}", justify="left"),
+            BarColumn(bar_width=None),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+            console=console,
+            transient=False,
+        )
+
+    def _execute_refine() -> int:
+        if chapter_path:
+            refined = refine_chapter(
+                chapter_path,
+                overrides,
+                progress=_progress_handler,
+                chapter_index=1,
+                chapter_total=1,
+            )
+            rel = chapter_path.relative_to(book_dir)
+            if refined:
+                print(f"Refined {rel}")
+            else:
+                print(f"No changes required for {rel}")
+            return 0
+        updated = refine_book(book_dir, overrides, progress=_progress_handler)
+        if updated:
+            print(f"Refined {updated} chapter(s).")
         else:
-            print(f"No changes required for {rel}")
+            print("No chapters required changes.")
         return 0
-    updated = refine_book(book_dir, overrides)
-    if updated:
-        print(f"Refined {updated} chapter(s).")
-    else:
-        print("No chapters required changes.")
-    return 0
+
+    if progress_display:
+        with progress_display:
+            progress_task = progress_display.add_task("Applying overrides", total=0, chapter="")
+            return _execute_refine()
+    return _execute_refine()
 
 
 def _slice_targets_by_index(targets: list[TTSTarget], start_index: int | None) -> list[TTSTarget]:

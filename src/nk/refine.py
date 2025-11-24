@@ -6,13 +6,14 @@ import re
 from dataclasses import dataclass, replace
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 from .book_io import TOKEN_METADATA_VERSION, is_original_text_file
 from .tokens import ChapterToken, deserialize_chapter_tokens, serialize_chapter_tokens
 
 PRIMARY_OVERRIDE_FILENAME = "custom_token.json"
 LEGACY_OVERRIDE_FILENAME = "custom_pitch.json"
+ProgressCallback = Callable[[dict[str, object]], None]
 
 
 @dataclass
@@ -162,22 +163,47 @@ def load_override_config(book_dir: Path) -> list[OverrideRule]:
     return overrides
 
 
-def refine_book(book_dir: Path, overrides: Iterable[OverrideRule]) -> int:
+def refine_book(
+    book_dir: Path,
+    overrides: Iterable[OverrideRule],
+    *,
+    progress: ProgressCallback | None = None,
+) -> int:
     override_list = list(overrides)
     if not override_list:
         return 0
     refined = 0
+    chapters: list[Path] = []
     for txt_path in sorted(book_dir.glob("*.txt")):
         if txt_path.name.endswith(".partial.txt") or is_original_text_file(txt_path):
             continue
-        if refine_chapter(txt_path, override_list):
+        chapters.append(txt_path)
+    total_chapters = len(chapters)
+    if progress:
+        progress({"event": "book_start", "total_chapters": total_chapters, "book_dir": book_dir})
+    for index, txt_path in enumerate(chapters, start=1):
+        if refine_chapter(
+            txt_path,
+            override_list,
+            progress=progress,
+            chapter_index=index,
+            chapter_total=total_chapters,
+        ):
             refined += 1
     return refined
 
 
-def refine_chapter(text_path: Path, overrides: Iterable[OverrideRule]) -> bool:
+def refine_chapter(
+    text_path: Path,
+    overrides: Iterable[OverrideRule],
+    *,
+    progress: ProgressCallback | None = None,
+    chapter_index: int | None = None,
+    chapter_total: int | None = None,
+) -> bool:
     text = text_path.read_text(encoding="utf-8")
     initial_text = text
+    override_list = list(overrides)
     try:
         original_path = text_path.with_name(f"{text_path.stem}.original.txt")
         original_text = original_path.read_text(encoding="utf-8")
@@ -196,12 +222,97 @@ def refine_chapter(text_path: Path, overrides: Iterable[OverrideRule]) -> bool:
         except (OSError, json.JSONDecodeError):
             existing_tokens = []
     tokens = [replace(token) for token in existing_tokens]
+    seen_tokens: set[int] = set()
+
+    def _emit_progress(event: dict[str, object]) -> None:
+        if progress is None:
+            return
+        progress(event)
+
+    def _advance_token_progress(advance: int = 0, *, total_delta: int = 0) -> None:
+        if progress is None:
+            return
+        if advance <= 0 and total_delta == 0:
+            return
+        payload: dict[str, object] = {
+            "event": "token_progress",
+            "path": text_path,
+        }
+        if chapter_index is not None:
+            payload["index"] = chapter_index
+        if chapter_total is not None:
+            payload["total"] = chapter_total
+        if advance > 0:
+            payload["advance"] = advance
+        if total_delta:
+            payload["total_delta"] = total_delta
+        progress(payload)
+
+    def _advance_token_total(delta: int) -> None:
+        if delta > 0:
+            _advance_token_progress(total_delta=delta)
+
+    def _mark_token_seen(token: ChapterToken) -> None:
+        token_id = id(token)
+        if token_id in seen_tokens:
+            return
+        seen_tokens.add(token_id)
+        _advance_token_progress(advance=1)
+
+    def _token_has_bounds(token: ChapterToken) -> bool:
+        bounds = _token_transformed_bounds(token)
+        return bool(bounds) and bounds[1] > bounds[0]
+
+    trackable_total = sum(1 for tok in tokens if _token_has_bounds(tok))
+    _emit_progress(
+        {
+            "event": "chapter_start",
+            "path": text_path,
+            "index": chapter_index,
+            "total": chapter_total,
+            "token_total": trackable_total,
+        }
+    )
+    if not override_list:
+        for tok in tokens:
+            if _token_has_bounds(tok):
+                _mark_token_seen(tok)
+        _emit_progress(
+            {
+                "event": "chapter_done",
+                "path": text_path,
+                "index": chapter_index,
+                "total": chapter_total,
+                "changed": False,
+                "tokens_processed": len(seen_tokens),
+            }
+        )
+        return False
+
     overrides_applied = False
-    for rule in overrides:
-        text, changed = _apply_override_rule(text, tokens, rule, original_text=original_text)
+    for rule in override_list:
+        text, changed = _apply_override_rule(
+            text,
+            tokens,
+            rule,
+            original_text=original_text,
+            on_token=_mark_token_seen,
+            on_token_total=_advance_token_total,
+        )
         if changed:
             overrides_applied = True
-    if text == initial_text and not overrides_applied:
+    refined = text != initial_text or overrides_applied
+    if not refined:
+        _emit_progress(
+            {
+                "event": "chapter_done",
+                "path": text_path,
+                "index": chapter_index,
+                "total": chapter_total,
+                "changed": False,
+                "tokens_processed": len(seen_tokens),
+            }
+        )
         return False
     text_path.write_text(text, encoding="utf-8")
     tokens.sort(key=lambda token: (_token_transformed_start(token), _token_transformed_end(token)))
@@ -213,6 +324,16 @@ def refine_chapter(text_path: Path, overrides: Iterable[OverrideRule]) -> bool:
         "tokens": serialize_chapter_tokens(tokens),
     }
     token_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    _emit_progress(
+        {
+            "event": "chapter_done",
+            "path": text_path,
+            "index": chapter_index,
+            "total": chapter_total,
+            "changed": True,
+            "tokens_processed": len(seen_tokens),
+        }
+    )
     return True
 
 
@@ -481,6 +602,8 @@ def _apply_override_rule(
     rule: OverrideRule,
     *,
     original_text: str | None = None,
+    on_token: Callable[[ChapterToken], None] | None = None,
+    on_token_total: Callable[[int], None] | None = None,
 ) -> tuple[str, bool]:
     compiled: re.Pattern[str] | None = None
     if rule.regex:
@@ -537,7 +660,11 @@ def _apply_override_rule(
             transformed_start=transformed_start,
             transformed_end=transformed_end,
         )
+        if on_token_total:
+            on_token_total(1)
         tokens.append(token)
+        if on_token:
+            on_token(token)
 
     # Pass 1: update existing tokens that already carry transformed offsets.
     tokens_with_bounds = [
@@ -546,6 +673,8 @@ def _apply_override_rule(
     tokens_with_bounds.sort(key=lambda tok: _token_transformed_start(tok))
 
     for token in tokens_with_bounds:
+        if on_token:
+            on_token(token)
         bounds = _token_transformed_bounds(token)
         if not bounds:
             continue
