@@ -842,10 +842,15 @@ INDEX_HTML = """<!DOCTYPE html>
       border-radius: 18px;
       padding: 1.3rem 1.5rem;
       width: min(480px, 95vw);
+      max-height: 92vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
       box-shadow: 0 25px 60px rgba(0,0,0,0.45);
     }
     .overrides-card {
       width: min(920px, 96vw);
+      max-height: 92vh;
     }
     .modal-card h3 {
       margin: 0;
@@ -865,16 +870,18 @@ INDEX_HTML = """<!DOCTYPE html>
       font-size: 0.85rem;
     }
     .overrides-body {
-      display: grid;
-      grid-template-columns: 320px 1fr;
-      gap: 1rem;
-      align-items: start;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      align-items: stretch;
+      overflow: auto;
+      padding-right: 0.25rem;
     }
     .overrides-list {
       border: 1px solid var(--outline);
       border-radius: 12px;
       background: rgba(0,0,0,0.1);
-      max-height: 60vh;
+      max-height: 30vh;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
@@ -918,6 +925,10 @@ INDEX_HTML = """<!DOCTYPE html>
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
+    }
+    .overrides-form h4 {
+      margin: 0.25rem 0;
+      font-size: 1rem;
     }
     .overrides-grid {
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -1212,26 +1223,28 @@ INDEX_HTML = """<!DOCTYPE html>
   </div>
   <div id="overrides-modal" class="modal hidden" aria-hidden="true">
     <div class="modal-card overrides-card" role="dialog" aria-modal="true" aria-labelledby="overrides-title">
-      <div class="overrides-header">
-        <div>
-          <h3 id="overrides-title">All custom tokens in</h3>
-          <p class="modal-meta" id="overrides-meta">Edit custom_token.json for this book.</p>
+        <div class="overrides-header">
+          <div>
+            <h3 id="overrides-title">All custom tokens in</h3>
+            <p class="modal-meta" id="overrides-meta">Edit custom_token.json for this book.</p>
+          </div>
+          <div class="overrides-actions">
+            <button type="button" class="secondary" id="overrides-add">Add override</button>
+            <button type="button" class="secondary" id="remove-add">Add removal</button>
+            <button type="button" class="secondary" id="overrides-close">Close</button>
+          </div>
         </div>
-        <div class="overrides-actions">
-          <button type="button" class="secondary" id="overrides-add">Add a new entry</button>
-          <button type="button" class="secondary" id="overrides-close">Close</button>
-        </div>
-      </div>
-      <div class="overrides-body">
-        <div class="overrides-list" id="overrides-list">
-          <div class="overrides-empty">No overrides yet.</div>
-        </div>
-        <form class="overrides-form" id="overrides-form">
-          <div class="form-grid overrides-grid">
-            <label class="form-field">
-              <span>Pattern *</span>
-              <input type="text" id="override-pattern" required>
-            </label>
+        <div class="overrides-body">
+          <form class="overrides-form" id="overrides-form">
+            <h4>Overrides</h4>
+            <div class="overrides-list" id="overrides-list">
+              <div class="overrides-empty">No overrides yet.</div>
+            </div>
+            <div class="form-grid overrides-grid">
+              <label class="form-field">
+                <span>Pattern *</span>
+                <input type="text" id="override-pattern" required>
+              </label>
             <label class="form-field">
               <span>Replacement</span>
               <input type="text" id="override-replacement">
@@ -1256,18 +1269,33 @@ INDEX_HTML = """<!DOCTYPE html>
               <span>Accent</span>
               <input type="number" id="override-accent" min="0">
             </label>
-            <label class="checkbox-field">
-              <input type="checkbox" id="override-regex">
-              <span>Regex pattern</span>
-            </label>
-          </div>
-          <div class="overrides-buttons">
-            <button type="button" class="danger secondary" id="override-delete">Delete selected</button>
-            <span class="overrides-error" id="overrides-error"></span>
-            <button type="submit" id="override-save">Save changes to file</button>
-          </div>
-        </form>
-      </div>
+              <label class="checkbox-field">
+                <input type="checkbox" id="override-regex">
+                <span>Regex pattern</span>
+              </label>
+            </div>
+            <h4>Removal rules</h4>
+            <div class="overrides-list" id="remove-list">
+              <div class="overrides-empty">No removal rules yet.</div>
+            </div>
+            <div class="form-grid overrides-grid">
+              <label class="form-field">
+                <span>Reading</span>
+                <input type="text" id="remove-reading">
+              </label>
+              <label class="form-field">
+                <span>Surface</span>
+                <input type="text" id="remove-surface">
+              </label>
+            </div>
+            <div class="overrides-buttons">
+              <button type="button" class="danger secondary" id="override-delete">Delete override</button>
+              <button type="button" class="danger secondary" id="remove-delete">Delete removal</button>
+              <span class="overrides-error" id="overrides-error"></span>
+              <button type="submit" id="override-save">Save changes to file</button>
+            </div>
+          </form>
+        </div>
     </div>
   </div>
   <div id="refine-modal" class="modal hidden" aria-hidden="true">
@@ -1364,7 +1392,9 @@ INDEX_HTML = """<!DOCTYPE html>
       };
       const overridesState = {
         items: [],
+        remove: [],
         selectedIndex: -1,
+        selectedRemoveIndex: -1,
         bookId: null,
         path: null,
       };
@@ -1526,8 +1556,10 @@ INDEX_HTML = """<!DOCTYPE html>
       const overridesModal = document.getElementById('overrides-modal');
       const overridesOpenBtn = document.getElementById('overrides-open');
       const overridesList = document.getElementById('overrides-list');
+      const removeList = document.getElementById('remove-list');
       const overridesForm = document.getElementById('overrides-form');
       const overridesAddBtn = document.getElementById('overrides-add');
+      const removeAddBtn = document.getElementById('remove-add');
       const overridesCloseBtn = document.getElementById('overrides-close');
       const overridesError = document.getElementById('overrides-error');
       const overridesMeta = document.getElementById('overrides-meta');
@@ -1540,6 +1572,9 @@ INDEX_HTML = """<!DOCTYPE html>
       const overrideAccentInput = document.getElementById('override-accent');
       const overrideRegexInput = document.getElementById('override-regex');
       const overrideDeleteBtn = document.getElementById('override-delete');
+      const removeDeleteBtn = document.getElementById('remove-delete');
+      const removeReadingInput = document.getElementById('remove-reading');
+      const removeSurfaceInput = document.getElementById('remove-surface');
       const overrideSaveBtn = document.getElementById('override-save');
       let alignFrame = null;
       let refineCurrentScope = 'book';
@@ -1876,9 +1911,25 @@ INDEX_HTML = """<!DOCTYPE html>
           syncFormToState();
           overridesState.items.push({ pattern: '', regex: false });
           overridesState.selectedIndex = overridesState.items.length - 1;
+          overridesState.selectedRemoveIndex = -1;
           renderOverridesList();
           if (overridePatternInput) {
             overridePatternInput.focus();
+          }
+        });
+      }
+      if (removeAddBtn) {
+        removeAddBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          syncFormToState();
+          syncRemoveFormToState();
+          overridesState.remove.push({ reading: '', surface: '' });
+          overridesState.selectedRemoveIndex = overridesState.remove.length - 1;
+          overridesState.selectedIndex = overridesState.items.length ? overridesState.selectedIndex : -1;
+          renderOverridesList();
+          renderRemoveList();
+          if (removeReadingInput) {
+            removeReadingInput.focus();
           }
         });
       }
@@ -1890,6 +1941,16 @@ INDEX_HTML = """<!DOCTYPE html>
           overridesState.items.splice(overridesState.selectedIndex, 1);
           overridesState.selectedIndex = overridesState.items.length ? 0 : -1;
           renderOverridesList();
+        });
+      }
+      if (removeDeleteBtn) {
+        removeDeleteBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          if (overridesState.selectedRemoveIndex < 0) return;
+          syncRemoveFormToState();
+          overridesState.remove.splice(overridesState.selectedRemoveIndex, 1);
+          overridesState.selectedRemoveIndex = overridesState.remove.length ? 0 : -1;
+          renderRemoveList();
         });
       }
       if (overridesForm) {
@@ -1910,6 +1971,7 @@ INDEX_HTML = """<!DOCTYPE html>
         overridesModal.setAttribute('aria-hidden', 'true');
         document.body.classList.remove('modal-open');
         overridesState.selectedIndex = -1;
+        overridesState.selectedRemoveIndex = -1;
         setOverridesError('');
       }
 
@@ -1953,6 +2015,28 @@ INDEX_HTML = """<!DOCTYPE html>
           target.accent = Number.isFinite(parsed) ? parsed : undefined;
         }
         target.regex = overrideRegexInput ? Boolean(overrideRegexInput.checked) : false;
+      }
+
+      function populateRemoveForm(entry) {
+        if (!entry) {
+          if (removeReadingInput) removeReadingInput.value = '';
+          if (removeSurfaceInput) removeSurfaceInput.value = '';
+          return;
+        }
+        if (removeReadingInput) removeReadingInput.value = entry.reading || '';
+        if (removeSurfaceInput) removeSurfaceInput.value = entry.surface || '';
+      }
+
+      function syncRemoveFormToState() {
+        if (
+          overridesState.selectedRemoveIndex < 0
+          || overridesState.selectedRemoveIndex >= overridesState.remove.length
+        ) {
+          return;
+        }
+        const target = overridesState.remove[overridesState.selectedRemoveIndex];
+        target.reading = removeReadingInput ? removeReadingInput.value.trim() : '';
+        target.surface = removeSurfaceInput ? removeSurfaceInput.value.trim() : '';
       }
 
       function renderOverridesList() {
@@ -2012,6 +2096,57 @@ INDEX_HTML = """<!DOCTYPE html>
         } else {
           populateOverrideForm(null);
         }
+        renderRemoveList();
+      }
+
+      function renderRemoveList() {
+        if (!removeList) return;
+        removeList.innerHTML = '';
+        if (!overridesState.remove.length) {
+          const empty = document.createElement('div');
+          empty.className = 'overrides-empty';
+          empty.textContent = 'No removal rules yet.';
+          removeList.appendChild(empty);
+          populateRemoveForm(null);
+          return;
+        }
+        overridesState.remove.forEach((entry, index) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'overrides-item' + (index === overridesState.selectedRemoveIndex ? ' active' : '');
+          const title = document.createElement('strong');
+          title.textContent = entry.surface || entry.reading || '(no rule)';
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          if (entry.reading) {
+            const span = document.createElement('span');
+            span.textContent = `reading: ${entry.reading}`;
+            meta.appendChild(span);
+          }
+          if (entry.surface) {
+            const span = document.createElement('span');
+            span.textContent = `surface: ${entry.surface}`;
+            meta.appendChild(span);
+          }
+          button.appendChild(title);
+          button.appendChild(meta);
+          button.addEventListener('click', () => {
+            syncFormToState();
+            syncRemoveFormToState();
+            overridesState.selectedRemoveIndex = index;
+            populateRemoveForm(entry);
+            renderRemoveList();
+          });
+          removeList.appendChild(button);
+        });
+        if (
+          overridesState.selectedRemoveIndex >= 0
+          && overridesState.selectedRemoveIndex < overridesState.remove.length
+        ) {
+          populateRemoveForm(overridesState.remove[overridesState.selectedRemoveIndex]);
+        } else {
+          populateRemoveForm(null);
+        }
       }
 
       function openOverridesModal() {
@@ -2030,8 +2165,13 @@ INDEX_HTML = """<!DOCTYPE html>
             overridesState.items = Array.isArray(payload.overrides)
               ? payload.overrides.map(entry => ({ ...entry }))
               : [];
+            overridesState.remove = Array.isArray(payload.remove)
+              ? payload.remove.map(entry => ({ ...entry }))
+              : [];
             overridesState.selectedIndex = overridesState.items.length ? 0 : -1;
+            overridesState.selectedRemoveIndex = overridesState.remove.length ? 0 : -1;
             renderOverridesList();
+            renderRemoveList();
             if (!overridesModal) return;
             overridesModal.classList.remove('hidden');
             overridesModal.setAttribute('aria-hidden', 'false');
@@ -2048,6 +2188,7 @@ INDEX_HTML = """<!DOCTYPE html>
       function saveOverrides() {
         if (!overridesState.bookId) return;
         syncFormToState();
+        syncRemoveFormToState();
         const normalized = overridesState.items.map(entry => ({
           pattern: (entry.pattern || '').trim(),
           replacement: (entry.replacement || '').trim(),
@@ -2067,19 +2208,33 @@ INDEX_HTML = """<!DOCTYPE html>
           if (entry.accent !== undefined) clean.accent = entry.accent;
           return clean;
         }).filter(entry => entry.pattern);
+        const normalizedRemove = overridesState.remove.map(entry => ({
+          reading: (entry.reading || '').trim(),
+          surface: (entry.surface || '').trim(),
+        })).map(entry => {
+          const clean = {};
+          if (entry.reading) clean.reading = entry.reading;
+          if (entry.surface) clean.surface = entry.surface;
+          return clean;
+        }).filter(entry => Object.keys(entry).length > 0);
         setOverridesError('');
         overrideSaveBtn.disabled = true;
         fetchJSON(`/api/books/${encodeURIComponent(overridesState.bookId)}/overrides`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ overrides: normalized }),
+          body: JSON.stringify({ overrides: normalized, remove: normalizedRemove }),
         })
           .then((payload) => {
             overridesState.items = Array.isArray(payload.overrides)
               ? payload.overrides.map(entry => ({ ...entry }))
               : [];
+            overridesState.remove = Array.isArray(payload.remove)
+              ? payload.remove.map(entry => ({ ...entry }))
+              : [];
             overridesState.selectedIndex = overridesState.items.length ? 0 : -1;
+            overridesState.selectedRemoveIndex = overridesState.remove.length ? 0 : -1;
             renderOverridesList();
+            renderRemoveList();
             closeOverridesModal();
             renderStatus('Overrides saved.');
           })

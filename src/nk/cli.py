@@ -51,7 +51,7 @@ from .logging_utils import build_uvicorn_log_config
 from .nlp import NLPBackend, NLPBackendUnavailableError
 from .player import PlayerConfig, create_app
 from .reader import create_reader_app
-from .refine import OverrideRule, load_override_config, refine_book, refine_chapter
+from .refine import OverrideRule, load_override_config, load_refine_config, refine_book, refine_chapter
 from .tts import (
     FFmpegError,
     TTSTarget,
@@ -840,12 +840,14 @@ def _chapterize_epub(
         apply_overrides=False,
     )
     overrides: list[OverrideRule] = []
+    removals = []
     try:
-        overrides = load_override_config(output_dir)
+        overrides, removals = load_refine_config(output_dir)
     except ValueError as exc:
         console.print(
             f"[nk] Warn: failed to load custom_token.json: {exc}", style="yellow"
         )
+    has_refinements = bool(overrides or removals)
     if progress_display and task_id is not None:
         task = progress_display.tasks[task_id]
         completed_after_write = min(
@@ -856,7 +858,7 @@ def _chapterize_epub(
             completed=completed_after_write + 1,
             description=f"{book_label} · writing…",
         )
-        if overrides:
+        if has_refinements:
             override_total = len(chapters)
             if override_total > 0:
                 override_progress_step = 1.0 / override_total
@@ -866,7 +868,7 @@ def _chapterize_epub(
                 description=f"{book_label} · applying overrides…",
             )
     else:
-        if overrides:
+        if has_refinements:
             console.print(f"[nk] Applying overrides for {book_label}…", style="dim")
 
     def _refine_progress_handler(event: dict[str, object]) -> None:
@@ -908,8 +910,13 @@ def _chapterize_epub(
 
     try:
         refined = (
-            refine_book(output_dir, overrides, progress=_refine_progress_handler)
-            if overrides
+            refine_book(
+                output_dir,
+                overrides if overrides else None,
+                removals=removals,
+                progress=_refine_progress_handler,
+            )
+            if has_refinements
             else 0
         )
     except ValueError as exc:
@@ -917,7 +924,7 @@ def _chapterize_epub(
         refined = 0
     if progress_display and task_id is not None:
         task = progress_display.tasks[task_id]
-        final_total = task.total or (base_total + (2 if overrides else 1))
+        final_total = task.total or (base_total + (2 if has_refinements else 1))
         progress_display.update(
             task_id,
             total=final_total,
@@ -927,7 +934,7 @@ def _chapterize_epub(
     else:
         if refined:
             console.print(
-                f"[nk] Applied {refined} override(s) from custom_token.json",
+                f"[nk] Applied {refined} refine pass(es) from custom_token.json",
                 style="dim",
             )
         console.print(f"  → {output_dir}", style="dim")
@@ -1589,11 +1596,11 @@ def _run_refine(args: argparse.Namespace) -> int:
             raise SystemExit(f"Chapter file not found: {candidate}")
         chapter_path = candidate
     try:
-        overrides = load_override_config(book_dir)
+        overrides, removals = load_refine_config(book_dir)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    if not overrides:
-        print(f"No overrides found in {book_dir / 'custom_token.json'}")
+    if not overrides and not removals:
+        print(f"No overrides or remove rules found in {book_dir / 'custom_token.json'}")
         return 0
     console = Console()
     progress_display: Progress | None = None
@@ -1693,6 +1700,7 @@ def _run_refine(args: argparse.Namespace) -> int:
             refined = refine_chapter(
                 chapter_path,
                 overrides,
+                removals=removals,
                 progress=_progress_handler,
                 chapter_index=1,
                 chapter_total=1,
@@ -1703,7 +1711,7 @@ def _run_refine(args: argparse.Namespace) -> int:
             else:
                 print(f"No changes required for {rel}")
             return 0
-        updated = refine_book(book_dir, overrides, progress=_progress_handler)
+        updated = refine_book(book_dir, overrides, removals=removals, progress=_progress_handler)
         if updated:
             print(f"Refined {updated} chapter(s).")
         else:
