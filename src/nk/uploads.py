@@ -14,6 +14,7 @@ from uuid import uuid4
 from .book_io import write_book_package
 from .core import epub_to_chapter_texts, get_epub_cover
 from .nlp import NLPBackend, NLPBackendUnavailableError
+from .refine import OverrideRule, load_override_config, refine_book
 
 _INVALID_BOOK_CHARS = set('<>:"/\\|?*')
 
@@ -299,7 +300,12 @@ class UploadManager:
             job.cleanup()
             return
 
+        chapter_total_hint: int | None = None
+        total_steps: int | None = None
+        completed_steps = 0
+
         def _progress_callback(event: Mapping[str, object]) -> None:
+            nonlocal chapter_total_hint, total_steps
             try:
                 total = event.get("total")
                 if not isinstance(total, int) or total <= 0:
@@ -307,6 +313,8 @@ class UploadManager:
                 index = event.get("index")
                 if not isinstance(index, int):
                     index = None
+                if isinstance(total, int) and total > 0:
+                    chapter_total_hint = total
                 title_value = event.get("title") or event.get("title_hint")
                 if not isinstance(title_value, str) or not title_value.strip():
                     source = event.get("source")
@@ -324,7 +332,7 @@ class UploadManager:
                 )
                 event_type = event.get("event")
                 event_label = event_type if isinstance(event_type, str) else None
-                job.update_progress(index, total, description, event_label)
+                job.update_progress(index, total_steps or total, description, event_label)
             except Exception:
                 return
 
@@ -335,6 +343,15 @@ class UploadManager:
                 nlp=backend,
                 progress=_progress_callback,
             )
+            base_total = len(chapters) if chapters else (chapter_total_hint or 0)
+            total_steps = (base_total or 0) + 1  # writing step
+            completed_steps = base_total
+            job.update_progress(
+                completed_steps,
+                total_steps,
+                f"{job.book_label} · writing chapters…",
+                "writing",
+            )
             job.set_status("running", "Writing chapters…")
             cover = get_epub_cover(str(job.temp_path))
             write_book_package(
@@ -343,7 +360,89 @@ class UploadManager:
                 source_epub=job.temp_path,
                 cover_image=cover,
                 ruby_evidence=ruby_evidence,
+                apply_overrides=False,
             )
+            completed_steps = base_total + 1
+            job.update_progress(
+                completed_steps,
+                total_steps,
+                f"{job.book_label} · writing chapters…",
+                "writing",
+            )
+
+            overrides: list[OverrideRule] = []
+            try:
+                overrides = load_override_config(job.output_dir)
+            except ValueError as exc:
+                job.set_status("running", f"Overrides skipped: {exc}")
+                overrides = []
+
+            if overrides:
+                override_total = base_total or len(overrides)
+                total_steps = base_total + 1 + override_total
+                override_completed = 0
+
+                def _override_label(event: Mapping[str, object]) -> str:
+                    desc = f"{job.book_label} · applying overrides…"
+                    idx_val = event.get("index")
+                    total_val = event.get("total")
+                    chapter_name = ""
+                    path_val = event.get("path")
+                    if isinstance(path_val, Path):
+                        chapter_name = path_val.name
+                    elif isinstance(path_val, str):
+                        chapter_name = Path(path_val).name
+                    prefix = ""
+                    if isinstance(idx_val, int):
+                        prefix = str(idx_val)
+                        if isinstance(total_val, int) and total_val > 0:
+                            prefix = f"{idx_val}/{total_val}"
+                    suffix_parts = []
+                    if prefix:
+                        suffix_parts.append(prefix)
+                    if chapter_name:
+                        suffix_parts.append(chapter_name)
+                    if suffix_parts:
+                        desc = f"{desc} · {' '.join(suffix_parts)}"
+                    return desc
+
+                def _refine_progress_handler(event: Mapping[str, object]) -> None:
+                    nonlocal override_total, total_steps, override_completed, completed_steps
+                    event_type = event.get("event")
+                    if event_type == "book_start":
+                        total_chapters = event.get("total_chapters")
+                        if isinstance(total_chapters, int) and total_chapters > 0:
+                            override_total = total_chapters
+                            total_steps = base_total + 1 + override_total
+                            job.update_progress(
+                                completed_steps,
+                                total_steps,
+                                f"{job.book_label} · applying overrides…",
+                                "apply_overrides",
+                            )
+                    elif event_type == "chapter_start":
+                        job.update_progress(
+                            completed_steps,
+                            total_steps,
+                            _override_label(event),
+                            "apply_overrides",
+                        )
+                    elif event_type == "chapter_done":
+                        override_completed += 1
+                        completed_steps = base_total + 1 + override_completed
+                        job.update_progress(
+                            completed_steps,
+                            total_steps,
+                            _override_label(event),
+                            "apply_overrides",
+                        )
+
+                job.set_status("running", "Applying overrides…")
+                try:
+                    refine_book(job.output_dir, overrides, progress=_refine_progress_handler)
+                except ValueError as exc:
+                    job.set_status("running", f"Overrides skipped: {exc}")
+
             job.mark_success()
         except Exception as exc:
             job.set_error(f"{exc.__class__.__name__}: {exc}")
