@@ -2223,6 +2223,58 @@ INDEX_HTML = """<!DOCTYPE html>
             ? context.index
             : null;
         const surfaceLabel = token.surface || chunk || '';
+        const originalTextValue =
+          state.chapterPayload && typeof state.chapterPayload.original_text === 'string'
+            ? state.chapterPayload.original_text
+            : null;
+        const isSelectionToken =
+          token && Array.isArray(token.sources) && token.sources.includes('selection');
+
+        const sliceOriginalSurface = (candidateToken, allowFallbackSurface = true) => {
+          if (!candidateToken) return '';
+          const startOriginal = offsetValue(candidateToken.start, 'original');
+          const endOriginal = offsetValue(candidateToken.end, 'original');
+          if (
+            originalTextValue
+            && Number.isFinite(startOriginal)
+            && Number.isFinite(endOriginal)
+            && endOriginal > startOriginal
+          ) {
+            return originalTextValue.slice(startOriginal, endOriginal);
+          }
+          if (allowFallbackSurface) {
+            return candidateToken.surface || '';
+          }
+          return '';
+        };
+
+        const selectionMatchSurface = (() => {
+          const tokenSurface = sliceOriginalSurface(token, !isSelectionToken);
+          if (tokenSurface) return tokenSurface;
+          if (
+            selection
+            && typeof selection.start === 'number'
+            && typeof selection.end === 'number'
+            && Array.isArray(state.tokens)
+          ) {
+            const surfaces = state.tokens
+              .map((entry) => {
+                const tStart = offsetValue(entry.start, 'transformed');
+                const tEnd = offsetValue(entry.end, 'transformed');
+                if (!Number.isFinite(tStart) || !Number.isFinite(tEnd) || tEnd <= tStart) {
+                  return '';
+                }
+                const overlaps = tEnd > selection.start && selection.end > tStart;
+                return overlaps ? sliceOriginalSurface(entry, true) : '';
+              })
+              .filter(Boolean);
+            if (surfaces.length) {
+              return surfaces.join('');
+            }
+          }
+          return '';
+        })();
+
         const readingLabel = token.reading || '';
         const defaultPattern =
           view === 'transformed' && chunk
@@ -2247,10 +2299,11 @@ INDEX_HTML = """<!DOCTYPE html>
           refineAccentInput.value = accentValue;
         }
         if (refineSurfaceInput) {
-          refineSurfaceInput.value = token.surface || '';
+          const defaultSurface = selectionMatchSurface || token.surface || '';
+          refineSurfaceInput.value = defaultSurface;
         }
         if (refineMatchSurfaceInput) {
-          refineMatchSurfaceInput.value = token.surface || '';
+          refineMatchSurfaceInput.value = selectionMatchSurface || '';
         }
         if (refinePosInput) {
           refinePosInput.value = token.pos || '';
