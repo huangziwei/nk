@@ -11,6 +11,7 @@ import pytest
 from types import SimpleNamespace
 
 from nk.cli import _ensure_tts_source_ready, _slice_targets_by_index
+from nk.chunking import split_text_on_breaks_with_spans
 from nk.pitch import PitchToken
 from nk.tts import (
     TTSTarget,
@@ -307,6 +308,33 @@ def test_split_text_on_breaks_with_spans_matches_substrings() -> None:
     assert extracted == _split_text_on_breaks(text)
     for chunk in spans:
         assert text[chunk.start : chunk.end] == chunk.text
+
+
+def test_quote_aware_split_prefers_dialogue_boundary() -> None:
+    text = "「百年待っていて下さい」と思い切った声で云った。"
+    spans = split_text_on_breaks_with_spans(text, quote_aware=True)
+    extracted = [chunk.text for chunk in spans]
+    assert extracted == ["「百年待っていて下さい」", "と思い切った声で云った。"]
+    assert spans[0].start == 0
+    assert spans[0].end == len("「百年待っていて下さい」")
+    assert spans[1].start == len("「百年待っていて下さい」")
+
+
+def test_quote_aware_split_preserves_offsets_with_prefix() -> None:
+    prefix = "ここまでの本文。\n"
+    quoted = "「百年待っていて下さい」と思い切った声で云った。"
+    text = prefix + quoted
+    spans = split_text_on_breaks_with_spans(text, quote_aware=True)
+    # Should produce three spans: narration before the quote, the quote, and trailing narration.
+    assert len(spans) == 3
+    assert spans[1].text == "「百年待っていて下さい」"
+    first_quote_start = len(prefix)
+    first_quote_end = first_quote_start + len("「百年待っていて下さい」")
+    assert spans[1].start == first_quote_start
+    assert spans[1].end == first_quote_end
+    assert spans[2].text == "と思い切った声で云った。"
+    assert spans[2].start == first_quote_end
+    assert spans[2].end == len(text)
 
 
 def test_slice_pitch_tokens_and_apply_overrides() -> None:
