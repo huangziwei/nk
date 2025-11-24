@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import queue
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from .book_io import is_original_text_file
 from .library import list_books_sorted
@@ -1292,7 +1294,7 @@ INDEX_HTML = """<!DOCTYPE html>
               <button type="button" class="danger secondary" id="override-delete">Delete override</button>
               <button type="button" class="danger secondary" id="remove-delete">Delete removal</button>
               <span class="overrides-error" id="overrides-error"></span>
-              <button type="submit" id="override-save">Save changes to file</button>
+              <button type="submit" id="override-save">Save and run refine</button>
             </div>
           </form>
         </div>
@@ -1576,6 +1578,8 @@ INDEX_HTML = """<!DOCTYPE html>
       const removeReadingInput = document.getElementById('remove-reading');
       const removeSurfaceInput = document.getElementById('remove-surface');
       const overrideSaveBtn = document.getElementById('override-save');
+      const overridesProgress = document.getElementById('overrides-progress');
+      const overridesProgressLabel = document.getElementById('overrides-progress-label');
       let alignFrame = null;
       let refineCurrentScope = 'book';
       const SORT_STORAGE_KEY = 'nkReaderSortOrder';
@@ -1965,6 +1969,91 @@ INDEX_HTML = """<!DOCTYPE html>
         }
       }
 
+      function runOverridesRefine(bookId) {
+        if (!bookId) {
+          return;
+        }
+        if (overridesProgress) overridesProgress.classList.remove('hidden');
+        if (overridesProgressLabel) overridesProgressLabel.textContent = 'Refining…';
+        const pathParam = state.selectedPath ? `?path=${encodeURIComponent(state.selectedPath)}` : '';
+        fetch(`/api/books/${encodeURIComponent(bookId)}/refine${pathParam}`, {
+          method: 'POST',
+        })
+          .then((response) => {
+            if (!response.ok || !response.body) {
+              throw new Error('Refine failed.');
+            }
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            const processLines = (chunk) => {
+              buffer += chunk;
+              const lines = buffer.split('\\n');
+              buffer = lines.pop() || '';
+              lines.forEach((line) => {
+                if (!line.trim()) return;
+                try {
+                  const event = JSON.parse(line);
+                  handleOverrideProgress(event);
+                } catch (err) {
+                  console.warn('Failed to parse refine progress', err);
+                }
+              });
+            };
+            const pump = () =>
+              reader.read().then(({ done, value }) => {
+                if (done) {
+                  if (buffer.trim()) {
+                    processLines('\\n');
+                  }
+                  return;
+                }
+                processLines(decoder.decode(value, { stream: true }));
+                return pump();
+              });
+            return pump();
+        })
+        .catch((err) => {
+          setOverridesError(err.message || 'Failed to refine.');
+        })
+        .finally(() => {
+          if (overridesProgress) overridesProgress.classList.add('hidden');
+          if (overrideSaveBtn) overrideSaveBtn.disabled = false;
+        });
+      }
+
+      function handleOverrideProgress(event) {
+        if (!event || typeof event !== 'object') return;
+        const type = event.event;
+        if (type === 'book_start') {
+          if (overridesProgressLabel) {
+            const total = typeof event.total_chapters === 'number' ? event.total_chapters : null;
+            overridesProgressLabel.textContent = total ? `Refining 1/${total}…` : 'Refining…';
+          }
+        } else if (type === 'chapter_start') {
+          if (overridesProgressLabel) {
+            const idx = typeof event.index === 'number' ? event.index : null;
+            const total = typeof event.total === 'number' ? event.total : null;
+            if (idx && total) {
+              overridesProgressLabel.textContent = `Refining ${idx}/${total}…`;
+            } else {
+              overridesProgressLabel.textContent = 'Refining…';
+            }
+          }
+        } else if (type === 'done') {
+          const updated = typeof event.updated === 'number' ? event.updated : 0;
+          renderStatus(`Refined ${updated} chapter(s).`);
+          if (state.selectedPath) {
+            openChapter(state.selectedPath, { autoCollapse: false, preserveScroll: true });
+          }
+          if (overridesProgressLabel) {
+            overridesProgressLabel.textContent = 'Finished';
+          }
+        } else if (type === 'error') {
+          setOverridesError(event.detail || 'Refine failed.');
+        }
+      }
+
       function closeOverridesModal() {
         if (!overridesModal) return;
         overridesModal.classList.add('hidden');
@@ -2219,6 +2308,12 @@ INDEX_HTML = """<!DOCTYPE html>
         }).filter(entry => Object.keys(entry).length > 0);
         setOverridesError('');
         overrideSaveBtn.disabled = true;
+        if (overridesProgress) {
+          overridesProgress.classList.remove('hidden');
+        }
+        if (overridesProgressLabel) {
+          overridesProgressLabel.textContent = 'Saving…';
+        }
         fetchJSON(`/api/books/${encodeURIComponent(overridesState.bookId)}/overrides`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -2235,11 +2330,11 @@ INDEX_HTML = """<!DOCTYPE html>
             overridesState.selectedRemoveIndex = overridesState.remove.length ? 0 : -1;
             renderOverridesList();
             renderRemoveList();
-            closeOverridesModal();
-            renderStatus('Overrides saved.');
+            runOverridesRefine(overridesState.bookId);
           })
           .catch((err) => {
             setOverridesError(err.message || 'Failed to save overrides.');
+            if (overridesProgress) overridesProgress.classList.add('hidden');
           })
           .finally(() => {
             overrideSaveBtn.disabled = false;
@@ -4829,6 +4924,50 @@ def create_reader_app(root: Path) -> FastAPI:
                 "modified": modified,
             }
         )
+
+    @app.post("/api/books/{book_id:path}/refine")
+    def api_refine_book(book_id: str) -> StreamingResponse:
+        book_dir = _resolve_book_dir(resolved_root, book_id)
+        overrides, removals = load_refine_config(book_dir)
+        def _serialize_event(event: dict[str, object]) -> dict[str, object]:
+            def _coerce(value: object) -> object:
+                if isinstance(value, Path):
+                    return value.as_posix()
+                if isinstance(value, dict):
+                    return {k: _coerce(v) for k, v in value.items()}
+                if isinstance(value, list):
+                    return [_coerce(v) for v in value]
+                return value
+
+            clean: dict[str, object] = {}
+            for key, value in event.items():
+                clean[key] = _coerce(value)
+            return clean
+
+        def _event_stream():
+            q: queue.Queue[dict[str, object] | None] = queue.Queue()
+
+            def _progress(event: dict[str, object]) -> None:
+                q.put(_serialize_event(event))
+
+            def _runner():
+                try:
+                    updated = refine_book(book_dir, overrides, removals=removals, progress=_progress)
+                    q.put({"event": "done", "updated": updated})
+                except Exception as exc:  # pragma: no cover - defensive
+                    q.put({"event": "error", "detail": str(exc)})
+                finally:
+                    q.put(None)
+
+            thread = threading.Thread(target=_runner, daemon=True)
+            thread.start()
+            while True:
+                item = q.get()
+                if item is None:
+                    break
+                yield json.dumps(item, ensure_ascii=False).encode("utf-8") + b"\n"
+
+        return StreamingResponse(_event_stream(), media_type="application/x-ndjson")
 
     @app.get("/api/chapter")
     def api_chapter(
