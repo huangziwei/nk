@@ -125,6 +125,41 @@
             "replacement": "何よりも",
             "reading": "ナニよりも",
             "surface": "何よりも"
+        },
+        {
+            "pattern": "自分",
+            "replacement": "ジブン",
+            "reading": "ジブン",
+            "surface": "自分",
+            "match_surface": "自分"
+        },
+        {
+            "pattern": "スえ",
+            "replacement": "末",
+            "reading": "末",
+            "surface": "据え",
+            "match_surface": "据え"
+        },
+        {
+            "pattern": "熱い酒",
+            "replacement": "燗酒",
+            "reading": "カンザケ",
+            "surface": "熱い酒",
+            "match_surface": "熱い酒"
+        },
+        {
+            "pattern": "ホウりコん",
+            "replacement": "ホウリコン",
+            "reading": "ホウリコン",
+            "surface": "放り込ん",
+            "match_surface": "放り込ん"
+        },
+        {
+            "pattern": "ミズ菓子",
+            "replacement": "ミズガシ",
+            "reading": "ミズガシ",
+            "surface": "水菓子",
+            "match_surface": "水菓子"
         }
     ]
 }

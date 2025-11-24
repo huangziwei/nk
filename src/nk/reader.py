@@ -1266,6 +1266,10 @@ INDEX_HTML = """<!DOCTYPE html>
             <input type="text" id="refine-surface">
           </label>
           <label class="form-field">
+            <span>Match surface (original)</span>
+            <input type="text" id="refine-match-surface" placeholder="Optional: require original surface">
+          </label>
+          <label class="form-field">
             <span>Part of speech</span>
             <input type="text" id="refine-pos" placeholder="noun, verb...">
           </label>
@@ -1469,6 +1473,7 @@ INDEX_HTML = """<!DOCTYPE html>
       const refineReadingInput = document.getElementById('refine-reading');
       const refineAccentInput = document.getElementById('refine-accent');
       const refineSurfaceInput = document.getElementById('refine-surface');
+      const refineMatchSurfaceInput = document.getElementById('refine-match-surface');
       const refinePosInput = document.getElementById('refine-pos');
       const refineRegexInput = document.getElementById('refine-regex');
       const refineScopeButtons = Array.from(document.querySelectorAll('[data-scope]'));
@@ -1623,8 +1628,9 @@ INDEX_HTML = """<!DOCTYPE html>
         const replacement = refineReplacementInput ? refineReplacementInput.value.trim() : '';
         const reading = refineReadingInput ? refineReadingInput.value.trim() : '';
         const surface = refineSurfaceInput ? refineSurfaceInput.value.trim() : '';
-        const matchSurface =
-          refineContext && refineContext.token ? (refineContext.token.surface || '') : '';
+        const matchSurface = refineMatchSurfaceInput
+          ? refineMatchSurfaceInput.value.trim()
+          : (refineContext && refineContext.token ? (refineContext.token.surface || '') : '');
         const pos = refinePosInput ? refinePosInput.value.trim() : '';
         const accentRaw = refineAccentInput ? refineAccentInput.value.trim() : '';
         let accentPayload = null;
@@ -2242,6 +2248,9 @@ INDEX_HTML = """<!DOCTYPE html>
         }
         if (refineSurfaceInput) {
           refineSurfaceInput.value = token.surface || '';
+        }
+        if (refineMatchSurfaceInput) {
+          refineMatchSurfaceInput.value = token.surface || '';
         }
         if (refinePosInput) {
           refinePosInput.value = token.pos || '';
