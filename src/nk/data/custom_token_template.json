@@ -70,81 +70,61 @@
             "pattern": "何を",
             "replacement": "何を",
             "reading": "ナニを",
-            "surface": "何を",
-            "accent": 1,
-            "pos": "代名詞"
+            "surface": "何を"
         },
         {
             "pattern": "何が",
             "replacement": "何が",
             "reading": "ナニが",
-            "surface": "何が",
-            "accent": 1,
-            "pos": "代名詞"
+            "surface": "何が"
         },
         {
             "pattern": "何に",
             "replacement": "何に",
             "reading": "ナニに",
-            "surface": "何に",
-            "accent": 1,
-            "pos": "代名詞"
+            "surface": "何に"
         },
         {
             "pattern": "何へ",
             "replacement": "何へ",
             "reading": "ナニへ",
-            "surface": "何へ",
-            "accent": 1,
-            "pos": "代名詞"
+            "surface": "何へ"
         },
         {
             "pattern": "何も",
             "replacement": "何も",
             "reading": "ナニも",
-            "surface": "何も",
-            "accent": 1,
-            "pos": "代名詞"
+            "surface": "何も"
         },
         {
             "pattern": "何か",
             "replacement": "何か",
             "reading": "ナニか",
-            "surface": "何か",
-            "accent": 1,
-            "pos": "代名詞"
+            "surface": "何か"
         },
         {
             "pattern": "何より",
             "replacement": "何より",
             "reading": "ナニより",
-            "surface": "何より",
-            "accent": 1,
-            "pos": "代名詞"
+            "surface": "何より"
         },
         {
             "pattern": "何から",
             "replacement": "何から",
             "reading": "ナニから",
-            "surface": "何から",
-            "accent": 1,
-            "pos": "代名詞"
+            "surface": "何から"
         },
         {
             "pattern": "何まで",
             "replacement": "何まで",
             "reading": "ナニまで",
-            "surface": "何まで",
-            "accent": 1,
-            "pos": "代名詞"
+            "surface": "何まで"
         },
         {
             "pattern": "何よりも",
             "replacement": "何よりも",
             "reading": "ナニよりも",
-            "surface": "何よりも",
-            "accent": 1,
-            "pos": "代名詞"
+            "surface": "何よりも"
         }
     ]
 }
