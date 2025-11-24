@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "text_sha1": "0960c8cbd9c0c7e4e93061bc703a84f5a4fa1461",
+  "chunk_count": 11,
+  "chunks": [
+    {
+      "index": 1,
+      "start": 0,
+      "end": 24,
+      "text": "底本:「夏目漱石全集10巻」ちくま文庫、筑摩書房",
+      "speaker": "narrator"
+    },
+    {
+      "index": 2,
+      "start": 29,
+      "end": 50,
+      "text": "1988(昭和63)年7月26日第1刷発行",
+      "speaker": "narrator"
+    },
+    {
+      "index": 3,
+      "start": 55,
+      "end": 75,
+      "text": "1996(平成8)年7月15日第5刷発行",
+      "speaker": "narrator"
+    },
+    {
+      "index": 4,
+      "start": 77,
+      "end": 102,
+      "text": "底本の親本:「筑摩全集類聚版夏目漱石全集」筑摩書房",
+      "speaker": "narrator"
+    },
+    {
+      "index": 5,
+      "start": 107,
+      "end": 134,
+      "text": "1971(昭和46)年4月~1972(昭和47)年1月",
+      "speaker": "narrator"
+    },
+    {
+      "index": 6,
+      "start": 136,
+      "end": 183,
+      "text": "※底本は、物を数える際や地名などに用いる「ヶ」(区点番号5-86)を、大振りにつくっています。",
+      "speaker": "narrator"
+    },
+    {
+      "index": 7,
+      "start": 185,
+      "end": 192,
+      "text": "入力:野口英司",
+      "speaker": "narrator"
+    },
+    {
+      "index": 8,
+      "start": 194,
+      "end": 207,
+      "text": "1997年12月16日公開",
+      "speaker": "narrator"
+    },
+    {
+      "index": 9,
+      "start": 209,
+      "end": 221,
+      "text": "2013年7月17日修正",
+      "speaker": "narrator"
+    },
+    {
+      "index": 10,
+      "start": 223,
+      "end": 234,
+      "text": "青空文庫作成ファイル:",
+      "speaker": "narrator"
+    },
+    {
+      "index": 11,
+      "start": 236,
+      "end": 323,
+      "text": "このファイルは、インターネットの図書館、青空文庫(http://www.aozora.gr.jp/)で作られました。入力、校正、制作にあたったのは、ボランティアの皆さんです。",
+      "speaker": "narrator"
+    }
+  ]
+}

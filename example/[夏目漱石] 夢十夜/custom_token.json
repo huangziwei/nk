@@ -1,0 +1,130 @@
+{
+  "overrides": [
+    {
+      "pattern": "CONTENTS",
+      "reading": "コンテンツ",
+      "accent": 3,
+      "surface": "CONTENTS"
+    },
+    {
+      "pattern": "イチ章",
+      "replacement": "一章",
+      "reading": "イチショウ",
+      "surface": "一章"
+    },
+    {
+      "pattern": "ニ章",
+      "replacement": "二章",
+      "reading": "ニショウ",
+      "surface": "二章"
+    },
+    {
+      "pattern": "サン章",
+      "replacement": "三章",
+      "reading": "サンショウ",
+      "surface": "三章"
+    },
+    {
+      "pattern": "ヨン章",
+      "replacement": "四章",
+      "reading": "ヨンショウ",
+      "surface": "四章"
+    },
+    {
+      "pattern": "ゴ章",
+      "replacement": "五章",
+      "reading": "ゴショウ",
+      "surface": "五章"
+    },
+    {
+      "pattern": "ロク章",
+      "replacement": "六章",
+      "reading": "ロクショウ",
+      "surface": "六章"
+    },
+    {
+      "pattern": "ナナ章",
+      "replacement": "七章",
+      "reading": "ナナショウ",
+      "surface": "七章"
+    },
+    {
+      "pattern": "ハチ章",
+      "replacement": "八章",
+      "reading": "ハチショウ",
+      "surface": "八章"
+    },
+    {
+      "pattern": "キュウ章",
+      "replacement": "九章",
+      "reading": "キュウショウ",
+      "surface": "九章"
+    },
+    {
+      "pattern": "ジュウ章",
+      "replacement": "十章",
+      "reading": "ジュッショウ",
+      "surface": "十章"
+    },
+    {
+      "pattern": "何を",
+      "replacement": "何を",
+      "reading": "ナニを",
+      "surface": "何を"
+    },
+    {
+      "pattern": "何が",
+      "replacement": "何が",
+      "reading": "ナニが",
+      "surface": "何が"
+    },
+    {
+      "pattern": "何に",
+      "replacement": "何に",
+      "reading": "ナニに",
+      "surface": "何に"
+    },
+    {
+      "pattern": "何へ",
+      "replacement": "何へ",
+      "reading": "ナニへ",
+      "surface": "何へ"
+    },
+    {
+      "pattern": "何も",
+      "replacement": "何も",
+      "reading": "ナニも",
+      "surface": "何も"
+    },
+    {
+      "pattern": "何か",
+      "replacement": "何か",
+      "reading": "ナニか",
+      "surface": "何か"
+    },
+    {
+      "pattern": "何より",
+      "replacement": "何より",
+      "reading": "ナニより",
+      "surface": "何より"
+    },
+    {
+      "pattern": "何から",
+      "replacement": "何から",
+      "reading": "ナニから",
+      "surface": "何から"
+    },
+    {
+      "pattern": "何まで",
+      "replacement": "何まで",
+      "reading": "ナニまで",
+      "surface": "何まで"
+    },
+    {
+      "pattern": "何よりも",
+      "replacement": "何よりも",
+      "reading": "ナニよりも",
+      "surface": "何よりも"
+    }
+  ]
+}

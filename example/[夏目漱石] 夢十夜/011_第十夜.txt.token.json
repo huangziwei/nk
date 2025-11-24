@@ -4760,7 +4760,7 @@
       "transformed_start": 1218,
       "transformed_end": 1219,
       "validated": false,
-      "block_surface_preservation": false
+      "block_surface_preservation": true
     },
     {
       "surface": "息接",
