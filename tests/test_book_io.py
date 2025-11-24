@@ -16,6 +16,7 @@ from nk.book_io import (
     update_book_tts_defaults,
     write_book_package,
 )
+from nk.chunk_manifest import CHUNK_MANIFEST_VERSION, chunk_manifest_path
 from nk.core import ChapterText, CoverImage
 from nk.tokens import ChapterToken
 
@@ -131,6 +132,33 @@ def test_write_book_package_writes_token_metadata(tmp_path: Path) -> None:
     assert loaded is not None
     assert loaded.text_sha1 == expected_sha1
     assert len(loaded.tokens) == 2
+
+
+def test_write_book_package_writes_chunk_manifest(tmp_path: Path) -> None:
+    output_dir = tmp_path / "ChunkBook"
+    chapters = [
+        ChapterText(
+            source="c.xhtml",
+            title="Chunks",
+            text="Line one\n\nLine two\nLine three",
+        )
+    ]
+
+    package = write_book_package(output_dir, chapters)
+    record = package.chapter_records[0]
+    manifest_path = chunk_manifest_path(record.path)
+    assert manifest_path.exists()
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    cleaned_text = record.path.read_text(encoding="utf-8").strip()
+    expected_sha1 = hashlib.sha1(cleaned_text.encode("utf-8")).hexdigest()
+    assert payload["version"] == CHUNK_MANIFEST_VERSION
+    assert payload["text_sha1"] == expected_sha1
+    assert payload["chunk_count"] == 2
+    assert [chunk["text"] for chunk in payload["chunks"]] == [
+        "Line one",
+        "Line two\nLine three",
+    ]
+    assert all(chunk.get("speaker") == "narrator" for chunk in payload["chunks"])
 
 
 def test_write_book_package_removes_legacy_partial_files(tmp_path: Path) -> None:

@@ -18,6 +18,7 @@ except ImportError:  # pragma: no cover
     import importlib_resources as resources  # type: ignore
 
 from .core import ChapterText, CoverImage
+from .chunk_manifest import write_chunk_manifests
 from .tokens import ChapterToken, deserialize_chapter_tokens, serialize_chapter_tokens
 
 BOOK_METADATA_FILENAME = ".nk-book.json"
@@ -536,6 +537,7 @@ def write_book_package(
             except ValueError:
                 # If overrides are invalid, leave the original text; user can fix and rerun refine.
                 pass
+        write_chunk_manifests(record.path for record in records)
     return BookPackage(
         output_dir=output_dir,
         chapter_records=records,

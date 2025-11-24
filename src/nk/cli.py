@@ -39,6 +39,7 @@ from .book_io import (
     update_book_tts_defaults,
     write_book_package,
 )
+from .chunk_manifest import write_chunk_manifests
 from .core import (
     _apply_mapping_with_pattern,
     _build_mapping_pattern,
@@ -818,7 +819,7 @@ def _chapterize_epub(
     else:
         base_completed = base_total
     cover = get_epub_cover(str(epub_path))
-    write_book_package(
+    package = write_book_package(
         output_dir,
         chapters,
         source_epub=epub_path,
@@ -905,6 +906,8 @@ def _chapterize_epub(
         if refined:
             console.print(f"[nk] Applied {refined} override(s) from custom_token.json", style="dim")
         console.print(f"  → {output_dir}", style="dim")
+    if package and package.chapter_records:
+        write_chunk_manifests(record.path for record in package.chapter_records)
 
 
 def _run_tts(args: argparse.Namespace) -> int:

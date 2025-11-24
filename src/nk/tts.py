@@ -21,6 +21,12 @@ from urllib.parse import urlparse
 
 import requests
 
+from .chunking import (
+    DEFAULT_MAX_CHARS_PER_CHUNK,
+    ChunkSpan,
+    split_text_on_breaks,
+    split_text_on_breaks_with_spans,
+)
 from .book_io import (
     LoadedBookMetadata,
     ensure_cover_is_square,
@@ -78,12 +84,6 @@ class TTSTarget:
     track_total: int | None = None
     cover_image: Path | None = None
 
-
-@dataclass
-class _ChunkSpan:
-    text: str
-    start: int
-    end: int
 
 def _read_original_title_from_file(chapter_path: Path) -> str | None:
     original_path = chapter_path.with_suffix(".original.txt")
@@ -464,14 +464,7 @@ def _effective_jobs(requested: int, total: int) -> int:
 
 _CACHE_SANITIZE_RE = re.compile(r"[^0-9A-Za-z._-]+")
 
-_MAX_CHARS_PER_CHUNK = 360
-_SENTENCE_BREAKS = (
-    "\n",
-    "。", "！", "？", "!", "?", "…", "‼", "⁉", "⁈", "｡",
-)
-_CLAUSE_BREAKS = (
-    "、", "，", "､", ",", ";", "；", ":", "：", "・", "—", "─",
-)
+_MAX_CHARS_PER_CHUNK = DEFAULT_MAX_CHARS_PER_CHUNK
 
 
 def _slugify_cache_component(text: str) -> str:
@@ -641,7 +634,7 @@ def _synthesize_target_with_client(
         _enrich_pitch_tokens_with_voicevox(pitch_tokens, client)
 
     raw_chunk_entries = _split_text_on_breaks_with_spans(text)
-    chunk_entries: list[tuple[_ChunkSpan, str]] = []
+    chunk_entries: list[tuple[ChunkSpan, str]] = []
     for entry in raw_chunk_entries:
         chunk_text = entry.text
         if not chunk_text:
@@ -1070,79 +1063,11 @@ def _split_text_on_breaks(text: str) -> list[str]:
     Split text into chunks using blank-line separated blocks.
     Empty lines are treated as delimiters; consecutive blanks collapse.
     """
-    return [chunk.text for chunk in _split_text_on_breaks_with_spans(text)]
+    return split_text_on_breaks(text, max_chars_per_chunk=_MAX_CHARS_PER_CHUNK)
 
 
-def _split_text_on_breaks_with_spans(text: str) -> list[_ChunkSpan]:
-    chunks: list[_ChunkSpan] = []
-    current: list[tuple[str, int, int]] = []
-
-    def flush() -> None:
-        if not current:
-            return
-        first_line, first_start, _ = current[0]
-        last_line, _, last_end = current[-1]
-        start = first_start + _leading_trim_index(first_line)
-        end = last_end - _trailing_trim_count(last_line)
-        current[:] = []
-        if start >= end:
-            return
-        chunk_text = text[start:end]
-        sub_chunks = _split_chunk_with_spans(chunk_text, start)
-        chunks.extend(sub_chunks)
-
-    for line, start, end in _iter_lines_with_positions(text):
-        if line.strip():
-            current.append((line, start, end))
-        else:
-            flush()
-    flush()
-    return chunks
-
-
-def _split_chunk_if_needed(chunk: str) -> list[str]:
-    if not chunk:
-        return []
-    if len(chunk) <= _MAX_CHARS_PER_CHUNK:
-        return [chunk]
-    segments: list[str] = []
-    remaining = chunk
-    while len(remaining) > _MAX_CHARS_PER_CHUNK:
-        cut = _preferred_chunk_cut_index(remaining, _MAX_CHARS_PER_CHUNK)
-        head = remaining[:cut].rstrip()
-        if head:
-            segments.append(head)
-        remaining = remaining[cut:].lstrip()
-        if not remaining:
-            break
-    if remaining:
-        tail = remaining.strip()
-        if tail:
-            segments.append(tail)
-    return segments
-
-
-def _split_chunk_with_spans(chunk_text: str, base_start: int) -> list[_ChunkSpan]:
-    segments = _split_chunk_if_needed(chunk_text)
-    if not segments:
-        return []
-    spans: list[_ChunkSpan] = []
-    cursor = 0
-    for segment in segments:
-        if not segment:
-            continue
-        idx = chunk_text.find(segment, cursor)
-        if idx == -1:
-            idx = chunk_text.find(segment)
-            if idx == -1:
-                continue
-        start = base_start + idx
-        end = start + len(segment)
-        spans.append(_ChunkSpan(text=segment, start=start, end=end))
-        cursor = idx + len(segment)
-        while cursor < len(chunk_text) and chunk_text[cursor].isspace():
-            cursor += 1
-    return spans
+def _split_text_on_breaks_with_spans(text: str) -> list[ChunkSpan]:
+    return split_text_on_breaks_with_spans(text, max_chars_per_chunk=_MAX_CHARS_PER_CHUNK)
 
 
 def _slice_pitch_tokens_for_chunk(
@@ -1411,55 +1336,6 @@ def _enrich_pitch_tokens_with_voicevox(
 
 def _reset_voicevox_accent_cache_for_tests() -> None:
     _VOICEVOX_ACCENT_CACHE.clear()
-
-
-def _iter_lines_with_positions(text: str) -> list[tuple[str, int, int]]:
-    lines: list[tuple[str, int, int]] = []
-    cursor = 0
-    for raw in text.splitlines(keepends=True):
-        line = raw.rstrip("\r\n")
-        line_start = cursor
-        line_end = line_start + len(line)
-        lines.append((line, line_start, line_end))
-        cursor += len(raw)
-    if not text.endswith(("\n", "\r")) and text:
-        # splitlines with keepends already adds final line without newline,
-        # so this branch is only reached when the input is empty.
-        pass
-    return lines
-
-
-def _leading_trim_index(line: str) -> int:
-    idx = 0
-    while idx < len(line) and line[idx].isspace():
-        idx += 1
-    return idx
-
-
-def _trailing_trim_count(line: str) -> int:
-    idx = len(line)
-    while idx > 0 and line[idx - 1].isspace():
-        idx -= 1
-    return len(line) - idx
-
-
-def _preferred_chunk_cut_index(text: str, limit: int) -> int:
-    def _best_index(separators: tuple[str, ...]) -> tuple[int, int] | None:
-        best: tuple[int, int] | None = None
-        for sep in separators:
-            idx = text.rfind(sep, 0, limit)
-            if idx > 0:
-                end = idx + len(sep)
-                if best is None or end > best[0] + best[1]:
-                    best = (idx, len(sep))
-        return best
-
-    for candidates in (_SENTENCE_BREAKS, _CLAUSE_BREAKS):
-        match = _best_index(candidates)
-        if match is not None:
-            return match[0] + match[1]
-    return max(1, limit)
-
 
 def _merge_wavs_to_mp3(
     wav_paths: list[Path],

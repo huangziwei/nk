@@ -12,6 +12,7 @@ from typing import Mapping
 from uuid import uuid4
 
 from .book_io import write_book_package
+from .chunk_manifest import write_chunk_manifests
 from .core import epub_to_chapter_texts, get_epub_cover
 from .nlp import NLPBackend, NLPBackendUnavailableError
 from .refine import OverrideRule, load_override_config, refine_book
@@ -338,6 +339,7 @@ class UploadManager:
 
         try:
             job.set_status("running", "Chapterizing…")
+            package = None
             chapters, ruby_evidence = epub_to_chapter_texts(
                 str(job.temp_path),
                 nlp=backend,
@@ -354,7 +356,7 @@ class UploadManager:
             )
             job.set_status("running", "Writing chapters…")
             cover = get_epub_cover(str(job.temp_path))
-            write_book_package(
+            package = write_book_package(
                 job.output_dir,
                 chapters,
                 source_epub=job.temp_path,
@@ -443,6 +445,8 @@ class UploadManager:
                 except ValueError as exc:
                     job.set_status("running", f"Overrides skipped: {exc}")
 
+            if package:
+                write_chunk_manifests(record.path for record in package.chapter_records)
             job.mark_success()
         except Exception as exc:
             job.set_error(f"{exc.__class__.__name__}: {exc}")
