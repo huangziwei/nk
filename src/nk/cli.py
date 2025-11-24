@@ -1491,11 +1491,11 @@ def _run_refine(args: argparse.Namespace) -> int:
         nonlocal progress_task
         event_type = event.get("event")
         if progress_display is not None and progress_task is not None:
-            if event_type == "chapter_start":
-                token_total = event.get("token_total")
-                if isinstance(token_total, int) and token_total > 0:
-                    current_total = progress_display.tasks[progress_task].total or 0
-                    progress_display.update(progress_task, total=current_total + token_total)
+            if event_type == "book_start":
+                total_chapters = event.get("total_chapters")
+                if isinstance(total_chapters, int) and total_chapters > 0:
+                    progress_display.update(progress_task, total=total_chapters, completed=0)
+            elif event_type == "chapter_start":
                 label = _format_chapter_label(
                     event.get("path"),
                     event.get("index"),
@@ -1503,14 +1503,11 @@ def _run_refine(args: argparse.Namespace) -> int:
                 )
                 if label:
                     progress_display.update(progress_task, chapter=label)
-            elif event_type == "token_progress":
-                total_delta = event.get("total_delta")
-                if isinstance(total_delta, int) and total_delta > 0:
-                    current_total = progress_display.tasks[progress_task].total or 0
-                    progress_display.update(progress_task, total=current_total + total_delta)
-                advance = event.get("advance")
-                if isinstance(advance, int) and advance > 0:
-                    progress_display.advance(progress_task, advance)
+                current_total = progress_display.tasks[progress_task].total or 0
+                if current_total == 0:
+                    total_chapters = event.get("total")
+                    if isinstance(total_chapters, int) and total_chapters > 0:
+                        progress_display.update(progress_task, total=total_chapters)
             elif event_type == "chapter_done":
                 label = _format_chapter_label(
                     event.get("path"),
@@ -1519,6 +1516,7 @@ def _run_refine(args: argparse.Namespace) -> int:
                 )
                 if label:
                     progress_display.update(progress_task, chapter=label)
+                progress_display.advance(progress_task, 1)
             return
         if event_type == "chapter_start":
             label = _format_chapter_label(
