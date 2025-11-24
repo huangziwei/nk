@@ -246,6 +246,34 @@ def test_load_book_metadata_reads_tts_defaults(tmp_path: Path) -> None:
     assert defaults.intonation == 1.15
 
 
+def test_load_book_metadata_reads_tts_voices(tmp_path: Path) -> None:
+    book_dir = tmp_path / "novel"
+    book_dir.mkdir()
+    (book_dir / "001_intro.txt").write_text("text", encoding="utf-8")
+    payload = {
+        "version": 1,
+        "title": "Novel",
+        "chapters": [
+            {"index": 1, "file": "001_intro.txt", "title": "Intro", "original_title": None},
+        ],
+        "tts_voices": {
+            "narrator": {"speaker": 3, "speed": 1.05},
+            "female": {"speaker": 8, "pitch": 0.1, "intonation": 1.3},
+        },
+    }
+    (book_dir / ".nk-book.json").write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    metadata = load_book_metadata(book_dir)
+    assert metadata is not None
+    assert metadata.tts_voices is not None
+    assert "female" in metadata.tts_voices
+    assert metadata.tts_voices["female"].speaker == 8
+    assert metadata.tts_voices["female"].pitch == 0.1
+    narrator_voice = metadata.tts_voices["narrator"]
+    assert narrator_voice.speaker == 3
+    assert narrator_voice.speed == 1.05
+
+
 def test_update_book_tts_defaults_merges_fields(tmp_path: Path) -> None:
     book_dir = tmp_path / "novel"
     book_dir.mkdir()

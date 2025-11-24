@@ -1,21 +1,23 @@
 {
-  "version": 1,
-  "text_sha1": "f9825f69cf21789f49bf548eeefa239d36bdffb0",
-  "chunk_count": 2,
-  "chunks": [
-    {
-      "index": 1,
-      "start": 0,
-      "end": 3,
-      "text": "夢十夜",
-      "speaker": "narrator"
-    },
-    {
-      "index": 2,
-      "start": 5,
-      "end": 9,
-      "text": "夏目漱石",
-      "speaker": "narrator"
-    }
-  ]
+    "version": 1,
+    "text_sha1": "f9825f69cf21789f49bf548eeefa239d36bdffb0",
+    "chunk_count": 2,
+    "chunks": [
+        {
+            "index": 1,
+            "start": 0,
+            "end": 3,
+            "text": "夢十夜",
+            "speaker": "narrator",
+            "voice": 2
+        },
+        {
+            "index": 2,
+            "start": 5,
+            "end": 9,
+            "text": "夏目漱石",
+            "speaker": "narrator",
+            "voice": 2
+        }
+    ]
 }

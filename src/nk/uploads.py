@@ -445,8 +445,6 @@ class UploadManager:
                 except ValueError as exc:
                     job.set_status("running", f"Overrides skipped: {exc}")
 
-            if package:
-                write_chunk_manifests(record.path for record in package.chapter_records)
             job.mark_success()
         except Exception as exc:
             job.set_error(f"{exc.__class__.__name__}: {exc}")

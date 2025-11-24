@@ -34,6 +34,11 @@ from .book_io import (
     load_book_metadata,
     load_token_metadata,
 )
+from .chunk_manifest import (
+    CHUNK_MANIFEST_VERSION,
+    chunk_manifest_path,
+    write_chunk_manifest,
+)
 from .pitch import PitchToken
 from .tokens import tokens_to_pitch_tokens
 
@@ -83,6 +88,14 @@ class TTSTarget:
     track_number: int | None = None
     track_total: int | None = None
     cover_image: Path | None = None
+
+
+@dataclass
+class VoiceProfile:
+    speaker: int | None = None
+    speed: float | None = None
+    pitch: float | None = None
+    intonation: float | None = None
 
 
 def _read_original_title_from_file(chapter_path: Path) -> str | None:
@@ -467,6 +480,46 @@ _CACHE_SANITIZE_RE = re.compile(r"[^0-9A-Za-z._-]+")
 _MAX_CHARS_PER_CHUNK = DEFAULT_MAX_CHARS_PER_CHUNK
 
 
+def _voice_fingerprint(profile: VoiceProfile) -> str:
+    parts: list[str] = []
+    speaker_val = "none" if profile.speaker is None else str(profile.speaker)
+    parts.append(f"spk={speaker_val}")
+    for name, value in (("spd", profile.speed), ("pit", profile.pitch), ("int", profile.intonation)):
+        if value is None:
+            parts.append(f"{name}=none")
+        else:
+            parts.append(f"{name}={format(value, 'g')}")
+    return "|".join(parts)
+
+
+def _merge_voice_profiles(base: VoiceProfile, overlay: VoiceProfile | None) -> VoiceProfile:
+    if overlay is None:
+        return base
+    return VoiceProfile(
+        speaker=overlay.speaker if overlay.speaker is not None else base.speaker,
+        speed=overlay.speed if overlay.speed is not None else base.speed,
+        pitch=overlay.pitch if overlay.pitch is not None else base.pitch,
+        intonation=overlay.intonation if overlay.intonation is not None else base.intonation,
+    )
+
+
+def _voice_profile_from_defaults(defaults: object) -> VoiceProfile | None:
+    if defaults is None:
+        return None
+    speaker = getattr(defaults, "speaker", None)
+    speed = getattr(defaults, "speed", None)
+    pitch = getattr(defaults, "pitch", None)
+    intonation = getattr(defaults, "intonation", None)
+    if speaker is None and speed is None and pitch is None and intonation is None:
+        return None
+    return VoiceProfile(
+        speaker=speaker if isinstance(speaker, int) else None,
+        speed=float(speed) if isinstance(speed, (int, float)) else None,
+        pitch=float(pitch) if isinstance(pitch, (int, float)) else None,
+        intonation=float(intonation) if isinstance(intonation, (int, float)) else None,
+    )
+
+
 def _slugify_cache_component(text: str) -> str:
     slug = _CACHE_SANITIZE_RE.sub("_", text)
     slug = slug.strip("._-")
@@ -557,12 +610,16 @@ def _chunk_cache_path(
     index: int,
     chunk_text: str,
     pitch_signature: str | None = None,
+    voice_fingerprint: str | None = None,
 ) -> Path:
     hasher = hashlib.sha1()
     hasher.update(chunk_text.encode("utf-8"))
     if pitch_signature:
         hasher.update(b"||")
         hasher.update(pitch_signature.encode("utf-8"))
+    if voice_fingerprint:
+        hasher.update(b"||")
+        hasher.update(voice_fingerprint.encode("utf-8"))
     digest = hasher.hexdigest()[:10]
     return cache_dir / f"{index:05d}_{digest}.wav"
 
@@ -570,6 +627,125 @@ def _chunk_cache_path(
 def _ffmpeg_escape_path(path: Path) -> str:
     escaped = path.as_posix().replace("'", "'\\''")
     return f"'{escaped}'"
+
+
+def _load_chunk_manifest_entries(text_path: Path, text_sha1: str) -> list[dict[str, object]] | None:
+    manifest_path = chunk_manifest_path(text_path)
+    if not manifest_path.exists():
+        return None
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if payload.get("version") != CHUNK_MANIFEST_VERSION:
+        return None
+    if payload.get("text_sha1") != text_sha1:
+        return None
+    raw_chunks = payload.get("chunks")
+    if not isinstance(raw_chunks, list):
+        return None
+    chunks: list[dict[str, object]] = []
+    for entry in raw_chunks:
+        if not isinstance(entry, dict):
+            continue
+        text_val = entry.get("text")
+        start = entry.get("start")
+        end = entry.get("end")
+        if not isinstance(text_val, str) or not isinstance(start, int) or not isinstance(end, int):
+            continue
+        chunks.append(entry)
+    return chunks or None
+
+
+def _chunk_entries_from_manifest(
+    manifest_chunks: list[dict[str, object]],
+) -> list[tuple[ChunkSpan, dict[str, object]]]:
+    chunk_entries: list[tuple[ChunkSpan, dict[str, object]]] = []
+    for entry in manifest_chunks:
+        text_val = entry.get("text")
+        start = entry.get("start")
+        end = entry.get("end")
+        if not isinstance(text_val, str) or not isinstance(start, int) or not isinstance(end, int):
+            continue
+        span = ChunkSpan(text=text_val, start=start, end=end)
+        chunk_entries.append((span, entry))
+    return chunk_entries
+
+
+def _chunk_entries_from_text(
+    text: str,
+    text_path: Path,
+    text_sha1: str,
+    *,
+    default_voice: int | None = None,
+) -> list[tuple[ChunkSpan, dict[str, object]]]:
+    manifest_chunks = _load_chunk_manifest_entries(text_path, text_sha1)
+    if manifest_chunks:
+        entries = _chunk_entries_from_manifest(manifest_chunks)
+        if entries:
+            return entries
+    spans = split_text_on_breaks_with_spans(text)
+    chunk_entries: list[tuple[ChunkSpan, dict[str, object]]] = []
+    for span in spans:
+        chunk_entries.append(
+            (
+                span,
+                {
+                    "speaker": "narrator",
+                    "text": span.text,
+                    "start": span.start,
+                    "end": span.end,
+                    **({"voice": default_voice} if isinstance(default_voice, int) else {}),
+                },
+            )
+        )
+    if chunk_entries:
+        # Persist manifest so manual edits can start from this baseline.
+        write_chunk_manifest(
+            text_path,
+            text,
+            default_speaker="narrator",
+            default_voice=default_voice,
+        )
+    return chunk_entries
+
+
+def _profile_from_manifest_entry(entry: Mapping[str, object]) -> VoiceProfile | None:
+    speaker = entry.get("voice")
+    speed = entry.get("speed")
+    pitch = entry.get("pitch")
+    intonation = entry.get("intonation")
+    has_value = False
+    profile = VoiceProfile()
+    if isinstance(speaker, int):
+        profile.speaker = speaker
+        has_value = True
+    if isinstance(speed, (int, float)):
+        profile.speed = float(speed)
+        has_value = True
+    if isinstance(pitch, (int, float)):
+        profile.pitch = float(pitch)
+        has_value = True
+    if isinstance(intonation, (int, float)):
+        profile.intonation = float(intonation)
+        has_value = True
+    return profile if has_value else None
+
+
+def _resolve_chunk_voice(
+    entry: Mapping[str, object],
+    narrator_profile: VoiceProfile,
+    voice_overlays: Mapping[str, VoiceProfile] | None,
+) -> VoiceProfile:
+    raw_speaker = entry.get("speaker")
+    speaker_label = raw_speaker.strip() if isinstance(raw_speaker, str) else "narrator"
+    profile = narrator_profile
+    if voice_overlays and speaker_label in voice_overlays:
+        profile = _merge_voice_profiles(profile, voice_overlays[speaker_label])
+    entry_profile = _profile_from_manifest_entry(entry)
+    if entry_profile:
+        profile = _merge_voice_profiles(profile, entry_profile)
+    return profile
 
 
 def _synthesize_target_with_client(
@@ -583,6 +759,8 @@ def _synthesize_target_with_client(
     progress: Callable[[dict[str, object]], None] | None,
     cache_base: Path | None,
     keep_cache: bool,
+    narrator_profile: VoiceProfile,
+    voice_overlays: Mapping[str, VoiceProfile] | None,
     cancel_event: threading.Event | None = None,
 ) -> Path | None:
     if cancel_event and cancel_event.is_set():
@@ -633,13 +811,12 @@ def _synthesize_target_with_client(
     if pitch_tokens:
         _enrich_pitch_tokens_with_voicevox(pitch_tokens, client)
 
-    raw_chunk_entries = _split_text_on_breaks_with_spans(text)
-    chunk_entries: list[tuple[ChunkSpan, str]] = []
-    for entry in raw_chunk_entries:
-        chunk_text = entry.text
-        if not chunk_text:
-            continue
-        chunk_entries.append((entry, chunk_text))
+    chunk_entries = _chunk_entries_from_text(
+        text,
+        text_path,
+        text_hash,
+        default_voice=narrator_profile.speaker if narrator_profile else None,
+    )
     if not chunk_entries:
         _emit_progress(
             progress,
@@ -666,7 +843,7 @@ def _synthesize_target_with_client(
     marker_path.unlink(missing_ok=True)
     chunk_files: list[Path] = []
 
-    for chunk_index, (chunk_entry, chunk_text) in enumerate(chunk_entries, start=1):
+    for chunk_index, (chunk_entry, chunk_meta) in enumerate(chunk_entries, start=1):
         if cancel_event and cancel_event.is_set():
             raise KeyboardInterrupt
         _emit_progress(
@@ -678,6 +855,19 @@ def _synthesize_target_with_client(
             chunk_count=chunk_count,
             source=target.source,
         )
+        voice_profile = _resolve_chunk_voice(
+            chunk_meta,
+            narrator_profile,
+            voice_overlays,
+        )
+        chunk_speaker = voice_profile.speaker or client.speaker_id
+        if chunk_speaker is None:
+            raise ValueError("No speaker available for chunk synthesis.")
+        client.speaker_id = chunk_speaker
+        client.speed_scale = voice_profile.speed
+        client.pitch_scale = voice_profile.pitch
+        client.intonation_scale = voice_profile.intonation
+        chunk_text = chunk_entry.text
         local_pitch_tokens = _slice_pitch_tokens_for_chunk(
             pitch_tokens,
             chunk_entry.start,
@@ -686,7 +876,14 @@ def _synthesize_target_with_client(
         pitch_signature = _pitch_signature(local_pitch_tokens)
         if pitch_signature:
             _debug_log(f"Chunk {chunk_index}: pitch signature {pitch_signature}")
-        chunk_path = _chunk_cache_path(cache_dir, chunk_index, chunk_text, pitch_signature)
+        voice_fingerprint = _voice_fingerprint(voice_profile)
+        chunk_path = _chunk_cache_path(
+            cache_dir,
+            chunk_index,
+            chunk_text,
+            pitch_signature,
+            voice_fingerprint,
+        )
         if not chunk_path.exists():
 
             def _modifier(
@@ -1441,6 +1638,8 @@ def synthesize_texts_to_mp3(
     progress: Callable[[dict[str, object]], None] | None = None,
     cancel_event: threading.Event | None = None,
     engine_defaults_callback: Callable[[dict[str, float]], None] | None = None,
+    narrator_voice: VoiceProfile | None = None,
+    voice_overlays: Mapping[str, VoiceProfile] | None = None,
 ) -> list[Path]:
     """
     Synthesize each target text file into an MP3 and return the generated paths.
@@ -1450,19 +1649,32 @@ def synthesize_texts_to_mp3(
     if not target_list:
         return []
 
+    narrator_profile = narrator_voice or VoiceProfile(
+        speaker=speaker_id,
+        speed=speed_scale,
+        pitch=pitch_scale,
+        intonation=intonation_scale,
+    )
+
     effective_jobs = _effective_jobs(jobs, total_targets)
     cache_base = Path(cache_dir).expanduser() if cache_dir is not None else None
     generated: list[Path | None]
 
     if effective_jobs == 1:
+        client_speaker = narrator_profile.speaker if narrator_profile.speaker is not None else speaker_id
+        client_speed = narrator_profile.speed if narrator_profile.speed is not None else speed_scale
+        client_pitch = narrator_profile.pitch if narrator_profile.pitch is not None else pitch_scale
+        client_intonation = (
+            narrator_profile.intonation if narrator_profile.intonation is not None else intonation_scale
+        )
         client = VoiceVoxClient(
             base_url=base_url,
-            speaker_id=speaker_id,
+            speaker_id=client_speaker if client_speaker is not None else speaker_id,
             timeout=timeout,
             post_phoneme_length=post_phoneme_length,
-            speed_scale=speed_scale,
-            pitch_scale=pitch_scale,
-            intonation_scale=intonation_scale,
+            speed_scale=client_speed,
+            pitch_scale=client_pitch,
+            intonation_scale=client_intonation,
             engine_defaults_callback=engine_defaults_callback,
         )
         try:
@@ -1481,6 +1693,8 @@ def synthesize_texts_to_mp3(
                         progress=progress,
                         cache_base=cache_base,
                         keep_cache=keep_cache,
+                        narrator_profile=narrator_profile,
+                        voice_overlays=voice_overlays,
                         cancel_event=cancel_event,
                     )
                 except KeyboardInterrupt:
@@ -1499,14 +1713,20 @@ def synthesize_texts_to_mp3(
         idx, target = payload
         if cancel_event and cancel_event.is_set():
             return idx, None
+        client_speaker = narrator_profile.speaker if narrator_profile.speaker is not None else speaker_id
+        client_speed = narrator_profile.speed if narrator_profile.speed is not None else speed_scale
+        client_pitch = narrator_profile.pitch if narrator_profile.pitch is not None else pitch_scale
+        client_intonation = (
+            narrator_profile.intonation if narrator_profile.intonation is not None else intonation_scale
+        )
         client = VoiceVoxClient(
             base_url=base_url,
-            speaker_id=speaker_id,
+            speaker_id=client_speaker if client_speaker is not None else speaker_id,
             timeout=timeout,
             post_phoneme_length=post_phoneme_length,
-            speed_scale=speed_scale,
-            pitch_scale=pitch_scale,
-            intonation_scale=intonation_scale,
+            speed_scale=client_speed,
+            pitch_scale=client_pitch,
+            intonation_scale=client_intonation,
             engine_defaults_callback=engine_defaults_callback,
         )
         try:
@@ -1523,6 +1743,8 @@ def synthesize_texts_to_mp3(
                     progress=progress,
                     cache_base=cache_base,
                     keep_cache=keep_cache,
+                    narrator_profile=narrator_profile,
+                    voice_overlays=voice_overlays,
                     cancel_event=cancel_event,
                 )
             except KeyboardInterrupt:

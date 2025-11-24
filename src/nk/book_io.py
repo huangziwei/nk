@@ -80,6 +80,7 @@ class LoadedBookMetadata:
     cover_path: Path | None
     chapters: dict[str, ChapterMetadata]
     tts_defaults: "BookTTSDefaults | None"
+    tts_voices: dict[str, "BookTTSDefaults"] | None
     source_epub: str | None = None
 
 
@@ -458,6 +459,7 @@ def _build_metadata_payload(
     source_epub: Path | None,
     cover_path: Path | None,
     tts_defaults: BookTTSDefaults | None = None,
+    tts_voices: dict[str, BookTTSDefaults] | None = None,
 ) -> dict:
     chapters_payload = []
     for record in records:
@@ -485,6 +487,14 @@ def _build_metadata_payload(
         defaults_payload = tts_defaults.as_payload()
         if defaults_payload:
             payload["tts_defaults"] = defaults_payload
+    if tts_voices:
+        voices_payload: dict[str, dict[str, float | int]] = {}
+        for name, voice in tts_voices.items():
+            voice_payload = voice.as_payload()
+            if voice_payload:
+                voices_payload[name] = voice_payload
+        if voices_payload:
+            payload["tts_voices"] = voices_payload
     return payload
 
 
@@ -502,6 +512,7 @@ def write_book_package(
     book_title = _resolve_book_title(chapters, output_dir)
     book_author = _resolve_book_author(chapters)
     cover_path = _write_cover_image(output_dir, cover_image) if cover_image else None
+    previous_voices = previous_metadata.tts_voices if previous_metadata else None
     metadata_payload = _build_metadata_payload(
         book_title,
         book_author,
@@ -509,6 +520,7 @@ def write_book_package(
         source_epub=source_epub,
         cover_path=cover_path,
         tts_defaults=previous_metadata.tts_defaults if previous_metadata else None,
+        tts_voices=previous_voices,
     )
     metadata_path = output_dir / BOOK_METADATA_FILENAME
     metadata_path.write_text(
@@ -537,7 +549,16 @@ def write_book_package(
             except ValueError:
                 # If overrides are invalid, leave the original text; user can fix and rerun refine.
                 pass
-        write_chunk_manifests(record.path for record in records)
+    default_voice = (
+        previous_metadata.tts_defaults.speaker
+        if previous_metadata and previous_metadata.tts_defaults
+        else None
+    )
+    write_chunk_manifests(
+        (record.path for record in records),
+        default_speaker="narrator",
+        default_voice=default_voice,
+    )
     return BookPackage(
         output_dir=output_dir,
         chapter_records=records,
@@ -676,12 +697,26 @@ def load_book_metadata(book_dir: Path) -> LoadedBookMetadata | None:
 
     tts_defaults = BookTTSDefaults.from_payload(payload.get("tts_defaults"))
 
+    voices_payload = payload.get("tts_voices")
+    tts_voices: dict[str, BookTTSDefaults] | None = None
+    if isinstance(voices_payload, dict):
+        for key, entry in voices_payload.items():
+            if not isinstance(key, str):
+                continue
+            voice = BookTTSDefaults.from_payload(entry)
+            if voice is None:
+                continue
+            if tts_voices is None:
+                tts_voices = {}
+            tts_voices[key] = voice
+
     return LoadedBookMetadata(
         title=title if isinstance(title, str) else None,
         author=author if isinstance(author, str) else None,
         cover_path=cover_path,
         chapters=chapters,
         tts_defaults=tts_defaults,
+        tts_voices=tts_voices,
         source_epub=epub_name,
     )
 

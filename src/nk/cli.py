@@ -62,6 +62,8 @@ from .tts import (
     resolve_text_targets,
     synthesize_texts_to_mp3,
     set_debug_logging,
+    VoiceProfile,
+    _voice_profile_from_defaults,
 )
 from .refine import OverrideRule, load_override_config, refine_book, refine_chapter
 from .reader import create_reader_app
@@ -906,8 +908,6 @@ def _chapterize_epub(
         if refined:
             console.print(f"[nk] Applied {refined} override(s) from custom_token.json", style="dim")
         console.print(f"  → {output_dir}", style="dim")
-    if package and package.chapter_records:
-        write_chunk_manifests(record.path for record in package.chapter_records)
 
 
 def _run_tts(args: argparse.Namespace) -> int:
@@ -1241,6 +1241,20 @@ def _run_tts(args: argparse.Namespace) -> int:
     total_targets = len(targets)
     printed_progress = {"value": False}
 
+    narrator_voice = VoiceProfile(
+        speaker=args.speaker,
+        speed=args.speed,
+        pitch=args.pitch,
+        intonation=args.intonation,
+    )
+    voice_overlays: dict[str, VoiceProfile] | None = None
+    if metadata_for_defaults and metadata_for_defaults.tts_voices:
+        voice_overlays = {}
+        for name, defaults in metadata_for_defaults.tts_voices.items():
+            profile = _voice_profile_from_defaults(defaults)
+            if profile:
+                voice_overlays[name] = profile
+
     class _RichProgress:
         def __init__(self, enabled: bool, total: int) -> None:
             self.console = Console(stderr=True)
@@ -1467,6 +1481,8 @@ def _run_tts(args: argparse.Namespace) -> int:
                 progress=_progress_printer,
                 cancel_event=cancel_event,
                 engine_defaults_callback=_capture_engine_defaults,
+                narrator_voice=narrator_voice,
+                voice_overlays=voice_overlays,
             )
     except KeyboardInterrupt:
         cancel_event.set()

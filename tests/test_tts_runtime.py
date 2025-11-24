@@ -13,6 +13,7 @@ import pytest
 from nk.book_io import TOKEN_METADATA_VERSION
 from nk.tts import (
     TTSTarget,
+    VoiceProfile,
     VoiceVoxClient,
     VoiceVoxRuntimeError,
     _prepare_voicevox_endpoint,
@@ -678,6 +679,8 @@ def test_token_metadata_overrides_voicevox(monkeypatch, tmp_path: Path) -> None:
         progress=None,
         cache_base=tmp_path / "cache",
         keep_cache=False,
+        narrator_profile=VoiceProfile(speaker=2),
+        voice_overlays=None,
     )
     assert result == target.output
     assert len(client.payloads) == 2  # two chunks (split by blank line)
@@ -758,6 +761,8 @@ def test_token_metadata_handles_stripped_punctuation(
         progress=None,
         cache_base=tmp_path / "cache",
         keep_cache=False,
+        narrator_profile=VoiceProfile(speaker=2),
+        voice_overlays=None,
     )
     assert result == target.output
     assert len(client.payloads) == 2
@@ -831,6 +836,8 @@ def test_token_metadata_skipped_when_hash_mismatch(monkeypatch, tmp_path: Path) 
         progress=None,
         cache_base=tmp_path / "cache",
         keep_cache=False,
+        narrator_profile=VoiceProfile(speaker=2),
+        voice_overlays=None,
     )
     assert client.payloads
     assert all(
@@ -896,6 +903,8 @@ def test_voicevox_pitch_artifacts(monkeypatch, tmp_path: Path) -> None:
             progress=None,
             cache_base=cache_root,
             keep_cache=True,
+            narrator_profile=VoiceProfile(speaker=speaker),
+            voice_overlays=None,
         )
         assert result == target.output
         cache_dir = _target_cache_dir(cache_root, target)
@@ -942,6 +951,8 @@ def test_voicevox_pitch_artifacts(monkeypatch, tmp_path: Path) -> None:
             progress=None,
             cache_base=single_cache_root,
             keep_cache=True,
+            narrator_profile=VoiceProfile(speaker=client.speaker_id),
+            voice_overlays=None,
         )
         assert single_result == single_target.output
         single_cache_dir = _target_cache_dir(single_cache_root, single_target)
@@ -986,6 +997,8 @@ def test_voicevox_pitch_artifacts(monkeypatch, tmp_path: Path) -> None:
             progress=None,
             cache_base=punct_cache_root,
             keep_cache=True,
+            narrator_profile=VoiceProfile(speaker=client.speaker_id),
+            voice_overlays=None,
         )
         assert punct_result == punct_target.output
         punct_cache_dir = _target_cache_dir(punct_cache_root, punct_target)
@@ -1030,6 +1043,8 @@ def test_voicevox_pitch_artifacts(monkeypatch, tmp_path: Path) -> None:
             progress=None,
             cache_base=punct_single_cache_root,
             keep_cache=True,
+            narrator_profile=VoiceProfile(speaker=client.speaker_id),
+            voice_overlays=None,
         )
         assert punct_single_result == punct_single_target.output
         punct_single_cache_dir = _target_cache_dir(
