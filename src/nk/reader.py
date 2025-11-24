@@ -1768,53 +1768,57 @@ INDEX_HTML = """<!DOCTYPE html>
         }
         if (pos) payload.pos = pos;
         if (accentPayload !== null) payload.accent = accentPayload;
-        setRefineBusy(true);
-        setRefineError('');
-        fetchJSON('/api/refine', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-            .then((result) => {
-              const updated = result && typeof result.updated === 'number' ? result.updated : 0;
-              const scopeResult =
-                result && typeof result.scope === 'string' ? result.scope : normalizedScope;
-              const chapterLabel = result && result.chapter ? result.chapter : state.selectedPath;
-              const bookLabel =
-                (result && result.book) ||
-                (state.currentBook && (state.currentBook.title || state.currentBook.id)) ||
-                (state.currentBook && state.currentBook.id) ||
-                'book';
-              let statusMessage = '';
-              if (scopeResult === 'token') {
-                statusMessage = updated
-                  ? `Updated token in ${chapterLabel}.`
-                  : `No changes applied to token in ${chapterLabel}.`;
-              } else if (scopeResult === 'chapter') {
-                if (updated) {
-                  statusMessage = `Refined current chapter (${chapterLabel}).`;
+        if (normalizedScope === 'token') {
+          setRefineBusy(true);
+          setRefineError('');
+          fetchJSON('/api/refine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+              .then((result) => {
+                const updated = result && typeof result.updated === 'number' ? result.updated : 0;
+                const scopeResult =
+                  result && typeof result.scope === 'string' ? result.scope : normalizedScope;
+                const chapterLabel = result && result.chapter ? result.chapter : state.selectedPath;
+                const bookLabel =
+                  (result && result.book) ||
+                  (state.currentBook && (state.currentBook.title || state.currentBook.id)) ||
+                  (state.currentBook && state.currentBook.id) ||
+                  'book';
+                let statusMessage = '';
+                if (scopeResult === 'token') {
+                  statusMessage = updated
+                    ? `Updated token in ${chapterLabel}.`
+                    : `No changes applied to token in ${chapterLabel}.`;
+                } else if (scopeResult === 'chapter') {
+                  if (updated) {
+                    statusMessage = `Refined current chapter (${chapterLabel}).`;
+                  } else {
+                    statusMessage = `No changes required for ${chapterLabel}.`;
+                  }
                 } else {
-                  statusMessage = `No changes required for ${chapterLabel}.`;
+                  if (updated) {
+                    statusMessage = `Refined ${updated} chapter(s) in ${bookLabel}.`;
+                  } else {
+                    statusMessage = `No changes required in ${bookLabel}.`;
+                  }
                 }
-              } else {
-                if (updated) {
-                  statusMessage = `Refined ${updated} chapter(s) in ${bookLabel}.`;
-                } else {
-                  statusMessage = `No changes required in ${bookLabel}.`;
+                renderStatus(statusMessage);
+                closeRefineModal();
+                if (state.selectedPath) {
+                  openChapter(state.selectedPath, { autoCollapse: false, preserveScroll: true });
                 }
-              }
-              renderStatus(statusMessage);
-              closeRefineModal();
-              if (state.selectedPath) {
-                openChapter(state.selectedPath, { autoCollapse: false, preserveScroll: true });
-              }
-            })
-            .catch((error) => {
-              setRefineError(error.message || 'Failed to apply override.');
-            })
-            .finally(() => {
-            setRefineBusy(false);
-          });
+              })
+              .catch((error) => {
+                setRefineError(error.message || 'Failed to apply override.');
+              })
+              .finally(() => {
+              setRefineBusy(false);
+            });
+          return;
+        }
+        runRefineStream(payload, normalizedScope);
       }
 
       function removeCurrentToken() {
@@ -2051,6 +2055,110 @@ INDEX_HTML = """<!DOCTYPE html>
           }
         } else if (type === 'error') {
           setOverridesError(event.detail || 'Refine failed.');
+        }
+      }
+
+      function runRefineStream(payload, scope) {
+        setRefineBusy(true);
+        setRefineError('');
+        if (refineProgress) refineProgress.classList.remove('hidden');
+        if (refineProgressLabel) {
+          refineProgressLabel.textContent = 'Saving…';
+        }
+        fetch('/api/refine', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+          .then((response) => {
+            if (!response.ok || !response.body) {
+              throw new Error('Refine failed.');
+            }
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            const processLines = (chunk) => {
+              buffer += chunk;
+              const lines = buffer.split('\\n');
+              buffer = lines.pop() || '';
+              lines.forEach((line) => {
+                if (!line.trim()) return;
+                try {
+                  const event = JSON.parse(line);
+                  handleRefineProgress(event, scope);
+                } catch (err) {
+                  console.warn('Failed to parse refine progress', err);
+                }
+              });
+            };
+            const pump = () =>
+              reader.read().then(({ done, value }) => {
+                if (done) {
+                  if (buffer.trim()) {
+                    processLines('\\n');
+                  }
+                  return;
+                }
+                processLines(decoder.decode(value, { stream: true }));
+                return pump();
+              });
+            return pump();
+          })
+          .catch((err) => {
+            setRefineError(err.message || 'Failed to apply override.');
+          })
+          .finally(() => {
+            setRefineBusy(false);
+            if (refineProgress) refineProgress.classList.add('hidden');
+          });
+      }
+
+      function handleRefineProgress(event, scope) {
+        if (!event || typeof event !== 'object') return;
+        const type = event.event;
+        if (type === 'book_start') {
+          if (refineProgressLabel) {
+            const total = typeof event.total_chapters === 'number' ? event.total_chapters : null;
+            refineProgressLabel.textContent = total ? `Refining 1/${total}…` : 'Refining…';
+          }
+        } else if (type === 'chapter_start') {
+          if (refineProgressLabel) {
+            const idx = typeof event.index === 'number' ? event.index : null;
+            const total = typeof event.total === 'number' ? event.total : null;
+            if (idx && total) {
+              refineProgressLabel.textContent = `Refining ${idx}/${total}…`;
+            } else {
+              refineProgressLabel.textContent = 'Refining…';
+            }
+          }
+        } else if (type === 'done') {
+          const updated = typeof event.updated === 'number' ? event.updated : 0;
+          const chapterLabel = event.chapter || state.selectedPath || '';
+          const bookLabel =
+            event.book ||
+            (state.currentBook && (state.currentBook.title || state.currentBook.id)) ||
+            (state.currentBook && state.currentBook.id) ||
+            'book';
+          let statusMessage = '';
+          if (scope === 'chapter') {
+            statusMessage = updated
+              ? `Refined current chapter (${chapterLabel}).`
+              : `No changes required for ${chapterLabel}.`;
+          } else {
+            statusMessage = updated
+              ? `Refined ${updated} chapter(s) in ${bookLabel}.`
+              : `No changes required in ${bookLabel}.`;
+          }
+          renderStatus(statusMessage);
+          closeRefineModal();
+          if (state.selectedPath) {
+            openChapter(state.selectedPath, { autoCollapse: false, preserveScroll: true });
+          }
+          if (refineProgressLabel) {
+            refineProgressLabel.textContent = 'Finished';
+          }
+        } else if (type === 'error') {
+          setRefineError(event.detail || 'Refine failed.');
         }
       }
 
@@ -5033,7 +5141,7 @@ def create_reader_app(root: Path) -> FastAPI:
         return JSONResponse(response)
 
     @app.post("/api/refine")
-    def api_refine(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    def api_refine(payload: dict[str, object] = Body(...)) -> Response:
         if not isinstance(payload, Mapping):
             raise HTTPException(status_code=400, detail="Invalid payload.")
         path_value = payload.get("path")
@@ -5145,24 +5253,101 @@ def create_reader_app(root: Path) -> FastAPI:
         try:
             override_path = append_override_entry(book_dir, entry)
             overrides, removals = load_refine_config(book_dir)
-            if scope == "chapter":
-                refined_value = refine_chapter(chapter_path, overrides, removals=removals)
-                updated = 1 if refined_value else 0
-            else:
-                updated = refine_book(book_dir, overrides, removals=removals)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         override_rel = _relative_to_root(resolved_root, override_path)
         book_rel = _relative_to_root(resolved_root, book_dir)
-        return JSONResponse(
-            {
-                "updated": updated,
-                "override_path": override_rel.as_posix(),
-                "chapter": rel_path.as_posix(),
-                "book": book_rel.as_posix(),
-                "scope": scope,
-            }
-        )
+
+        if scope == "token":
+            try:
+                refined_value = refine_chapter(chapter_path, overrides, removals=removals)
+                updated = 1 if refined_value else 0
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            return JSONResponse(
+                {
+                    "updated": updated,
+                    "override_path": override_rel.as_posix(),
+                    "chapter": rel_path.as_posix(),
+                    "book": book_rel.as_posix(),
+                    "scope": scope,
+                }
+            )
+
+        def _coerce(value: object) -> object:
+            if isinstance(value, Path):
+                return value.as_posix()
+            if isinstance(value, dict):
+                return {k: _coerce(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_coerce(v) for v in value]
+            return value
+
+        def _serialize_event(event: dict[str, object]) -> dict[str, object]:
+            clean: dict[str, object] = {}
+            for key, value in event.items():
+                clean[key] = _coerce(value)
+            return clean
+
+        def _event_stream():
+            q: queue.Queue[dict[str, object] | None] = queue.Queue()
+
+            def _progress(event: dict[str, object]) -> None:
+                q.put(_serialize_event(event))
+
+            def _runner():
+                try:
+                    if scope == "chapter":
+                        refined_value = refine_chapter(
+                            chapter_path,
+                            overrides,
+                            removals=removals,
+                            progress=_progress,
+                            chapter_index=1,
+                            chapter_total=1,
+                        )
+                        updated = 1 if refined_value else 0
+                        q.put(
+                            {
+                                "event": "done",
+                                "updated": updated,
+                                "chapter": rel_path.as_posix(),
+                                "book": book_rel.as_posix(),
+                                "scope": scope,
+                                "override_path": override_rel.as_posix(),
+                            }
+                        )
+                    else:
+                        updated = refine_book(
+                            book_dir,
+                            overrides,
+                            removals=removals,
+                            progress=_progress,
+                        )
+                        q.put(
+                            {
+                                "event": "done",
+                                "updated": updated,
+                                "chapter": rel_path.as_posix(),
+                                "book": book_rel.as_posix(),
+                                "scope": scope,
+                                "override_path": override_rel.as_posix(),
+                            }
+                        )
+                except Exception as exc:  # pragma: no cover - defensive
+                    q.put({"event": "error", "detail": str(exc)})
+                finally:
+                    q.put(None)
+
+            thread = threading.Thread(target=_runner, daemon=True)
+            thread.start()
+            while True:
+                item = q.get()
+                if item is None:
+                    break
+                yield json.dumps(item, ensure_ascii=False).encode("utf-8") + b"\n"
+
+        return StreamingResponse(_event_stream(), media_type="application/x-ndjson")
 
     @app.post("/api/remove-token")
     def api_remove_token(payload: dict[str, object] = Body(...)) -> JSONResponse:
