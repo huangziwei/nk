@@ -269,6 +269,37 @@ INDEX_HTML = """<!DOCTYPE html>
       background: var(--accent);
       transition: width 0.2s ease;
     }
+    .refine-progress {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.35rem;
+    }
+    .refine-progress.hidden {
+      display: none;
+    }
+    .refine-progress-bar {
+      position: relative;
+      flex: 1 1 auto;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+    .refine-progress-bar::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -40%;
+      width: 40%;
+      height: 100%;
+      background: linear-gradient(90deg, rgba(56,189,248,0), rgba(56,189,248,0.8), rgba(56,189,248,0));
+      animation: refine-progress 1.1s infinite linear;
+    }
+    @keyframes refine-progress {
+      0% { transform: translateX(0%); }
+      100% { transform: translateX(250%); }
+    }
     .chapter-list {
       list-style: none;
       padding: 0;
@@ -1280,6 +1311,10 @@ INDEX_HTML = """<!DOCTYPE html>
         </div>
         <div class="modal-actions">
           <div class="modal-note" id="refine-error"></div>
+          <div class="refine-progress hidden" id="refine-progress">
+            <div class="refine-progress-bar" id="refine-progress-bar"></div>
+            <span class="pill" id="refine-progress-label">Refining…</span>
+          </div>
           <div class="modal-actions-rows">
             <div class="modal-button-row">
               <span class="modal-actions-label">Apply changes to current token</span>
@@ -1483,6 +1518,8 @@ INDEX_HTML = """<!DOCTYPE html>
       const refineDeleteToken = document.getElementById('refine-delete-token');
       const refineCancel = document.getElementById('refine-cancel');
       const refineError = document.getElementById('refine-error');
+      const refineProgress = document.getElementById('refine-progress');
+      const refineProgressLabel = document.getElementById('refine-progress-label');
       const refineContextLabel = document.getElementById('refine-context');
       const refineMeta = document.getElementById('refine-meta');
       const overridesModal = document.getElementById('overrides-modal');
@@ -1504,6 +1541,7 @@ INDEX_HTML = """<!DOCTYPE html>
       const overrideDeleteBtn = document.getElementById('override-delete');
       const overrideSaveBtn = document.getElementById('override-save');
       let alignFrame = null;
+      let refineCurrentScope = 'book';
       const SORT_STORAGE_KEY = 'nkReaderSortOrder';
       const SORT_OPTIONS = ['author', 'recent', 'played'];
       const storedSort = window.localStorage.getItem(SORT_STORAGE_KEY);
@@ -1591,6 +1629,7 @@ INDEX_HTML = """<!DOCTYPE html>
         if (payload.surface) body.surface = payload.surface;
         if (payload.pos) body.pos = payload.pos;
         if (typeof payload.accent === 'number') body.accent = payload.accent;
+        refineCurrentScope = 'token';
         setRefineBusy(true);
         setRefineError('');
         const params = new URLSearchParams();
@@ -1620,6 +1659,7 @@ INDEX_HTML = """<!DOCTYPE html>
         }
         const normalizedScope =
           scope === 'chapter' ? 'chapter' : (scope === 'token' ? 'token' : 'book');
+        refineCurrentScope = normalizedScope;
         const pattern = refinePatternInput ? refinePatternInput.value.trim() : '';
         if (normalizedScope !== 'token' && !pattern) {
           setRefineError('Pattern is required.');
@@ -1758,6 +1798,7 @@ INDEX_HTML = """<!DOCTYPE html>
         if (refineDeleteToken) {
           refineDeleteToken.textContent = 'Removing token…';
         }
+        refineCurrentScope = 'token';
         setRefineBusy(true);
         setRefineError('');
         fetchJSON('/api/remove-token', {
@@ -2178,6 +2219,17 @@ INDEX_HTML = """<!DOCTYPE html>
         if (!refineForm) {
           updateRefineButtons();
           return;
+        }
+        const showProgress = busy && (refineCurrentScope === 'book' || refineCurrentScope === 'chapter');
+        if (refineProgress) {
+          refineProgress.classList.toggle('hidden', !showProgress);
+        }
+        if (refineProgressLabel) {
+          const label =
+            refineCurrentScope === 'book'
+              ? 'Refining whole book…'
+              : 'Refining chapter…';
+          refineProgressLabel.textContent = label;
         }
         const controls = refineForm.querySelectorAll('input, button, textarea');
         controls.forEach((control) => {
