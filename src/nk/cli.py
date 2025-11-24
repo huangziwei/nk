@@ -736,6 +736,22 @@ def _chapterize_epub(
     book_label = epub_path.name
     output_dir = epub_path.with_suffix("")
     task_id: int | None = None
+    override_progress_step = 1.0
+
+    def _format_override_label(path_value: object, index_value: object, total_value: object) -> str:
+        path_label = ""
+        if isinstance(path_value, Path):
+            path_label = path_value.name
+        elif isinstance(path_value, str):
+            path_label = Path(path_value).name
+        prefix = ""
+        if isinstance(index_value, int):
+            prefix = str(index_value)
+            if isinstance(total_value, int) and total_value > 0:
+                prefix = f"{index_value}/{total_value}"
+        if prefix and path_label:
+            return f"{prefix} {path_label}"
+        return path_label or prefix
     if progress_display:
         task_id = progress_display.add_task(book_label, total=1)
     else:
@@ -824,6 +840,9 @@ def _chapterize_epub(
             description=f"{book_label} · writing…",
         )
         if overrides:
+            override_total = len(chapters)
+            if override_total > 0:
+                override_progress_step = 1.0 / override_total
             progress_display.update(
                 task_id,
                 total=(task.total or (base_total + 1)) + 1,
@@ -832,18 +851,54 @@ def _chapterize_epub(
     else:
         if overrides:
             console.print(f"[nk] Applying overrides for {book_label}…", style="dim")
+    def _refine_progress_handler(event: dict[str, object]) -> None:
+        nonlocal override_progress_step
+        if not (progress_display and task_id is not None):
+            return
+        event_type = event.get("event")
+        task = progress_display.tasks[task_id]
+        if event_type == "book_start":
+            total_chapters = event.get("total_chapters")
+            if isinstance(total_chapters, int) and total_chapters > 0:
+                override_progress_step = 1.0 / total_chapters
+                base_completed = task.completed or 0
+                progress_display.update(
+                    task_id,
+                    total=max(task.total or 0, base_completed + 1),
+                )
+        elif event_type == "chapter_start":
+            label = _format_override_label(
+                event.get("path"),
+                event.get("index"),
+                event.get("total"),
+            )
+            desc = f"{book_label} · applying overrides…"
+            if label:
+                desc = f"{desc} · {label}"
+            progress_display.update(task_id, description=desc)
+        elif event_type == "chapter_done":
+            progress_display.advance(task_id, override_progress_step)
+            label = _format_override_label(
+                event.get("path"),
+                event.get("index"),
+                event.get("total"),
+            )
+            if label:
+                progress_display.update(task_id, description=f"{book_label} · applying overrides… · {label}")
     try:
-        refined = refine_book(output_dir, overrides) if overrides else 0
+        refined = (
+            refine_book(output_dir, overrides, progress=_refine_progress_handler) if overrides else 0
+        )
     except ValueError as exc:
         console.print(f"[nk] Warn: failed to apply overrides: {exc}", style="yellow")
         refined = 0
     if progress_display and task_id is not None:
         task = progress_display.tasks[task_id]
-        final_total = task.total or max(task.completed, base_total + (1 if overrides else 0), len(chapters)) or 1
+        final_total = task.total or (base_total + (2 if overrides else 1))
         progress_display.update(
             task_id,
             total=final_total,
-            completed=min(task.completed + (1 if overrides else 0), final_total),
+            completed=final_total,
             description=f"{book_label} · complete",
         )
     else:
