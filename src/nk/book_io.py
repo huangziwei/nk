@@ -464,7 +464,21 @@ def _ensure_custom_token_template(output_dir: Path) -> None:
     template_path = output_dir / _CUSTOM_TOKEN_FILENAME
     legacy_path = output_dir / _LEGACY_CUSTOM_PITCH_FILENAME
     if legacy_path.exists() and not template_path.exists():
-        return  # preserve legacy file so refine can migrate it
+        migrated = False
+        try:
+            legacy_path.replace(template_path)
+            migrated = True
+        except OSError:
+            try:
+                template_path.write_text(
+                    legacy_path.read_text(encoding="utf-8"), encoding="utf-8"
+                )
+                legacy_path.unlink(missing_ok=True)
+                migrated = True
+            except OSError:
+                pass
+        if not migrated:
+            return  # failed to migrate; leave legacy file untouched
     template = _load_default_override_template()
     template_overrides = _normalize_overrides(template)
     template_remove = _normalize_removals(template)
