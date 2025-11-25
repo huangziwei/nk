@@ -1290,6 +1290,10 @@ INDEX_HTML = """<!DOCTYPE html>
                 <input type="text" id="remove-surface">
               </label>
             </div>
+            <div class="refine-progress hidden" id="overrides-progress" role="status" aria-live="polite">
+              <div class="refine-progress-bar"></div>
+              <span class="pill" id="overrides-progress-label">Saving…</span>
+            </div>
             <div class="overrides-buttons">
               <button type="button" class="danger secondary" id="override-delete">Delete override</button>
               <button type="button" class="danger secondary" id="remove-delete">Delete removal</button>
@@ -1580,6 +1584,7 @@ INDEX_HTML = """<!DOCTYPE html>
       const overrideSaveBtn = document.getElementById('override-save');
       const overridesProgress = document.getElementById('overrides-progress');
       const overridesProgressLabel = document.getElementById('overrides-progress-label');
+      const overrideSaveDefaultLabel = overrideSaveBtn ? overrideSaveBtn.textContent : 'Save and run refine';
       let alignFrame = null;
       let refineCurrentScope = 'book';
       const SORT_STORAGE_KEY = 'nkReaderSortOrder';
@@ -1594,6 +1599,7 @@ INDEX_HTML = """<!DOCTYPE html>
       let refineBusy = false;
       let diagnosticSearchTimer = null;
       let selectionAnchor = null;
+      let overrideSaveResetTimer = null;
       const UPLOAD_POLL_INTERVAL = 4000;
       const initialHashPath = getChapterPathFromHash();
       if (initialHashPath) {
@@ -1973,14 +1979,48 @@ INDEX_HTML = """<!DOCTYPE html>
         }
       }
 
+      function setOverrideSaveLabel(text) {
+        if (overrideSaveBtn && typeof text === 'string') {
+          overrideSaveBtn.textContent = text;
+        }
+      }
+
+      function resetOverrideSaveLabel(delay = 0) {
+        if (overrideSaveResetTimer) {
+          window.clearTimeout(overrideSaveResetTimer);
+          overrideSaveResetTimer = null;
+        }
+        const apply = () => {
+          setOverrideSaveLabel(overrideSaveDefaultLabel);
+          overrideSaveResetTimer = null;
+        };
+        if (delay > 0) {
+          overrideSaveResetTimer = window.setTimeout(apply, delay);
+        } else {
+          apply();
+        }
+      }
+
+      function updateOverridesProgressLabel(text) {
+        if (overridesProgressLabel && typeof text === 'string') {
+          overridesProgressLabel.textContent = text;
+        }
+        if (typeof text === 'string') {
+          setOverrideSaveLabel(text);
+        }
+      }
+
       function runOverridesRefine(bookId) {
         if (!bookId) {
-          return;
+          if (overrideSaveBtn) overrideSaveBtn.disabled = false;
+          resetOverrideSaveLabel();
+          return Promise.resolve();
         }
+        resetOverrideSaveLabel();
         if (overridesProgress) overridesProgress.classList.remove('hidden');
-        if (overridesProgressLabel) overridesProgressLabel.textContent = 'Refining…';
+        updateOverridesProgressLabel('Refining…');
         const pathParam = state.selectedPath ? `?path=${encodeURIComponent(state.selectedPath)}` : '';
-        fetch(`/api/books/${encodeURIComponent(bookId)}/refine${pathParam}`, {
+        return fetch(`/api/books/${encodeURIComponent(bookId)}/refine${pathParam}`, {
           method: 'POST',
         })
           .then((response) => {
@@ -2010,51 +2050,51 @@ INDEX_HTML = """<!DOCTYPE html>
                   if (buffer.trim()) {
                     processLines('\\n');
                   }
-                  return;
-                }
-                processLines(decoder.decode(value, { stream: true }));
-                return pump();
-              });
+              return;
+            }
+            processLines(decoder.decode(value, { stream: true }));
             return pump();
+          });
         })
         .catch((err) => {
           setOverridesError(err.message || 'Failed to refine.');
+          updateOverridesProgressLabel('Refine failed');
         })
         .finally(() => {
           if (overridesProgress) overridesProgress.classList.add('hidden');
           if (overrideSaveBtn) overrideSaveBtn.disabled = false;
+          resetOverrideSaveLabel(1200);
         });
       }
 
       function handleOverrideProgress(event) {
         if (!event || typeof event !== 'object') return;
         const type = event.event;
+        const pathText = typeof event.path === 'string'
+          ? event.path.split('/').slice(-1)[0] || event.path
+          : '';
         if (type === 'book_start') {
-          if (overridesProgressLabel) {
-            const total = typeof event.total_chapters === 'number' ? event.total_chapters : null;
-            overridesProgressLabel.textContent = total ? `Refining 1/${total}…` : 'Refining…';
-          }
+          const total = typeof event.total_chapters === 'number' ? event.total_chapters : null;
+          const label = total ? `Refining 1/${total}…` : 'Refining…';
+          updateOverridesProgressLabel(label);
         } else if (type === 'chapter_start') {
-          if (overridesProgressLabel) {
-            const idx = typeof event.index === 'number' ? event.index : null;
-            const total = typeof event.total === 'number' ? event.total : null;
-            if (idx && total) {
-              overridesProgressLabel.textContent = `Refining ${idx}/${total}…`;
-            } else {
-              overridesProgressLabel.textContent = 'Refining…';
-            }
-          }
+          const idx = typeof event.index === 'number' ? event.index : null;
+          const total = typeof event.total === 'number' ? event.total : null;
+          const chapterLabel = pathText ? ` ${pathText}` : '';
+          const label = idx && total
+            ? `Refining ${idx}/${total}${chapterLabel}…`
+            : `Refining${chapterLabel || ''}…`;
+          updateOverridesProgressLabel(label);
         } else if (type === 'done') {
           const updated = typeof event.updated === 'number' ? event.updated : 0;
           renderStatus(`Refined ${updated} chapter(s).`);
           if (state.selectedPath) {
             openChapter(state.selectedPath, { autoCollapse: false, preserveScroll: true });
           }
-          if (overridesProgressLabel) {
-            overridesProgressLabel.textContent = 'Finished';
-          }
+          updateOverridesProgressLabel('Finished');
         } else if (type === 'error') {
           setOverridesError(event.detail || 'Refine failed.');
+          updateOverridesProgressLabel('Refine failed');
         }
       }
 
@@ -2419,9 +2459,7 @@ INDEX_HTML = """<!DOCTYPE html>
         if (overridesProgress) {
           overridesProgress.classList.remove('hidden');
         }
-        if (overridesProgressLabel) {
-          overridesProgressLabel.textContent = 'Saving…';
-        }
+        updateOverridesProgressLabel('Saving…');
         fetchJSON(`/api/books/${encodeURIComponent(overridesState.bookId)}/overrides`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -2438,13 +2476,13 @@ INDEX_HTML = """<!DOCTYPE html>
             overridesState.selectedRemoveIndex = overridesState.remove.length ? 0 : -1;
             renderOverridesList();
             renderRemoveList();
-            runOverridesRefine(overridesState.bookId);
+            return runOverridesRefine(overridesState.bookId);
           })
           .catch((err) => {
             setOverridesError(err.message || 'Failed to save overrides.');
             if (overridesProgress) overridesProgress.classList.add('hidden');
-          })
-          .finally(() => {
+            updateOverridesProgressLabel('Save failed');
+            resetOverrideSaveLabel(1500);
             overrideSaveBtn.disabled = false;
           });
       }
