@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, List, Mapping
 
 UNIDIC_VERSION = "3.1.1"
 UNIDIC_ARCHIVE_URL = (
@@ -25,6 +26,34 @@ class DependencyStatus:
 
 class DependencyInstallError(RuntimeError):
     """Raised when nk cannot invoke the install helper script."""
+
+
+class DependencyUninstallError(RuntimeError):
+    """Raised when nk cannot safely uninstall managed dependencies."""
+
+
+_STATE_DIR_ENV = "NK_STATE_DIR"
+_MANIFEST_FILENAME = "deps-manifest.json"
+
+
+def _state_dir() -> Path:
+    env_dir = os.environ.get(_STATE_DIR_ENV)
+    if env_dir:
+        return Path(env_dir).expanduser()
+    return Path.home() / ".local" / "share" / "nk"
+
+
+def _manifest_path(manifest_path: Path | None = None) -> Path:
+    if manifest_path:
+        return manifest_path
+    return _state_dir() / _MANIFEST_FILENAME
+
+
+@dataclass(slots=True)
+class UninstallResult:
+    name: str
+    status: str
+    detail: str
 
 
 def _candidate_unidic_paths() -> Iterable[Path]:
@@ -210,3 +239,219 @@ def install_dependencies(*, script_path: Path | None = None) -> int:
             f"Permission denied executing install.sh at {install_script}"
         ) from exc
     return int(result.returncode)
+
+
+def _load_install_manifest(manifest_path: Path | None = None) -> dict:
+    manifest_file = _manifest_path(manifest_path).expanduser()
+    if not manifest_file.is_file():
+        raise DependencyUninstallError(
+            f"Install manifest not found at {manifest_file}. Run `nk deps install` first."
+        )
+    try:
+        with manifest_file.open("r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except json.JSONDecodeError as exc:
+        raise DependencyUninstallError(
+            f"Install manifest at {manifest_file} is not valid JSON."
+        ) from exc
+
+
+def _path_is_under_home(path: Path, *, allow_outside_home: bool) -> bool:
+    if allow_outside_home:
+        return True
+    home = Path.home().resolve()
+    try:
+        return path.is_relative_to(home)
+    except AttributeError:  # pragma: no cover - python <3.9 fallback
+        return str(path).startswith(str(home))
+    except RuntimeError:
+        return False
+
+
+def _remove_path_if_safe(
+    name: str, path: Path, *, allow_outside_home: bool
+) -> UninstallResult:
+    candidate = path.expanduser()
+    if not candidate.is_absolute():
+        candidate = candidate.absolute()
+    is_link = candidate.is_symlink()
+    safety_target = candidate if is_link else candidate.resolve()
+    if not _path_is_under_home(safety_target, allow_outside_home=allow_outside_home):
+        return UninstallResult(
+            name=name,
+            status="unsafe",
+            detail=f"Refusing to remove outside home: {safety_target}",
+        )
+
+    exists = candidate.exists() or candidate.is_symlink()
+    if not exists:
+        return UninstallResult(
+            name=name,
+            status="missing",
+            detail=str(candidate),
+        )
+    try:
+        if candidate.is_dir() and not is_link:
+            shutil.rmtree(candidate)
+        else:
+            candidate.unlink()
+    except Exception as exc:
+        return UninstallResult(
+            name=name,
+            status="error",
+            detail=f"{candidate}: {exc}",
+        )
+    return UninstallResult(name=name, status="removed", detail=str(candidate))
+
+
+def _remove_root_if_created(
+    name: str,
+    data: Mapping[str, object],
+    *,
+    allow_outside_home: bool,
+) -> list[UninstallResult]:
+    root_path = data.get("root_path")
+    created_by_nk = bool(data.get("root_created_by_nk"))
+    if not created_by_nk or not root_path:
+        return []
+    root = Path(str(root_path)).expanduser()
+    if not root.is_absolute():
+        root = root.absolute()
+    if not _path_is_under_home(root, allow_outside_home=allow_outside_home):
+        return [
+            UninstallResult(
+                name=f"{name}-root",
+                status="unsafe",
+                detail=f"Refusing to remove outside home: {root}",
+            )
+        ]
+    if not root.exists():
+        return [
+            UninstallResult(
+                name=f"{name}-root",
+                status="missing",
+                detail=str(root),
+            )
+        ]
+    try:
+        contents = list(root.iterdir())
+    except Exception as exc:
+        return [
+            UninstallResult(
+                name=f"{name}-root",
+                status="error",
+                detail=f"{root}: {exc}",
+            )
+        ]
+    if contents:
+        return [
+            UninstallResult(
+                name=f"{name}-root",
+                status="nonempty",
+                detail=str(root),
+            )
+        ]
+    try:
+        root.rmdir()
+    except Exception as exc:
+        return [
+            UninstallResult(
+                name=f"{name}-root",
+                status="error",
+                detail=f"{root}: {exc}",
+            )
+        ]
+    return [
+        UninstallResult(
+            name=f"{name}-root",
+            status="removed",
+            detail=str(root),
+        )
+    ]
+
+
+def _uninstall_component(
+    name: str,
+    data: Mapping[str, object] | None,
+    *,
+    allow_outside_home: bool,
+) -> list[UninstallResult]:
+    if not isinstance(data, Mapping):
+        return [
+            UninstallResult(
+                name=name,
+                status="error",
+                detail="Invalid manifest entry.",
+            )
+        ]
+    installed_by_nk = bool(data.get("installed_by_nk"))
+    if not installed_by_nk:
+        return [
+            UninstallResult(
+                name=name,
+                status="skipped",
+                detail="Not installed by nk; leaving untouched.",
+            )
+        ]
+    raw_path = data.get("path")
+    if not raw_path:
+        return [
+            UninstallResult(
+                name=name,
+                status="skipped",
+                detail="No path recorded in manifest.",
+            )
+        ]
+
+    results = [
+        _remove_path_if_safe(
+            name,
+            Path(str(raw_path)),
+            allow_outside_home=allow_outside_home,
+        )
+    ]
+    symlink_path = data.get("symlink")
+    if symlink_path:
+        results.append(
+            _remove_path_if_safe(
+                f"{name}-symlink",
+                Path(str(symlink_path)),
+                allow_outside_home=allow_outside_home,
+            )
+        )
+    results.extend(
+        _remove_root_if_created(
+            name,
+            data,
+            allow_outside_home=allow_outside_home,
+        )
+    )
+    return results
+
+
+def uninstall_dependencies(
+    *,
+    manifest_path: Path | None = None,
+    allow_outside_home: bool = False,
+) -> list[UninstallResult]:
+    """
+    Remove nk-managed dependencies that were installed via install.sh.
+
+    Only entries recorded as installed_by_nk in the install manifest are removed.
+    """
+    manifest = _load_install_manifest(manifest_path)
+    components: Mapping[str, object] = {}
+    if isinstance(manifest, Mapping):
+        maybe_components = manifest.get("components", {})
+        if isinstance(maybe_components, Mapping):
+            components = maybe_components
+    results: list[UninstallResult] = []
+    for key in ("unidic", "voicevox"):
+        results.extend(
+            _uninstall_component(
+                key,
+                components.get(key),
+                allow_outside_home=allow_outside_home,
+            )
+        )
+    return results

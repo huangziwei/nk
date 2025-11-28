@@ -46,7 +46,13 @@ from .core import (
     epub_to_chapter_texts,
     get_epub_cover,
 )
-from .deps import DependencyInstallError, dependency_statuses, install_dependencies
+from .deps import (
+    DependencyInstallError,
+    DependencyUninstallError,
+    dependency_statuses,
+    install_dependencies,
+    uninstall_dependencies,
+)
 from .logging_utils import build_uvicorn_log_config
 from .nlp import NLPBackend, NLPBackendUnavailableError
 from .player import PlayerConfig, create_app
@@ -650,6 +656,17 @@ def build_deps_parser() -> argparse.ArgumentParser:
         "--script",
         type=Path,
         help="Override install.sh path (defaults to the copy shipped with nk).",
+    )
+
+    uninstall_parser = subparsers.add_parser(
+        "uninstall",
+        help="Remove dependencies that nk installed via install.sh (tracked in the manifest).",
+    )
+    _add_version_flag(uninstall_parser)
+    uninstall_parser.add_argument(
+        "--manifest",
+        type=Path,
+        help="Override the install manifest location (defaults to ~/.local/share/nk/deps-manifest.json or NK_STATE_DIR).",
     )
 
     ap.set_defaults(command="check")
@@ -1789,10 +1806,29 @@ def _run_deps_install(args: argparse.Namespace) -> int:
         raise SystemExit(str(exc)) from exc
 
 
+def _run_deps_uninstall(args: argparse.Namespace) -> int:
+    manifest_path = getattr(args, "manifest", None)
+    try:
+        results = uninstall_dependencies(manifest_path=manifest_path)
+    except DependencyUninstallError as exc:
+        raise SystemExit(str(exc)) from exc
+
+    exit_code = 0
+    for result in results:
+        print(f"{result.name}: {result.status}")
+        if result.detail:
+            print(f"  {result.detail}")
+        if result.status in {"error", "unsafe", "nonempty"}:
+            exit_code = 1
+    return exit_code
+
+
 def _run_deps(args: argparse.Namespace) -> int:
     command = getattr(args, "command", None) or "check"
     if command == "install":
         return _run_deps_install(args)
+    if command == "uninstall":
+        return _run_deps_uninstall(args)
     return _run_deps_check()
 
 

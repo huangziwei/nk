@@ -48,6 +48,9 @@ UNIDIC_ZIP="${UNIDIC_ZIP:-}"
 NK_SKIP_UNIDIC="${NK_SKIP_UNIDIC:-0}"
 UNIDIC_DOWNLOAD_TMP=""
 
+NK_STATE_DIR="${NK_STATE_DIR:-"$HOME/.local/share/nk"}"
+NK_STATE_FILE="$NK_STATE_DIR/deps-manifest.json"
+
 BREW_DEPS=(curl ffmpeg jq p7zip uv)
 APT_PACKAGES=(curl ffmpeg jq p7zip-full libasound2-dev)
 REQUIRED_COMMANDS=(curl ffmpeg jq 7z uv)
@@ -55,6 +58,16 @@ REQUIRED_COMMANDS=(curl ffmpeg jq 7z uv)
 PACKAGE_MANAGER=""
 SUDO_CMD=""
 LOCAL_BIN="$HOME/.local/bin"
+
+UNIDIC_INSTALLED_BY_NK=0
+UNIDIC_SYMLINK_PATH="$UNIDIC_ROOT/current"
+UNIDIC_PATH="$UNIDIC_INSTALL_DIR"
+UNIDIC_ROOT_CREATED=0
+
+VOICEVOX_INSTALLED_BY_NK=0
+VOICEVOX_PATH="$VOICEVOX_INSTALL_DIR"
+VOICEVOX_VERSION_NOTE=""
+VOICEVOX_ROOT_CREATED=0
 
 if [[ -d "$LOCAL_BIN" && ":$PATH:" != *":$LOCAL_BIN:"* ]]; then
   export PATH="$LOCAL_BIN:$PATH"
@@ -191,6 +204,13 @@ install_uv_if_missing() {
   fi
 }
 
+read_voicevox_version_marker() {
+  local version_file="$VOICEVOX_INSTALL_DIR/.nk-voicevox-version"
+  if [[ -f "$version_file" ]]; then
+    head -n 1 "$version_file"
+  fi
+}
+
 sync_python_dependencies() {
   if [[ ! -f "$ROOT_DIR/pyproject.toml" ]]; then
     log "Skipping uv sync (pyproject.toml not found at $ROOT_DIR)"
@@ -240,6 +260,9 @@ install_unidic() {
     return
   fi
 
+  if [[ ! -d "$UNIDIC_ROOT" ]]; then
+    UNIDIC_ROOT_CREATED=1
+  fi
   mkdir -p "$UNIDIC_ROOT"
 
   local archive_path download_cleanup="0"
@@ -275,6 +298,8 @@ install_unidic() {
     rm -rf "$UNIDIC_DOWNLOAD_TMP"
   fi
   rm -rf "$extract_dir"
+
+  UNIDIC_INSTALLED_BY_NK=1
 }
 
 download_voicevox_release() {
@@ -333,6 +358,9 @@ finalize_voicevox_install() {
   local extract_dir="$1"
   local install_dir="$VOICEVOX_INSTALL_DIR"
 
+  if [[ ! -d "$VOICEVOX_ROOT" ]]; then
+    VOICEVOX_ROOT_CREATED=1
+  fi
   mkdir -p "$VOICEVOX_ROOT"
   rm -rf "$install_dir"
 
@@ -375,6 +403,7 @@ install_voicevox() {
 
   if [[ -x "$VOICEVOX_INSTALL_DIR/run" && "$VOICEVOX_FORCE" != "1" ]]; then
     log "VoiceVox already installed at $VOICEVOX_INSTALL_DIR (set VOICEVOX_FORCE=1 to reinstall)"
+    VOICEVOX_VERSION_NOTE="$(read_voicevox_version_marker || true)"
     return
   fi
 
@@ -392,6 +421,68 @@ install_voicevox() {
   fi
   finalize_voicevox_install "$extract_dir"
   rm -rf "$(dirname "$archive_path")" "$extract_dir"
+
+  VOICEVOX_INSTALLED_BY_NK=1
+  VOICEVOX_VERSION_NOTE="${VOICEVOX_RELEASE_TAG:-}"
+}
+
+write_install_manifest() {
+  mkdir -p "$NK_STATE_DIR"
+  NK_STATE_FILE="$NK_STATE_FILE" \
+  UNIDIC_INSTALLED_BY_NK="$UNIDIC_INSTALLED_BY_NK" \
+  UNIDIC_PATH="$UNIDIC_PATH" \
+  UNIDIC_SYMLINK_PATH="$UNIDIC_SYMLINK_PATH" \
+  UNIDIC_VERSION="$UNIDIC_VERSION" \
+  UNIDIC_ROOT_CREATED="$UNIDIC_ROOT_CREATED" \
+  UNIDIC_ROOT="$UNIDIC_ROOT" \
+  VOICEVOX_INSTALLED_BY_NK="$VOICEVOX_INSTALLED_BY_NK" \
+  VOICEVOX_PATH="$VOICEVOX_PATH" \
+  VOICEVOX_TARGET="$VOICEVOX_TARGET" \
+  VOICEVOX_VERSION_NOTE="$VOICEVOX_VERSION_NOTE" \
+  VOICEVOX_ROOT_CREATED="$VOICEVOX_ROOT_CREATED" \
+  VOICEVOX_ROOT="$VOICEVOX_ROOT" \
+  python3 - <<'PY'
+import datetime
+import json
+import os
+from pathlib import Path
+
+state_file = Path(os.environ["NK_STATE_FILE"])
+state_file.parent.mkdir(parents=True, exist_ok=True)
+
+def _bool_env(name: str) -> bool:
+    return os.environ.get(name) == "1"
+
+manifest = {
+    "version": 1,
+    "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
+    "components": {
+        "unidic": {
+            "installed_by_nk": _bool_env("UNIDIC_INSTALLED_BY_NK"),
+            "path": os.environ.get("UNIDIC_PATH", ""),
+            "symlink": os.environ.get("UNIDIC_SYMLINK_PATH", ""),
+            "version": os.environ.get("UNIDIC_VERSION", ""),
+            "root_path": os.environ.get("UNIDIC_ROOT", ""),
+            "root_created_by_nk": _bool_env("UNIDIC_ROOT_CREATED"),
+        },
+        "voicevox": {
+            "installed_by_nk": _bool_env("VOICEVOX_INSTALLED_BY_NK"),
+            "path": os.environ.get("VOICEVOX_PATH", ""),
+            "target": os.environ.get("VOICEVOX_TARGET", ""),
+            "version": os.environ.get("VOICEVOX_VERSION_NOTE", ""),
+            "root_path": os.environ.get("VOICEVOX_ROOT", ""),
+            "root_created_by_nk": _bool_env("VOICEVOX_ROOT_CREATED"),
+        },
+        "system": {
+            "installed_by_nk": False,
+            "note": "nk does not remove system packages; uninstall manually if desired.",
+        },
+    },
+}
+
+with state_file.open("w", encoding="utf-8") as fh:
+    json.dump(manifest, fh, indent=2)
+PY
 }
 
 main() {
@@ -403,6 +494,11 @@ main() {
   sync_python_dependencies
   install_unidic
   install_voicevox
+  if ! write_install_manifest; then
+    log "Warning: failed to write install manifest to $NK_STATE_FILE"
+  else
+    log "Wrote install manifest to $NK_STATE_FILE"
+  fi
 
   log "All dependencies installed. Activate the virtualenv with 'source .venv/bin/activate' or run commands via 'uv run nk ...'."
 }
