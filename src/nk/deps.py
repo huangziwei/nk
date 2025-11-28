@@ -23,6 +23,10 @@ class DependencyStatus:
     detail: str | None = None
 
 
+class DependencyInstallError(RuntimeError):
+    """Raised when nk cannot invoke the install helper script."""
+
+
 def _candidate_unidic_paths() -> Iterable[Path]:
     env_root = os.environ.get("NK_UNIDIC_ROOT")
     if env_root:
@@ -152,3 +156,57 @@ def dependency_statuses() -> List[DependencyStatus]:
         describe_voicevox(),
         describe_ffmpeg(),
     ]
+
+
+def _resolve_install_script(script_path: Path | None = None) -> Path:
+    env_path = os.environ.get("NK_INSTALL_SCRIPT")
+    if env_path and not script_path:
+        return Path(env_path).expanduser()
+    if script_path:
+        return script_path
+
+    module_path = Path(__file__).resolve()
+    search_roots = [module_path.parent, *module_path.parents]
+    for base in search_roots:
+        candidate = base / "install.sh"
+        if candidate.is_file():
+            return candidate
+
+    default_path = (
+        module_path.parents[2] / "install.sh"
+        if len(module_path.parents) >= 3
+        else module_path.parent / "install.sh"
+    )
+    raise DependencyInstallError(
+        f"install.sh not found at {default_path}. "
+        "Reinstall nk from PyPI or set NK_INSTALL_SCRIPT/--script to point at a local copy."
+    )
+
+
+def install_dependencies(*, script_path: Path | None = None) -> int:
+    """
+    Invoke the project install.sh helper and return its exit code.
+
+    The optional NK_INSTALL_SCRIPT env var or script_path argument can override the
+    location for testing or custom layouts.
+    """
+    install_script = _resolve_install_script(script_path).expanduser().resolve()
+    if not install_script.is_file():
+        raise DependencyInstallError(
+            f"install.sh not found at {install_script}. "
+            "Reinstall nk from PyPI or set NK_INSTALL_SCRIPT/--script to point at a local copy."
+        )
+
+    try:
+        result = subprocess.run(
+            ["bash", str(install_script)],
+            check=False,
+            cwd=str(install_script.parent),
+        )
+    except FileNotFoundError as exc:
+        raise DependencyInstallError("bash is required to run install.sh.") from exc
+    except PermissionError as exc:
+        raise DependencyInstallError(
+            f"Permission denied executing install.sh at {install_script}"
+        ) from exc
+    return int(result.returncode)

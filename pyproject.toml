@@ -39,6 +39,7 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/nk"]
 include = [
+    "install.sh",
     "src/nk/data/*.json",
 ]
 

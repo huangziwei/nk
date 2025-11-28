@@ -192,6 +192,11 @@ install_uv_if_missing() {
 }
 
 sync_python_dependencies() {
+  if [[ ! -f "$ROOT_DIR/pyproject.toml" ]]; then
+    log "Skipping uv sync (pyproject.toml not found at $ROOT_DIR)"
+    return
+  fi
+
   log "Syncing Python environment with uv"
   (cd "$ROOT_DIR" && uv sync)
 }

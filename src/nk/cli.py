@@ -46,7 +46,7 @@ from .core import (
     epub_to_chapter_texts,
     get_epub_cover,
 )
-from .deps import dependency_statuses
+from .deps import DependencyInstallError, dependency_statuses, install_dependencies
 from .logging_utils import build_uvicorn_log_config
 from .nlp import NLPBackend, NLPBackendUnavailableError
 from .player import PlayerConfig, create_app
@@ -629,8 +629,30 @@ def build_refine_parser() -> argparse.ArgumentParser:
 
 
 def build_deps_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(description="Show nk dependency status.")
+    ap = argparse.ArgumentParser(
+        description="Check or install nk runtime dependencies (UniDic, VoiceVox, ffmpeg)."
+    )
     _add_version_flag(ap)
+    subparsers = ap.add_subparsers(dest="command", required=False)
+
+    check_parser = subparsers.add_parser(
+        "check",
+        help="Print detected dependency versions and locations.",
+    )
+    _add_version_flag(check_parser)
+
+    install_parser = subparsers.add_parser(
+        "install",
+        help="Run the bundled install.sh helper to install runtimes.",
+    )
+    _add_version_flag(install_parser)
+    install_parser.add_argument(
+        "--script",
+        type=Path,
+        help="Override install.sh path (defaults to the copy shipped with nk).",
+    )
+
+    ap.set_defaults(command="check")
     return ap
 
 
@@ -1741,7 +1763,7 @@ def _slice_targets_by_index(
     return targets[start_index - 1 :]
 
 
-def _run_deps(args: argparse.Namespace) -> int:
+def _run_deps_check() -> int:
     statuses = dependency_statuses()
     all_ok = True
     for status in statuses:
@@ -1757,6 +1779,21 @@ def _run_deps(args: argparse.Namespace) -> int:
         if not status.available:
             all_ok = False
     return 0 if all_ok else 1
+
+
+def _run_deps_install(args: argparse.Namespace) -> int:
+    script_path = getattr(args, "script", None)
+    try:
+        return install_dependencies(script_path=script_path)
+    except DependencyInstallError as exc:
+        raise SystemExit(str(exc)) from exc
+
+
+def _run_deps(args: argparse.Namespace) -> int:
+    command = getattr(args, "command", None) or "check"
+    if command == "install":
+        return _run_deps_install(args)
+    return _run_deps_check()
 
 
 def _run_play(args: argparse.Namespace) -> None:
