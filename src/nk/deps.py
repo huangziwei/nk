@@ -310,8 +310,11 @@ def _remove_root_if_created(
     *,
     allow_outside_home: bool,
 ) -> list[UninstallResult]:
-    root_path = data.get("root_path")
-    created_by_nk = bool(data.get("root_created_by_nk"))
+    root_path = data.get("root_path") or data.get("path")
+    created_flag = data.get("root_created_by_nk")
+    if created_flag is None:
+        created_flag = data.get("created_by_nk")
+    created_by_nk = bool(created_flag)
     if not created_by_nk or not root_path:
         return []
     root = Path(str(root_path)).expanduser()
@@ -451,6 +454,15 @@ def uninstall_dependencies(
             _uninstall_component(
                 key,
                 components.get(key),
+                allow_outside_home=allow_outside_home,
+            )
+        )
+    opt_root_data = components.get("opt_root")
+    if isinstance(opt_root_data, Mapping):
+        results.extend(
+            _remove_root_if_created(
+                "opt",
+                opt_root_data,
                 allow_outside_home=allow_outside_home,
             )
         )

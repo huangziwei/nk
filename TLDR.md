@@ -249,7 +249,7 @@ nk deps [check|install|uninstall]
 
 - `nk deps check` (default) prints the detected UniDic, VoiceVox, and ffmpeg installations so you can confirm versions/paths quickly.
 - `nk deps install` runs the bundled `install.sh` helper to fetch runtimes (UniDic, VoiceVox, ffmpeg) without needing a separate script invocation.
-- `nk deps uninstall` removes only the nk-installed runtimes recorded in the manifest (default: `~/.local/share/nk/deps-manifest.json`, override via `NK_STATE_DIR`), leaving existing/manual installs and system packages alone.
+- `nk deps uninstall` removes only the nk-installed runtimes recorded in the manifest (default: `~/.local/share/nk/deps-manifest.json`, override via `NK_STATE_DIR`) and will also clean up nk-created empty roots (e.g., `~/opt`/`~/opt/unidic`/`~/opt/voicevox`) while leaving existing/manual installs and system packages alone.
 - `nk dav` exposes only `.mp3` files via WebDAV using your macOS login (PAM) and mirrors new MP3s as they are added under `books/`. Point clients such as Flacbox at `http://<your-mac-ip>:PORT/` to stream your nk library without copying files.
 ```
 

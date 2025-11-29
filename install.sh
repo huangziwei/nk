@@ -50,6 +50,7 @@ UNIDIC_DOWNLOAD_TMP=""
 
 NK_STATE_DIR="${NK_STATE_DIR:-"$HOME/.local/share/nk"}"
 NK_STATE_FILE="$NK_STATE_DIR/deps-manifest.json"
+NK_OPT_ROOT="${NK_OPT_ROOT:-"$HOME/opt"}"
 
 BREW_DEPS=(curl ffmpeg jq p7zip uv)
 APT_PACKAGES=(curl ffmpeg jq p7zip-full libasound2-dev)
@@ -69,12 +70,28 @@ VOICEVOX_PATH="$VOICEVOX_INSTALL_DIR"
 VOICEVOX_VERSION_NOTE=""
 VOICEVOX_ROOT_CREATED=0
 
+NK_OPT_ROOT_CREATED=0
+
 if [[ -d "$LOCAL_BIN" && ":$PATH:" != *":$LOCAL_BIN:"* ]]; then
   export PATH="$LOCAL_BIN:$PATH"
 fi
 
 log() {
   echo "[nk install] $*" >&2
+}
+
+maybe_mark_opt_root_created() {
+  local target="$1"
+  if [[ "$NK_OPT_ROOT_CREATED" == "1" ]]; then
+    return
+  fi
+  case "$target" in
+    "$NK_OPT_ROOT"|"$NK_OPT_ROOT"/*)
+      if [[ ! -d "$NK_OPT_ROOT" ]]; then
+        NK_OPT_ROOT_CREATED=1
+      fi
+      ;;
+  esac
 }
 
 run_with_sudo() {
@@ -260,6 +277,7 @@ install_unidic() {
     return
   fi
 
+  maybe_mark_opt_root_created "$UNIDIC_ROOT"
   if [[ ! -d "$UNIDIC_ROOT" ]]; then
     UNIDIC_ROOT_CREATED=1
   fi
@@ -358,6 +376,7 @@ finalize_voicevox_install() {
   local extract_dir="$1"
   local install_dir="$VOICEVOX_INSTALL_DIR"
 
+  maybe_mark_opt_root_created "$VOICEVOX_ROOT"
   if [[ ! -d "$VOICEVOX_ROOT" ]]; then
     VOICEVOX_ROOT_CREATED=1
   fi
@@ -435,6 +454,8 @@ write_install_manifest() {
   UNIDIC_VERSION="$UNIDIC_VERSION" \
   UNIDIC_ROOT_CREATED="$UNIDIC_ROOT_CREATED" \
   UNIDIC_ROOT="$UNIDIC_ROOT" \
+  NK_OPT_ROOT="$NK_OPT_ROOT" \
+  NK_OPT_ROOT_CREATED="$NK_OPT_ROOT_CREATED" \
   VOICEVOX_INSTALLED_BY_NK="$VOICEVOX_INSTALLED_BY_NK" \
   VOICEVOX_PATH="$VOICEVOX_PATH" \
   VOICEVOX_TARGET="$VOICEVOX_TARGET" \
@@ -472,6 +493,10 @@ manifest = {
             "version": os.environ.get("VOICEVOX_VERSION_NOTE", ""),
             "root_path": os.environ.get("VOICEVOX_ROOT", ""),
             "root_created_by_nk": _bool_env("VOICEVOX_ROOT_CREATED"),
+        },
+        "opt_root": {
+            "path": os.environ.get("NK_OPT_ROOT", ""),
+            "root_created_by_nk": _bool_env("NK_OPT_ROOT_CREATED"),
         },
         "system": {
             "installed_by_nk": False,

@@ -88,15 +88,16 @@ def test_run_deps_install_forwards_script(monkeypatch, tmp_path):
 
 
 def test_uninstall_dependencies_removes_only_managed(tmp_path):
-    unidic_root = tmp_path / "unidic-root"
-    unidic_root.mkdir()
+    opt_root = tmp_path / "opt"
+    unidic_root = opt_root / "unidic-root"
+    unidic_root.mkdir(parents=True)
     unidic_path = unidic_root / "unidic"
     unidic_path.mkdir()
     (unidic_path / "dicrc").write_text("")
     unidic_link = unidic_root / "current"
     unidic_link.symlink_to(unidic_path)
 
-    voicevox_root = tmp_path / "voicevox-root"
+    voicevox_root = opt_root / "voicevox-root"
     voicevox_root.mkdir()
     voicevox_path = voicevox_root / "voicevox"
     voicevox_path.mkdir()
@@ -111,10 +112,14 @@ def test_uninstall_dependencies_removes_only_managed(tmp_path):
                 "root_created_by_nk": True,
             },
             "voicevox": {
-                "installed_by_nk": False,
+                "installed_by_nk": True,
                 "path": str(voicevox_path),
                 "root_path": str(voicevox_root),
-                "root_created_by_nk": False,
+                "root_created_by_nk": True,
+            },
+            "opt_root": {
+                "path": str(opt_root),
+                "root_created_by_nk": True,
             },
         }
     }
@@ -129,18 +134,54 @@ def test_uninstall_dependencies_removes_only_managed(tmp_path):
     assert statuses["unidic"] == "removed"
     assert statuses["unidic-symlink"] == "removed"
     assert statuses["unidic-root"] == "removed"
+    assert statuses["voicevox"] == "removed"
+    assert statuses["voicevox-root"] == "removed"
+    assert statuses["opt-root"] == "removed"
     assert not unidic_path.exists()
     assert not unidic_link.exists()
     assert not unidic_root.exists()
-    assert statuses["voicevox"] == "skipped"
-    assert voicevox_path.exists()
-    assert voicevox_root.exists()
+    assert not voicevox_path.exists()
+    assert not voicevox_root.exists()
+    assert not opt_root.exists()
 
 
 def test_uninstall_dependencies_requires_manifest(tmp_path):
     missing = tmp_path / "missing.json"
     with pytest.raises(deps.DependencyUninstallError):
         deps.uninstall_dependencies(manifest_path=missing, allow_outside_home=True)
+
+
+def test_uninstall_dependencies_skips_non_nk_paths(tmp_path):
+    voicevox_root = tmp_path / "voicevox-root"
+    voicevox_root.mkdir()
+    voicevox_path = voicevox_root / "voicevox"
+    voicevox_path.mkdir()
+
+    manifest = {
+        "components": {
+            "voicevox": {
+                "installed_by_nk": False,
+                "path": str(voicevox_path),
+                "root_path": str(voicevox_root),
+                "root_created_by_nk": False,
+            },
+            "opt_root": {
+                "path": str(tmp_path / "opt"),
+                "root_created_by_nk": False,
+            },
+        }
+    }
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest))
+
+    results = deps.uninstall_dependencies(
+        manifest_path=manifest_path, allow_outside_home=True
+    )
+    statuses = {r.name: r.status for r in results}
+
+    assert statuses["voicevox"] == "skipped"
+    assert voicevox_path.exists()
+    assert voicevox_root.exists()
 
 
 def test_run_deps_uninstall_forwards_manifest(monkeypatch, capsys, tmp_path):
