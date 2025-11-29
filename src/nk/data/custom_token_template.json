@@ -80,7 +80,7 @@
         {
             "pattern": "何(?=(?:を|が|に|へ|も|か|より|から|まで))",
             "regex": true,
-            "replacement": "何",
+            "replacement": "なに",
             "reading": "ナニ",
             "surface": "何",
             "match_surface": "何"
