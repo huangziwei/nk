@@ -68,63 +68,72 @@
         },
         {
             "pattern": "何を",
-            "replacement": "何を",
-            "reading": "ナニを",
-            "surface": "何を"
+            "replacement": "何",
+            "reading": "ナニ",
+            "surface": "何",
+            "match_surface": "何"
         },
         {
             "pattern": "何が",
-            "replacement": "何が",
-            "reading": "ナニが",
-            "surface": "何が"
+            "replacement": "何",
+            "reading": "ナニ",
+            "surface": "何",
+            "match_surface": "何"
         },
         {
             "pattern": "何に",
-            "replacement": "何に",
-            "reading": "ナニに",
-            "surface": "何に"
+            "replacement": "何",
+            "reading": "ナニ",
+            "surface": "何",
+            "match_surface": "何"
         },
         {
             "pattern": "何へ",
-            "replacement": "何へ",
-            "reading": "ナニへ",
-            "surface": "何へ"
+            "replacement": "何",
+            "reading": "ナニ",
+            "surface": "何",
+            "match_surface": "何"
         },
         {
             "pattern": "何も",
-            "replacement": "何も",
-            "reading": "ナニも",
-            "surface": "何も"
+            "replacement": "何",
+            "reading": "ナニ",
+            "surface": "何",
+            "match_surface": "何"
         },
         {
             "pattern": "何か",
-            "replacement": "何か",
-            "reading": "ナニか",
+            "replacement": "何",
+            "reading": "ナニ",
             "surface": "何か"
         },
         {
             "pattern": "何より",
-            "replacement": "何より",
-            "reading": "ナニより",
-            "surface": "何より"
+            "replacement": "何",
+            "reading": "ナニ",
+            "surface": "何",
+            "match_surface": "何"
         },
         {
             "pattern": "何から",
-            "replacement": "何から",
-            "reading": "ナニから",
-            "surface": "何から"
+            "replacement": "何",
+            "reading": "ナニ",
+            "surface": "何",
+            "match_surface": "何"
         },
         {
             "pattern": "何まで",
-            "replacement": "何まで",
-            "reading": "ナニまで",
-            "surface": "何まで"
+            "replacement": "何",
+            "reading": "ナニ",
+            "surface": "何",
+            "match_surface": "何"
         },
         {
             "pattern": "何よりも",
-            "replacement": "何よりも",
-            "reading": "ナニよりも",
-            "surface": "何よりも"
+            "replacement": "何",
+            "reading": "ナニ",
+            "surface": "何",
+            "match_surface": "何"
         }
     ],
     "remove": [
