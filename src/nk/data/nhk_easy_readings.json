@@ -156036,18 +156036,6 @@
         ]
     },
     {
-        "base": "24",
-        "reading": "にじゅうよっ",
-        "count": 8,
-        "suffix": "",
-        "suffixes": [
-            {
-                "value": "",
-                "count": 8
-            }
-        ]
-    },
-    {
         "base": "十島村",
         "reading": "としまむら",
         "count": 3,
@@ -156124,18 +156112,6 @@
             {
                 "value": "で",
                 "count": 1
-            }
-        ]
-    },
-    {
-        "base": "20",
-        "reading": "はたち",
-        "count": 3,
-        "suffix": "",
-        "suffixes": [
-            {
-                "value": "",
-                "count": 3
             }
         ]
     },
