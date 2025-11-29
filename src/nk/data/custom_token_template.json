@@ -2,134 +2,84 @@
     "overrides": [
         {
             "pattern": "CONTENTS",
+            "regex": false,
             "reading": "コンテンツ",
-            "accent": 3,
-            "surface": "CONTENTS"
+            "surface": "CONTENTS",
+            "accent": 3
         },
         {
             "pattern": "イチ章",
+            "regex": false,
             "replacement": "一章",
             "reading": "イチショウ",
             "surface": "一章"
         },
         {
             "pattern": "ニ章",
+            "regex": false,
             "replacement": "二章",
             "reading": "ニショウ",
             "surface": "二章"
         },
         {
             "pattern": "サン章",
+            "regex": false,
             "replacement": "三章",
             "reading": "サンショウ",
             "surface": "三章"
         },
         {
             "pattern": "ヨン章",
+            "regex": false,
             "replacement": "四章",
             "reading": "ヨンショウ",
             "surface": "四章"
         },
         {
             "pattern": "ゴ章",
+            "regex": false,
             "replacement": "五章",
             "reading": "ゴショウ",
             "surface": "五章"
         },
         {
             "pattern": "ロク章",
+            "regex": false,
             "replacement": "六章",
             "reading": "ロクショウ",
             "surface": "六章"
         },
         {
             "pattern": "ナナ章",
+            "regex": false,
             "replacement": "七章",
             "reading": "ナナショウ",
             "surface": "七章"
         },
         {
             "pattern": "ハチ章",
+            "regex": false,
             "replacement": "八章",
             "reading": "ハチショウ",
             "surface": "八章"
         },
         {
             "pattern": "キュウ章",
+            "regex": false,
             "replacement": "九章",
             "reading": "キュウショウ",
             "surface": "九章"
         },
         {
             "pattern": "ジュウ章",
+            "regex": false,
             "replacement": "十章",
             "reading": "ジュッショウ",
             "surface": "十章"
         },
         {
-            "pattern": "何を",
-            "replacement": "何",
-            "reading": "ナニ",
-            "surface": "何",
-            "match_surface": "何"
-        },
-        {
-            "pattern": "何が",
-            "replacement": "何",
-            "reading": "ナニ",
-            "surface": "何",
-            "match_surface": "何"
-        },
-        {
-            "pattern": "何に",
-            "replacement": "何",
-            "reading": "ナニ",
-            "surface": "何",
-            "match_surface": "何"
-        },
-        {
-            "pattern": "何へ",
-            "replacement": "何",
-            "reading": "ナニ",
-            "surface": "何",
-            "match_surface": "何"
-        },
-        {
-            "pattern": "何も",
-            "replacement": "何",
-            "reading": "ナニ",
-            "surface": "何",
-            "match_surface": "何"
-        },
-        {
-            "pattern": "何か",
-            "replacement": "何",
-            "reading": "ナニ",
-            "surface": "何か"
-        },
-        {
-            "pattern": "何より",
-            "replacement": "何",
-            "reading": "ナニ",
-            "surface": "何",
-            "match_surface": "何"
-        },
-        {
-            "pattern": "何から",
-            "replacement": "何",
-            "reading": "ナニ",
-            "surface": "何",
-            "match_surface": "何"
-        },
-        {
-            "pattern": "何まで",
-            "replacement": "何",
-            "reading": "ナニ",
-            "surface": "何",
-            "match_surface": "何"
-        },
-        {
-            "pattern": "何よりも",
+            "pattern": "何(?=(?:を|が|に|へ|も|か|より|から|まで))",
+            "regex": true,
             "replacement": "何",
             "reading": "ナニ",
             "surface": "何",
