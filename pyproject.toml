@@ -42,6 +42,10 @@ include = [
     "install.sh",
     "src/nk/data/*.json",
 ]
+force-include = {"install.sh" = "nk/install.sh"}
+
+[tool.hatch.build.targets.sdist]
+include = ["install.sh", "src", "README.md", "TLDR.md", "LICENSE"]
 
 [tool.hatch.envs.default]
 path = ".venv"

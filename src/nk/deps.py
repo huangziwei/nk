@@ -9,6 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Mapping
 
+try:
+    import importlib.resources as resources
+except ImportError:  # pragma: no cover - py<3.9 fallback
+    import importlib_resources as resources  # type: ignore
+
 UNIDIC_VERSION = "3.1.1"
 UNIDIC_ARCHIVE_URL = (
     "https://clrd.ninjal.ac.jp/unidic_archive/cwj/3.1.1/unidic-cwj-3.1.1-full.zip"
@@ -206,6 +211,14 @@ def _resolve_install_script(script_path: Path | None = None) -> Path:
         if len(module_path.parents) >= 3
         else module_path.parent / "install.sh"
     )
+    try:
+        package_files = resources.files(__package__ or "nk")
+        candidate = package_files.joinpath("install.sh")
+        with resources.as_file(candidate) as extracted:
+            if extracted.is_file():
+                return extracted
+    except Exception:
+        pass
     raise DependencyInstallError(
         f"install.sh not found at {default_path}. "
         "Reinstall nk from PyPI or set NK_INSTALL_SCRIPT/--script to point at a local copy."
