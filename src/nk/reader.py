@@ -2679,6 +2679,63 @@ INDEX_HTML = """<!DOCTYPE html>
         const isSelectionToken =
           token && Array.isArray(token.sources) && token.sources.includes('selection');
 
+        const isKanaChar = (ch) => {
+          if (!ch) return false;
+          const code = ch.codePointAt(0);
+          return (
+            (code >= 0x3040 && code <= 0x309F)
+            || (code >= 0x30A0 && code <= 0x30FF)
+            || ch === 'ー'
+            || ch === 'ゝ'
+            || ch === 'ゞ'
+          );
+        };
+
+        const isCjkChar = (ch) => {
+          if (!ch) return false;
+          const code = ch.codePointAt(0);
+          return (
+            (code >= 0x4E00 && code <= 0x9FFF)
+            || (code >= 0x3400 && code <= 0x4DBF)
+            || (code >= 0x20000 && code <= 0x2A6DF)
+            || ch === '々'
+            || ch === '〆'
+            || ch === 'ヵ'
+            || ch === 'ヶ'
+          );
+        };
+
+        const buildLookaheadFromSelection = (text) => {
+          if (!text || text.length < 2) return null;
+          let split = text.length;
+          while (split > 0 && isKanaChar(text.charAt(split - 1))) {
+            split -= 1;
+          }
+          if (split <= 0 || split >= text.length) {
+            return null;
+          }
+          const head = text.slice(0, split);
+          const tail = text.slice(split);
+          const headChars = Array.from(head);
+          const tailChars = Array.from(tail);
+          if (!tailChars.length || !tailChars.every(isKanaChar)) {
+            return null;
+          }
+          if (!headChars.length || !headChars.some(isCjkChar)) {
+            return null;
+          }
+          const lastHeadChar = headChars[headChars.length - 1];
+          if (!isCjkChar(lastHeadChar)) {
+            return null;
+          }
+          return {
+            pattern: `${head}(?=${tail})`,
+            replacement: head,
+            surface: head,
+            matchSurface: head,
+          };
+        };
+
         const sliceOriginalSurface = (candidateToken, allowFallbackSurface = true) => {
           if (!candidateToken) return '';
           const startOriginal = offsetValue(candidateToken.start, 'original');
@@ -2724,17 +2781,33 @@ INDEX_HTML = """<!DOCTYPE html>
           return '';
         })();
 
+        const selectionPatternSuggestion = (() => {
+          if (!isSelectionToken || view !== 'transformed') {
+            return null;
+          }
+          return buildLookaheadFromSelection(chunk);
+        })();
+
         const readingLabel = token.reading || '';
         const defaultPattern =
-          view === 'transformed' && chunk
-            ? chunk
-            : (readingLabel || surfaceLabel);
-        const defaultReplacement = chunk || '';
+          selectionPatternSuggestion && selectionPatternSuggestion.pattern
+            ? selectionPatternSuggestion.pattern
+            : (
+              view === 'transformed' && chunk
+                ? chunk
+                : (readingLabel || surfaceLabel)
+            );
+        const defaultReplacement = selectionPatternSuggestion
+          ? selectionPatternSuggestion.replacement
+          : (chunk || '');
         const defaultReading = token.reading || chunk || '';
         const accentValue =
           typeof token.accent === 'number' && Number.isFinite(token.accent)
             ? String(token.accent)
             : '';
+        const defaultRegex = selectionPatternSuggestion
+          ? true
+          : Boolean(context && context.regex);
         if (refinePatternInput) {
           refinePatternInput.value = defaultPattern || '';
         }
@@ -2747,18 +2820,20 @@ INDEX_HTML = """<!DOCTYPE html>
         if (refineAccentInput) {
           refineAccentInput.value = accentValue;
         }
+        const lookaheadSurface = selectionPatternSuggestion ? selectionPatternSuggestion.surface : '';
+        const lookaheadMatchSurface = selectionPatternSuggestion ? selectionPatternSuggestion.matchSurface : '';
         if (refineSurfaceInput) {
-          const defaultSurface = selectionMatchSurface || token.surface || '';
+          const defaultSurface = lookaheadSurface || selectionMatchSurface || token.surface || '';
           refineSurfaceInput.value = defaultSurface;
         }
         if (refineMatchSurfaceInput) {
-          refineMatchSurfaceInput.value = selectionMatchSurface || '';
+          refineMatchSurfaceInput.value = lookaheadMatchSurface || selectionMatchSurface || '';
         }
         if (refinePosInput) {
           refinePosInput.value = token.pos || '';
         }
         if (refineRegexInput) {
-          refineRegexInput.checked = Boolean(context && context.regex);
+          refineRegexInput.checked = defaultRegex;
         }
         if (refineContextLabel) {
           const parts = [];
