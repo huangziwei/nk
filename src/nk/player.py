@@ -3322,13 +3322,19 @@ INDEX_HTML = r"""<!DOCTYPE html>
     applyVoiceDefaults(DEFAULT_VOICE, {});
 
     function scrollToLastBook() {
-      if (!lastOpenedBookId || !booksGrid) return;
-      const nodes = booksGrid.querySelectorAll('[data-book-id]');
-      for (const node of nodes) {
-        if (node.dataset.bookId === lastOpenedBookId) {
-          node.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          break;
-        }
+      if (!booksGrid) return;
+      const nodes = Array.from(booksGrid.querySelectorAll('[data-book-id]'));
+      if (!nodes.length) return;
+      const isRecentView = state.libraryPrefix === RECENTLY_PLAYED_PREFIX;
+      let target = null;
+      if (lastOpenedBookId) {
+        target = nodes.find(node => node.dataset.bookId === lastOpenedBookId) || null;
+      }
+      if (isRecentView && nodes.length > 1 && (!target || target === nodes[0])) {
+        target = nodes[1];
+      }
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
 
