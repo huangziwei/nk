@@ -3322,16 +3322,19 @@ INDEX_HTML = r"""<!DOCTYPE html>
     applyVoiceDefaults(DEFAULT_VOICE, {});
 
     function scrollToLastBook() {
-      if (!booksGrid) return;
-      const nodes = Array.from(booksGrid.querySelectorAll('[data-book-id]'));
+      const gridNodes = booksGrid ? Array.from(booksGrid.querySelectorAll('[data-book-id]')) : [];
+      const collectionNodes = collectionsGrid
+        ? Array.from(collectionsGrid.querySelectorAll('[data-book-id]'))
+        : [];
+      const nodes = [...gridNodes, ...collectionNodes];
       if (!nodes.length) return;
       const isRecentView = state.libraryPrefix === RECENTLY_PLAYED_PREFIX;
       let target = null;
       if (lastOpenedBookId) {
         target = nodes.find(node => node.dataset.bookId === lastOpenedBookId) || null;
       }
-      if (isRecentView && nodes.length > 1 && (!target || target === nodes[0])) {
-        target = nodes[1];
+      if (isRecentView && gridNodes.length > 1 && (!target || target === gridNodes[0])) {
+        target = gridNodes[1];
       }
       if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -3754,6 +3757,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
       setSortSelectVisibility(hasBooks && !isRecentView);
       if (!showUpload && !hasBooks) {
         booksGrid.classList.add('hidden');
+        scrollToLastBook();
         return;
       }
       booksGrid.classList.remove('hidden');
@@ -3768,6 +3772,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
           ? 'No recently played books yet.'
           : 'No books in this folder yet. Choose a collection or upload a book.';
         booksGrid.appendChild(empty);
+        scrollToLastBook();
         return;
       }
       state.books.forEach(book => {
