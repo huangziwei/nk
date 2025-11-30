@@ -84,6 +84,14 @@
             "reading": "ナニ",
             "surface": "何",
             "match_surface": "何"
+        },
+        {
+            "pattern": "ナン(?=(?:を|が|に|へ|も|か|より|から|まで|これ))",
+            "regex": true,
+            "replacement": "なに",
+            "reading": "ナニ",
+            "surface": "何",
+            "match_surface": "何"
         }
     ],
     "remove": [
