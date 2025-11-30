@@ -890,7 +890,7 @@ def _apply_override_rule(
                 )
 
         target_overlaps = [tok for tok in overlapping if _matches_source(tok)]
-        if normalized_source is not None and not target_overlaps:
+        if (rule_source or normalized_source) and not target_overlaps:
             search_pos = end
             continue
 
