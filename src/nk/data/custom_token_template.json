@@ -92,6 +92,22 @@
             "reading": "ナニ",
             "surface": "何",
             "match_surface": "何"
+        },
+        {
+            "pattern": "(?<![第0-9０-９])表(?=[でへにをはもともからまで、。\\s])",
+            "regex": true,
+            "replacement": "オモテ",
+            "reading": "オモテ",
+            "surface": "表",
+            "match_surface": "表"
+        },
+        {
+            "pattern": "表(?=に(?:出|立|面|現|あらわ|出さ))",
+            "regex": true,
+            "replacement": "オモテ",
+            "reading": "オモテ",
+            "surface": "表",
+            "match_surface": "表"
         }
     ],
     "remove": [
