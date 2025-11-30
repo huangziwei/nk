@@ -27,6 +27,7 @@ class OverrideRule:
     pos: str | None
     surface: str | None
     match_surface: str | None
+    source: str | None
 
 
 @dataclass
@@ -156,6 +157,9 @@ def load_refine_config(book_dir: Path) -> tuple[list[OverrideRule], list[RemoveR
         match_surface = entry.get("match_surface")
         if match_surface is not None and not isinstance(match_surface, str):
             match_surface = None
+        source = entry.get("source")
+        if source is not None and not isinstance(source, str):
+            source = None
         overrides.append(
             OverrideRule(
                 pattern=pattern,
@@ -166,6 +170,7 @@ def load_refine_config(book_dir: Path) -> tuple[list[OverrideRule], list[RemoveR
                 pos=pos,
                 surface=surface,
                 match_surface=match_surface,
+                source=source,
             )
         )
     remove_payload = raw.get("remove")
@@ -205,6 +210,7 @@ def refine_book(
     overrides: Iterable[OverrideRule] | None,
     *,
     removals: Iterable[RemoveRule] | None = None,
+    source_filter: str | None = None,
     progress: ProgressCallback | None = None,
 ) -> int:
     if overrides is None and removals is None:
@@ -214,6 +220,7 @@ def refine_book(
         removal_list = list(removals) if removals is not None else load_removal_rules(book_dir)
     if not override_list and not removal_list:
         return 0
+    normalized_source = source_filter.strip().lower() if isinstance(source_filter, str) else None
     refined = 0
     chapters: list[Path] = []
     for txt_path in sorted(book_dir.glob("*.txt")):
@@ -228,6 +235,7 @@ def refine_book(
             txt_path,
             override_list,
             removals=removal_list,
+            source_filter=normalized_source,
             progress=progress,
             chapter_index=index,
             chapter_total=total_chapters,
@@ -241,6 +249,7 @@ def refine_chapter(
     overrides: Iterable[OverrideRule] | None,
     *,
     removals: Iterable[RemoveRule] | None = None,
+    source_filter: str | None = None,
     progress: ProgressCallback | None = None,
     chapter_index: int | None = None,
     chapter_total: int | None = None,
@@ -309,6 +318,7 @@ def refine_chapter(
         return bool(bounds) and bounds[1] > bounds[0]
 
     trackable_total = sum(1 for tok in tokens if _token_has_bounds(tok))
+    normalized_source = source_filter.strip().lower() if isinstance(source_filter, str) else None
     _emit_progress(
         {
             "event": "chapter_start",
@@ -342,6 +352,7 @@ def refine_chapter(
             tokens,
             rule,
             original_text=original_text,
+            source_filter=normalized_source,
             on_token=_mark_token_seen,
             on_token_total=_advance_token_total,
         )
@@ -352,6 +363,7 @@ def refine_chapter(
             text,
             tokens,
             removal_list,
+            source_filter=normalized_source,
             on_token=_mark_token_seen,
         )
         if removed_changed:
@@ -657,6 +669,7 @@ def _apply_override_rule(
     rule: OverrideRule,
     *,
     original_text: str | None = None,
+    source_filter: str | None = None,
     on_token: Callable[[ChapterToken], None] | None = None,
     on_token_total: Callable[[int], None] | None = None,
 ) -> tuple[str, bool]:
@@ -668,6 +681,16 @@ def _apply_override_rule(
             raise ValueError(f"Invalid pattern '{rule.pattern}': {exc}") from exc
     changed = False
     mapper_cache: dict[str, object] = {"text": None, "mapper": None}
+    normalized_source = source_filter.strip().lower() if isinstance(source_filter, str) else None
+    rule_source = rule.source.strip().lower() if isinstance(rule.source, str) else None
+
+    def _matches_source(token: ChapterToken) -> bool:
+        token_source = (token.reading_source or "").lower()
+        if rule_source and token_source != rule_source:
+            return False
+        if normalized_source and token_source != normalized_source:
+            return False
+        return True
 
     def _get_mapper():
         if original_text is None:
@@ -732,6 +755,8 @@ def _apply_override_rule(
     tokens_with_bounds.sort(key=lambda tok: _token_transformed_start(tok))
 
     for token in tokens_with_bounds:
+        if not _matches_source(token):
+            continue
         if on_token:
             on_token(token)
         bounds = _token_transformed_bounds(token)
@@ -831,6 +856,7 @@ def _apply_override_rule(
                 and (rule.pos is None or token.pos == rule.pos)
                 and (rule.accent is None or token.accent_type == rule.accent)
                 and (replacement_text is None or replacement_text == segment)
+                and _matches_source(token)
             ):
                 already_applied = True
             idx += 1
@@ -849,6 +875,7 @@ def _apply_override_rule(
                 and (rule.pos is None or token.pos == rule.pos)
                 and (rule.accent is None or token.accent_type == rule.accent)
                 and (replacement_text is None or replacement_text == segment)
+                and _matches_source(token)
             ):
                 already_applied = True
             idx -= 1
@@ -861,6 +888,11 @@ def _apply_override_rule(
                     min(tok.start for tok in sorted_overlap if tok.start is not None),
                     max(tok.end for tok in sorted_overlap if tok.end is not None),
                 )
+
+        target_overlaps = [tok for tok in overlapping if _matches_source(tok)]
+        if normalized_source is not None and not target_overlaps:
+            search_pos = end
+            continue
 
         if expected_surface:
             if overlap_surface_combined is not None:
@@ -878,8 +910,9 @@ def _apply_override_rule(
             search_pos = new_end if new_end > start else end
             continue
 
-        if overlapping:
-            tokens[:] = [tok for tok in tokens if tok not in overlapping]
+        removable = target_overlaps if normalized_source is not None else overlapping
+        if removable:
+            tokens[:] = [tok for tok in tokens if tok not in removable]
             bounds_dirty = True
             changed = True
 
@@ -906,14 +939,24 @@ def _apply_remove_rules(
     tokens: list[ChapterToken],
     rules: Iterable[RemoveRule],
     *,
+    source_filter: str | None = None,
     on_token: Callable[[ChapterToken], None] | None = None,
 ) -> tuple[str, bool]:
     rule_list = list(rules)
     if not rule_list:
         return text, False
     changed = False
+    normalized_source = source_filter.strip().lower() if isinstance(source_filter, str) else None
+
+    def _matches_source(token: ChapterToken) -> bool:
+        if normalized_source is None:
+            return True
+        return (token.reading_source or "").lower() == normalized_source
+
     for token in list(tokens):
         bounds = _token_transformed_bounds(token)
+        if not _matches_source(token):
+            continue
         if on_token and bounds and bounds[1] > bounds[0]:
             on_token(token)
         if not any(_removal_matches_rule(token, rule) for rule in rule_list):

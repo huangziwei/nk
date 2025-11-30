@@ -413,7 +413,7 @@ def _merge_overrides(
     template_overrides: list[dict[str, object]],
     book_overrides: list[dict[str, object]],
 ) -> list[dict[str, object]]:
-    def _key(entry: dict[str, object]) -> tuple[bool, str | None, str | None]:
+    def _key(entry: dict[str, object]) -> tuple[bool, str | None, str | None, str | None]:
         regex = bool(entry.get("regex"))
         pattern = entry.get("pattern") if isinstance(entry.get("pattern"), str) else None
         match_surface = entry.get("match_surface")
@@ -425,7 +425,9 @@ def _merge_overrides(
             if isinstance(surface, str)
             else None
         )
-        return (regex, pattern, surface_key)
+        source_val = entry.get("source")
+        source = source_val if isinstance(source_val, str) else None
+        return (regex, pattern, surface_key, source)
 
     merged: dict[tuple[bool, str | None, str | None], dict[str, object]] = {}
     for entry in template_overrides:

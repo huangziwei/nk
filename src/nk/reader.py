@@ -1371,6 +1371,9 @@ INDEX_HTML = """<!DOCTYPE html>
                 <button type="button" data-scope="book" class="secondary" id="refine-submit-book">
                   The whole book
                 </button>
+                <button type="button" data-scope="book-source" class="secondary" id="refine-submit-book-source">
+                  The whole book (same source)
+                </button>
               </div>
             </div>
             <div class="modal-button-row end">
@@ -1550,6 +1553,7 @@ INDEX_HTML = """<!DOCTYPE html>
       const refineRegexInput = document.getElementById('refine-regex');
       const refineScopeButtons = Array.from(document.querySelectorAll('[data-scope]'));
       const refineSubmitBook = document.getElementById('refine-submit-book');
+      const refineSubmitBookSource = document.getElementById('refine-submit-book-source');
       const refineSubmitChapter = document.getElementById('refine-submit-chapter');
       const refineSubmitToken = document.getElementById('refine-submit-token');
       const refineDeleteToken = document.getElementById('refine-delete-token');
@@ -1704,7 +1708,11 @@ INDEX_HTML = """<!DOCTYPE html>
           return;
         }
         const normalizedScope =
-          scope === 'chapter' ? 'chapter' : (scope === 'token' ? 'token' : 'book');
+          scope === 'chapter'
+            ? 'chapter'
+            : (scope === 'token'
+              ? 'token'
+              : ((scope === 'book-source' || scope === 'book_source') ? 'book-source' : 'book'));
         refineCurrentScope = normalizedScope;
         const pattern = refinePatternInput ? refinePatternInput.value.trim() : '';
         if (normalizedScope !== 'token' && !pattern) {
@@ -1754,15 +1762,30 @@ INDEX_HTML = """<!DOCTYPE html>
           setRefineError('Select a token to edit.');
           return;
         }
+        const tokenSources = (
+          refineContext
+          && refineContext.token
+          && Array.isArray(refineContext.token.sources)
+            ? refineContext.token.sources.filter((src) => typeof src === 'string' && src.trim())
+            : []
+        );
+        const sourceFilter = tokenSources.length ? tokenSources[0].trim() : '';
         const payload = {
           path: state.selectedPath,
-          scope: normalizedScope,
+          scope: normalizedScope === 'book-source' ? 'book_source' : normalizedScope,
         };
         if (normalizedScope !== 'token') {
           payload.pattern = pattern;
           payload.regex = Boolean(refineRegexInput && refineRegexInput.checked);
         } else if (refineContext && typeof refineContext.index === 'number') {
           payload.token_index = refineContext.index;
+        }
+        if (normalizedScope === 'book-source') {
+          if (!sourceFilter) {
+            setRefineError('Source is required to apply changes by source.');
+            return;
+          }
+          payload.source = sourceFilter;
         }
         if (replacement) {
           payload.replacement = replacement;
@@ -2184,6 +2207,10 @@ INDEX_HTML = """<!DOCTYPE html>
             statusMessage = updated
               ? `Refined current chapter (${chapterLabel}).`
               : `No changes required for ${chapterLabel}.`;
+          } else if (scope === 'book-source') {
+            statusMessage = updated
+              ? `Refined ${updated} chapter(s) in ${bookLabel} (same source).`
+              : `No changes required in ${bookLabel} (same source).`;
           } else {
             statusMessage = updated
               ? `Refined ${updated} chapter(s) in ${bookLabel}.`
@@ -2609,6 +2636,14 @@ INDEX_HTML = """<!DOCTYPE html>
         if (refineDeleteToken) {
           refineDeleteToken.disabled = refineBusy || !canRemoveCurrentToken();
         }
+        if (refineSubmitBookSource) {
+          const hasSource =
+            !!refineContext
+            && !!refineContext.token
+            && Array.isArray(refineContext.token.sources)
+            && refineContext.token.sources.some((src) => typeof src === 'string' && src.trim());
+          refineSubmitBookSource.disabled = refineBusy || !hasSource;
+        }
       }
 
       function setRefineBusy(busy) {
@@ -2617,13 +2652,13 @@ INDEX_HTML = """<!DOCTYPE html>
           updateRefineButtons();
           return;
         }
-        const showProgress = busy && (refineCurrentScope === 'book' || refineCurrentScope === 'chapter');
+        const showProgress = busy && (refineCurrentScope === 'book' || refineCurrentScope === 'book-source' || refineCurrentScope === 'chapter');
         if (refineProgress) {
           refineProgress.classList.toggle('hidden', !showProgress);
         }
         if (refineProgressLabel) {
           const label =
-            refineCurrentScope === 'book'
+            refineCurrentScope === 'book' || refineCurrentScope === 'book-source'
               ? 'Refining whole book…'
               : 'Refining chapter…';
           refineProgressLabel.textContent = label;
@@ -2638,6 +2673,11 @@ INDEX_HTML = """<!DOCTYPE html>
         });
         if (refineSubmitBook) {
           refineSubmitBook.textContent = busy ? 'Applying to whole book…' : 'The whole book';
+        }
+        if (refineSubmitBookSource) {
+          refineSubmitBookSource.textContent = busy
+            ? 'Applying to book (same source)…'
+            : 'The whole book (same source)';
         }
         if (refineSubmitChapter) {
           refineSubmitChapter.textContent = busy ? 'Applying to chapter…' : 'This chapter only';
@@ -2877,6 +2917,7 @@ INDEX_HTML = """<!DOCTYPE html>
           refinePatternInput.focus();
           refinePatternInput.select();
         }
+        updateRefineButtons();
       }
 
       function fetchJSON(url, options = {}) {
@@ -5287,8 +5328,8 @@ def create_reader_app(root: Path) -> FastAPI:
         scope = "book"
         if isinstance(scope_value, str):
             normalized_scope = scope_value.strip().lower()
-            if normalized_scope in {"book", "chapter", "token"}:
-                scope = normalized_scope
+            if normalized_scope in {"book", "chapter", "token", "book_source", "book-source"}:
+                scope = "book_source" if normalized_scope in {"book_source", "book-source"} else normalized_scope
 
         pattern = _trim(payload.get("pattern"))
         replacement = _trim(payload.get("replacement"))
@@ -5309,6 +5350,13 @@ def create_reader_app(root: Path) -> FastAPI:
                 raise HTTPException(
                     status_code=400, detail="accent must be an integer."
                 ) from None
+
+        source_filter = None
+        if scope == "book_source":
+            source_value = payload.get("source")
+            if not isinstance(source_value, str) or not source_value.strip():
+                raise HTTPException(status_code=400, detail="source is required for book_source scope.")
+            source_filter = source_value.strip()
 
         if scope == "token":
             token_index = payload.get("token_index")
@@ -5361,6 +5409,8 @@ def create_reader_app(root: Path) -> FastAPI:
             entry["pos"] = pos
         if accent is not None:
             entry["accent"] = accent
+        if source_filter:
+            entry["source"] = source_filter
         if scope == "chapter":
             scope = "chapter"
         try:
@@ -5435,6 +5485,7 @@ def create_reader_app(root: Path) -> FastAPI:
                             book_dir,
                             overrides,
                             removals=removals,
+                            source_filter=source_filter,
                             progress=_progress,
                         )
                         q.put(
