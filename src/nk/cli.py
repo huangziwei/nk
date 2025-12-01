@@ -1869,21 +1869,7 @@ def _run_deps(args: argparse.Namespace) -> int:
 
 
 def _run_cast(args: argparse.Namespace) -> int:
-    target = Path(args.target).expanduser()
-    if not target.exists():
-        raise SystemExit(f"Target not found: {target}")
-    results = cast_manifests(target, force=bool(args.force))
-    if not results:
-        print("No chunk manifests found.")
-        return 0
-    total_updated = sum(res.updated_chunks for res in results)
-    total_chunks = sum(res.total_chunks for res in results)
-    for res in results:
-        print(
-            f"{res.manifest_path}: updated {res.updated_chunks}/{res.total_chunks} chunks"
-        )
-    print(f"Total: updated {total_updated}/{total_chunks} chunks")
-    return 0
+    raise NotImplementedError("LLM-based cast workflow not implemented yet.")
 
 
 def _run_play(args: argparse.Namespace) -> None:
