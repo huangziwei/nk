@@ -5,6 +5,7 @@ import json
 import re
 from dataclasses import dataclass, replace
 from difflib import SequenceMatcher
+from bisect import bisect_left
 from pathlib import Path
 from typing import Callable, Iterable
 
@@ -26,6 +27,13 @@ class OverrideRule:
     pos: str | None
     surface: str | None
     match_surface: str | None
+    source: str | None
+
+
+@dataclass
+class RemoveRule:
+    reading: str | None
+    surface: str | None
 
 
 def _build_offset_mapper(source: str | None, target: str | None):
@@ -85,7 +93,7 @@ def ensure_override_file(book_dir: Path) -> Path:
     path = book_dir / PRIMARY_OVERRIDE_FILENAME
     if path.exists():
         return path
-    payload = {"overrides": []}
+    payload = {"overrides": [], "remove": []}
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
 
@@ -108,10 +116,10 @@ def append_override_entry(book_dir: Path, entry: dict[str, object]) -> Path:
     return path
 
 
-def load_override_config(book_dir: Path) -> list[OverrideRule]:
+def load_refine_config(book_dir: Path) -> tuple[list[OverrideRule], list[RemoveRule]]:
     config_path = ensure_override_file(book_dir)
     if not config_path.exists():
-        return []
+        return [], []
     try:
         raw = json.loads(config_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -120,6 +128,7 @@ def load_override_config(book_dir: Path) -> list[OverrideRule]:
     if not isinstance(overrides_payload, list):
         raise ValueError(f"{config_path.name} must contain an 'overrides' array.")
     overrides: list[OverrideRule] = []
+    removals: list[RemoveRule] = []
     for entry in overrides_payload:
         if not isinstance(entry, dict):
             continue
@@ -148,6 +157,9 @@ def load_override_config(book_dir: Path) -> list[OverrideRule]:
         match_surface = entry.get("match_surface")
         if match_surface is not None and not isinstance(match_surface, str):
             match_surface = None
+        source = entry.get("source")
+        if source is not None and not isinstance(source, str):
+            source = None
         overrides.append(
             OverrideRule(
                 pattern=pattern,
@@ -158,20 +170,57 @@ def load_override_config(book_dir: Path) -> list[OverrideRule]:
                 pos=pos,
                 surface=surface,
                 match_surface=match_surface,
+                source=source,
             )
         )
+    remove_payload = raw.get("remove")
+    if remove_payload is None:
+        remove_payload = raw.get("removals")
+    if remove_payload is None:
+        remove_payload = []
+    if remove_payload is not None and not isinstance(remove_payload, list):
+        raise ValueError(f"{config_path.name} must contain a 'remove' array if provided.")
+    for entry in remove_payload:
+        if not isinstance(entry, dict):
+            continue
+        reading = entry.get("reading")
+        if reading is not None and not isinstance(reading, str):
+            reading = None
+        surface = entry.get("surface")
+        if surface is not None and not isinstance(surface, str):
+            surface = None
+        if reading is None and surface is None:
+            continue
+        removals.append(RemoveRule(reading=reading, surface=surface))
+    return overrides, removals
+
+
+def load_override_config(book_dir: Path) -> list[OverrideRule]:
+    overrides, _ = load_refine_config(book_dir)
     return overrides
+
+
+def load_removal_rules(book_dir: Path) -> list[RemoveRule]:
+    _, removals = load_refine_config(book_dir)
+    return removals
 
 
 def refine_book(
     book_dir: Path,
-    overrides: Iterable[OverrideRule],
+    overrides: Iterable[OverrideRule] | None,
     *,
+    removals: Iterable[RemoveRule] | None = None,
+    source_filter: str | None = None,
     progress: ProgressCallback | None = None,
 ) -> int:
-    override_list = list(overrides)
-    if not override_list:
+    if overrides is None and removals is None:
+        override_list, removal_list = load_refine_config(book_dir)
+    else:
+        override_list = list(overrides) if overrides is not None else load_override_config(book_dir)
+        removal_list = list(removals) if removals is not None else load_removal_rules(book_dir)
+    if not override_list and not removal_list:
         return 0
+    normalized_source = source_filter.strip().lower() if isinstance(source_filter, str) else None
     refined = 0
     chapters: list[Path] = []
     for txt_path in sorted(book_dir.glob("*.txt")):
@@ -185,6 +234,8 @@ def refine_book(
         if refine_chapter(
             txt_path,
             override_list,
+            removals=removal_list,
+            source_filter=normalized_source,
             progress=progress,
             chapter_index=index,
             chapter_total=total_chapters,
@@ -195,15 +246,18 @@ def refine_book(
 
 def refine_chapter(
     text_path: Path,
-    overrides: Iterable[OverrideRule],
+    overrides: Iterable[OverrideRule] | None,
     *,
+    removals: Iterable[RemoveRule] | None = None,
+    source_filter: str | None = None,
     progress: ProgressCallback | None = None,
     chapter_index: int | None = None,
     chapter_total: int | None = None,
 ) -> bool:
+    override_list = list(overrides) if overrides is not None else []
+    removal_list = list(removals or [])
     text = text_path.read_text(encoding="utf-8")
     initial_text = text
-    override_list = list(overrides)
     try:
         original_path = text_path.with_name(f"{text_path.stem}.original.txt")
         original_text = original_path.read_text(encoding="utf-8")
@@ -264,6 +318,7 @@ def refine_chapter(
         return bool(bounds) and bounds[1] > bounds[0]
 
     trackable_total = sum(1 for tok in tokens if _token_has_bounds(tok))
+    normalized_source = source_filter.strip().lower() if isinstance(source_filter, str) else None
     _emit_progress(
         {
             "event": "chapter_start",
@@ -273,7 +328,7 @@ def refine_chapter(
             "token_total": trackable_total,
         }
     )
-    if not override_list:
+    if not override_list and not removal_list:
         for tok in tokens:
             if _token_has_bounds(tok):
                 _mark_token_seen(tok)
@@ -290,18 +345,30 @@ def refine_chapter(
         return False
 
     overrides_applied = False
+    removals_applied = False
     for rule in override_list:
         text, changed = _apply_override_rule(
             text,
             tokens,
             rule,
             original_text=original_text,
+            source_filter=normalized_source,
             on_token=_mark_token_seen,
             on_token_total=_advance_token_total,
         )
         if changed:
             overrides_applied = True
-    refined = text != initial_text or overrides_applied
+    if removal_list:
+        text, removed_changed = _apply_remove_rules(
+            text,
+            tokens,
+            removal_list,
+            source_filter=normalized_source,
+            on_token=_mark_token_seen,
+        )
+        if removed_changed:
+            removals_applied = True
+    refined = text != initial_text or overrides_applied or removals_applied
     if not refined:
         _emit_progress(
             {
@@ -602,6 +669,7 @@ def _apply_override_rule(
     rule: OverrideRule,
     *,
     original_text: str | None = None,
+    source_filter: str | None = None,
     on_token: Callable[[ChapterToken], None] | None = None,
     on_token_total: Callable[[int], None] | None = None,
 ) -> tuple[str, bool]:
@@ -613,6 +681,16 @@ def _apply_override_rule(
             raise ValueError(f"Invalid pattern '{rule.pattern}': {exc}") from exc
     changed = False
     mapper_cache: dict[str, object] = {"text": None, "mapper": None}
+    normalized_source = source_filter.strip().lower() if isinstance(source_filter, str) else None
+    rule_source = rule.source.strip().lower() if isinstance(rule.source, str) else None
+
+    def _matches_source(token: ChapterToken) -> bool:
+        token_source = (token.reading_source or "").lower()
+        if rule_source and token_source != rule_source:
+            return False
+        if normalized_source and token_source != normalized_source:
+            return False
+        return True
 
     def _get_mapper():
         if original_text is None:
@@ -641,11 +719,15 @@ def _apply_override_rule(
         transformed_end: int,
         segment: str,
         replacement_text: str | None,
+        original_bounds: tuple[int, int] | None = None,
     ) -> None:
         replacement = replacement_text if replacement_text is not None else segment
         reading_val = rule.reading or replacement
         surface_val = rule.surface or replacement
-        original_start, original_end = _map_bounds(transformed_start, transformed_end)
+        if original_bounds is not None:
+            original_start, original_end = original_bounds
+        else:
+            original_start, original_end = _map_bounds(transformed_start, transformed_end)
         token = ChapterToken(
             surface=surface_val,
             start=original_start,
@@ -673,6 +755,8 @@ def _apply_override_rule(
     tokens_with_bounds.sort(key=lambda tok: _token_transformed_start(tok))
 
     for token in tokens_with_bounds:
+        if not _matches_source(token):
+            continue
         if on_token:
             on_token(token)
         bounds = _token_transformed_bounds(token)
@@ -713,72 +797,185 @@ def _apply_override_rule(
             changed = True
 
     # Rebuild coverage after potential shifts in pass 1.
-    tokens_with_bounds = [
-        tok for tok in tokens if _token_transformed_bounds(tok) and _token_transformed_bounds(tok)[1] > _token_transformed_bounds(tok)[0]
-    ]
-    tokens_with_bounds.sort(key=lambda tok: _token_transformed_start(tok))
-
-    # Derive gaps in transformed text not covered by existing tokens.
-    merged: list[tuple[int, int]] = []
-    for tok in tokens_with_bounds:
-        bounds = _token_transformed_bounds(tok)
-        if not bounds:
-            continue
-        start, end = bounds
-        if not merged or start > merged[-1][1]:
-            merged.append((start, end))
-        else:
-            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
-    gaps: list[list[int]] = []
-    cursor = 0
     text_len = len(text)
-    for start, end in merged:
-        if cursor < start:
-            gaps.append([cursor, start])
-        cursor = max(cursor, end)
-    if cursor < text_len:
-        gaps.append([cursor, text_len])
 
-    # Pass 2: search only within uncovered gaps (plain text or missing token offsets).
-    for gap_index, (gap_start, gap_end) in enumerate(gaps):
-        search_pos = gap_start
-        while search_pos < gap_end:
-            if compiled:
-                match = compiled.search(text, search_pos, gap_end)
-                if not match:
-                    break
-                start, end = match.span()
-                segment = match.group(0)
-            else:
-                start = text.find(rule.pattern, search_pos, gap_end)
-                if start == -1:
-                    break
-                end = start + len(rule.pattern)
-                segment = rule.pattern
+    def _build_token_index() -> tuple[list[tuple[int, int, ChapterToken]], list[int]]:
+        indexed: list[tuple[int, int, ChapterToken]] = []
+        for tok in tokens:
+            bounds = _token_transformed_bounds(tok)
+            if bounds and bounds[1] > bounds[0]:
+                indexed.append((bounds[0], bounds[1], tok))
+        indexed.sort(key=lambda entry: entry[0])
+        starts = [entry[0] for entry in indexed]
+        return indexed, starts
 
-            expected_surface = rule.match_surface or rule.surface
-            if expected_surface and original_text is not None:
+    token_index, token_starts = _build_token_index()
+    bounds_dirty = False
+
+    # Pass 2: search across the full transformed text so overrides can replace spans that already have tokens.
+    search_pos = 0
+    while search_pos < text_len:
+        if bounds_dirty:
+            token_index, token_starts = _build_token_index()
+            bounds_dirty = False
+        if compiled:
+            match = compiled.search(text, search_pos)
+            if not match:
+                break
+            start, end = match.span()
+            segment = match.group(0)
+        else:
+            start = text.find(rule.pattern, search_pos)
+            if start == -1:
+                break
+            end = start + len(rule.pattern)
+            segment = rule.pattern
+
+        expected_surface = rule.match_surface or rule.surface
+        replacement_text = _resolve_replacement(rule)
+        expected_reading = rule.reading or replacement_text or segment
+        overlapping: list[ChapterToken] = []
+        overlaps_outside_span = False
+        already_applied = False
+        overlap_surface_combined: str | None = None
+        overlap_original_bounds: tuple[int, int] | None = None
+
+        start_idx = bisect_left(token_starts, start)
+        idx = start_idx
+        while idx < len(token_index) and token_index[idx][0] < end:
+            t_start, t_end, token = token_index[idx]
+            overlapping.append(token)
+            if t_start < start or t_end > end:
+                overlaps_outside_span = True
+            if (
+                t_start == start
+                and t_end == end
+                and (expected_reading is None or token.reading == expected_reading or token.fallback_reading == expected_reading)
+                and (rule.surface is None or token.surface == rule.surface)
+                and (rule.match_surface is None or token.surface == rule.match_surface)
+                and (rule.pos is None or token.pos == rule.pos)
+                and (rule.accent is None or token.accent_type == rule.accent)
+                and (replacement_text is None or replacement_text == segment)
+                and _matches_source(token)
+            ):
+                already_applied = True
+            idx += 1
+        idx = start_idx - 1
+        while idx >= 0 and token_index[idx][1] > start:
+            t_start, t_end, token = token_index[idx]
+            overlapping.append(token)
+            if t_start < start or t_end > end:
+                overlaps_outside_span = True
+            if (
+                t_start == start
+                and t_end == end
+                and (expected_reading is None or token.reading == expected_reading or token.fallback_reading == expected_reading)
+                and (rule.surface is None or token.surface == rule.surface)
+                and (rule.match_surface is None or token.surface == rule.match_surface)
+                and (rule.pos is None or token.pos == rule.pos)
+                and (rule.accent is None or token.accent_type == rule.accent)
+                and (replacement_text is None or replacement_text == segment)
+                and _matches_source(token)
+            ):
+                already_applied = True
+            idx -= 1
+
+        if overlapping:
+            sorted_overlap = sorted(overlapping, key=_token_transformed_start)
+            overlap_surface_combined = "".join(tok.surface or "" for tok in sorted_overlap)
+            if all(tok.start is not None and tok.end is not None for tok in sorted_overlap):
+                overlap_original_bounds = (
+                    min(tok.start for tok in sorted_overlap if tok.start is not None),
+                    max(tok.end for tok in sorted_overlap if tok.end is not None),
+                )
+
+        target_overlaps = [tok for tok in overlapping if _matches_source(tok)]
+        if (rule_source or normalized_source) and not target_overlaps:
+            search_pos = end
+            continue
+
+        if expected_surface:
+            if overlap_surface_combined is not None:
+                if overlap_surface_combined != expected_surface:
+                    search_pos = end
+                    continue
+            elif original_text is not None:
                 o_start, o_end = _map_bounds(start, end)
                 if original_text[o_start:o_end] != expected_surface:
                     search_pos = end
                     continue
 
-            replacement_text = _resolve_replacement(rule)
-            new_end = end
-            if replacement_text is not None and replacement_text != segment:
-                text = f"{text[:start]}{replacement_text}{text[end:]}"
-                change_delta = len(replacement_text) - len(segment)
-                new_end = start + len(replacement_text)
-                _shift_tokens(tokens, end, change_delta)
-                gap_end += change_delta
-                for later in range(gap_index + 1, len(gaps)):
-                    gaps[later][0] += change_delta
-                    gaps[later][1] += change_delta
-                changed = True
-            _add_token(start, new_end, segment, replacement_text)
-            changed = True
+        new_end = end
+        if already_applied or overlaps_outside_span:
             search_pos = new_end if new_end > start else end
+            continue
 
+        removable = target_overlaps if normalized_source is not None else overlapping
+        if removable:
+            tokens[:] = [tok for tok in tokens if tok not in removable]
+            bounds_dirty = True
+            changed = True
+
+        if replacement_text is not None and replacement_text != segment:
+            text = f"{text[:start]}{replacement_text}{text[end:]}"
+            change_delta = len(replacement_text) - len(segment)
+            new_end = start + len(replacement_text)
+            _shift_tokens(tokens, end, change_delta)
+            text_len += change_delta
+            changed = True
+            bounds_dirty = True
+        _add_token(start, new_end, segment, replacement_text, original_bounds=overlap_original_bounds)
+        bounds_dirty = True
+        changed = True
+        search_pos = new_end if new_end > start else end
+
+    if changed:
+        tokens.sort(key=lambda token: (_token_transformed_start(token), _token_transformed_end(token)))
+    return text, changed
+
+
+def _apply_remove_rules(
+    text: str,
+    tokens: list[ChapterToken],
+    rules: Iterable[RemoveRule],
+    *,
+    source_filter: str | None = None,
+    on_token: Callable[[ChapterToken], None] | None = None,
+) -> tuple[str, bool]:
+    rule_list = list(rules)
+    if not rule_list:
+        return text, False
+    changed = False
+    normalized_source = source_filter.strip().lower() if isinstance(source_filter, str) else None
+
+    def _matches_source(token: ChapterToken) -> bool:
+        if normalized_source is None:
+            return True
+        return (token.reading_source or "").lower() == normalized_source
+
+    for token in list(tokens):
+        bounds = _token_transformed_bounds(token)
+        if not _matches_source(token):
+            continue
+        if on_token and bounds and bounds[1] > bounds[0]:
+            on_token(token)
+        if not any(_removal_matches_rule(token, rule) for rule in rule_list):
+            continue
+        if bounds:
+            start, end = bounds
+            if end > start and end <= len(text):
+                replacement = token.surface.strip() if token.surface else None
+                if replacement:
+                    segment = text[start:end]
+                    if segment != replacement:
+                        text = f"{text[:start]}{replacement}{text[end:]}"
+                        delta = len(replacement) - len(segment)
+                        _shift_tokens(tokens, end, delta, exclude=token)
+        try:
+            tokens.remove(token)
+        except ValueError:
+            pass
+        changed = True
     if changed:
         tokens.sort(key=lambda token: (_token_transformed_start(token), _token_transformed_end(token)))
     return text, changed
@@ -817,6 +1014,15 @@ def _token_matches_rule(
     return reading == rule.pattern
 
 
+def _removal_matches_rule(token: ChapterToken, rule: RemoveRule) -> bool:
+    if rule.surface and token.surface != rule.surface:
+        return False
+    token_reading = token.reading or token.fallback_reading
+    if rule.reading and token_reading != rule.reading:
+        return False
+    return True
+
+
 def _shift_tokens(
     tokens: list[ChapterToken], cutoff: int, delta: int, exclude: ChapterToken | None = None
 ) -> None:
@@ -848,7 +1054,10 @@ def _token_transformed_end(token: ChapterToken) -> int:
 
 
 __all__ = [
+    "RemoveRule",
     "load_override_config",
+    "load_refine_config",
+    "load_removal_rules",
     "refine_book",
     "refine_chapter",
     "edit_single_token",

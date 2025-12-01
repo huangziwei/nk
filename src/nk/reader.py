@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import queue
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from .book_io import is_original_text_file
 from .library import list_books_sorted
@@ -15,6 +17,7 @@ from .refine import (
     create_token_from_selection,
     edit_single_token,
     load_override_config,
+    load_refine_config,
     refine_book,
     refine_chapter,
     remove_token,
@@ -268,6 +271,37 @@ INDEX_HTML = """<!DOCTYPE html>
       width: 0%;
       background: var(--accent);
       transition: width 0.2s ease;
+    }
+    .refine-progress {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.35rem;
+    }
+    .refine-progress.hidden {
+      display: none;
+    }
+    .refine-progress-bar {
+      position: relative;
+      flex: 1 1 auto;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+    .refine-progress-bar::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -40%;
+      width: 40%;
+      height: 100%;
+      background: linear-gradient(90deg, rgba(56,189,248,0), rgba(56,189,248,0.8), rgba(56,189,248,0));
+      animation: refine-progress 1.1s infinite linear;
+    }
+    @keyframes refine-progress {
+      0% { transform: translateX(0%); }
+      100% { transform: translateX(250%); }
     }
     .chapter-list {
       list-style: none;
@@ -810,10 +844,15 @@ INDEX_HTML = """<!DOCTYPE html>
       border-radius: 18px;
       padding: 1.3rem 1.5rem;
       width: min(480px, 95vw);
+      max-height: 92vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
       box-shadow: 0 25px 60px rgba(0,0,0,0.45);
     }
     .overrides-card {
       width: min(920px, 96vw);
+      max-height: 92vh;
     }
     .modal-card h3 {
       margin: 0;
@@ -833,16 +872,18 @@ INDEX_HTML = """<!DOCTYPE html>
       font-size: 0.85rem;
     }
     .overrides-body {
-      display: grid;
-      grid-template-columns: 320px 1fr;
-      gap: 1rem;
-      align-items: start;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      align-items: stretch;
+      overflow: auto;
+      padding-right: 0.25rem;
     }
     .overrides-list {
       border: 1px solid var(--outline);
       border-radius: 12px;
       background: rgba(0,0,0,0.1);
-      max-height: 60vh;
+      max-height: 30vh;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
@@ -886,6 +927,10 @@ INDEX_HTML = """<!DOCTYPE html>
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
+    }
+    .overrides-form h4 {
+      margin: 0.25rem 0;
+      font-size: 1rem;
     }
     .overrides-grid {
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -1180,26 +1225,28 @@ INDEX_HTML = """<!DOCTYPE html>
   </div>
   <div id="overrides-modal" class="modal hidden" aria-hidden="true">
     <div class="modal-card overrides-card" role="dialog" aria-modal="true" aria-labelledby="overrides-title">
-      <div class="overrides-header">
-        <div>
-          <h3 id="overrides-title">All custom tokens in</h3>
-          <p class="modal-meta" id="overrides-meta">Edit custom_token.json for this book.</p>
+        <div class="overrides-header">
+          <div>
+            <h3 id="overrides-title">All custom tokens in</h3>
+            <p class="modal-meta" id="overrides-meta">Edit custom_token.json for this book.</p>
+          </div>
+          <div class="overrides-actions">
+            <button type="button" class="secondary" id="overrides-add">Add override</button>
+            <button type="button" class="secondary" id="remove-add">Add removal</button>
+            <button type="button" class="secondary" id="overrides-close">Close</button>
+          </div>
         </div>
-        <div class="overrides-actions">
-          <button type="button" class="secondary" id="overrides-add">Add a new entry</button>
-          <button type="button" class="secondary" id="overrides-close">Close</button>
-        </div>
-      </div>
-      <div class="overrides-body">
-        <div class="overrides-list" id="overrides-list">
-          <div class="overrides-empty">No overrides yet.</div>
-        </div>
-        <form class="overrides-form" id="overrides-form">
-          <div class="form-grid overrides-grid">
-            <label class="form-field">
-              <span>Pattern *</span>
-              <input type="text" id="override-pattern" required>
-            </label>
+        <div class="overrides-body">
+          <form class="overrides-form" id="overrides-form">
+            <h4>Overrides</h4>
+            <div class="overrides-list" id="overrides-list">
+              <div class="overrides-empty">No overrides yet.</div>
+            </div>
+            <div class="form-grid overrides-grid">
+              <label class="form-field">
+                <span>Pattern *</span>
+                <input type="text" id="override-pattern" required>
+              </label>
             <label class="form-field">
               <span>Replacement</span>
               <input type="text" id="override-replacement">
@@ -1224,18 +1271,37 @@ INDEX_HTML = """<!DOCTYPE html>
               <span>Accent</span>
               <input type="number" id="override-accent" min="0">
             </label>
-            <label class="checkbox-field">
-              <input type="checkbox" id="override-regex">
-              <span>Regex pattern</span>
-            </label>
-          </div>
-          <div class="overrides-buttons">
-            <button type="button" class="danger secondary" id="override-delete">Delete selected</button>
-            <span class="overrides-error" id="overrides-error"></span>
-            <button type="submit" id="override-save">Save changes to file</button>
-          </div>
-        </form>
-      </div>
+              <label class="checkbox-field">
+                <input type="checkbox" id="override-regex">
+                <span>Regex pattern</span>
+              </label>
+            </div>
+            <h4>Removal rules</h4>
+            <div class="overrides-list" id="remove-list">
+              <div class="overrides-empty">No removal rules yet.</div>
+            </div>
+            <div class="form-grid overrides-grid">
+              <label class="form-field">
+                <span>Reading</span>
+                <input type="text" id="remove-reading">
+              </label>
+              <label class="form-field">
+                <span>Surface</span>
+                <input type="text" id="remove-surface">
+              </label>
+            </div>
+            <div class="refine-progress hidden" id="overrides-progress" role="status" aria-live="polite">
+              <div class="refine-progress-bar"></div>
+              <span class="pill" id="overrides-progress-label">Saving…</span>
+            </div>
+            <div class="overrides-buttons">
+              <button type="button" class="danger secondary" id="override-delete">Delete override</button>
+              <button type="button" class="danger secondary" id="remove-delete">Delete removal</button>
+              <span class="overrides-error" id="overrides-error"></span>
+              <button type="submit" id="override-save">Save and run refine</button>
+            </div>
+          </form>
+        </div>
     </div>
   </div>
   <div id="refine-modal" class="modal hidden" aria-hidden="true">
@@ -1266,6 +1332,10 @@ INDEX_HTML = """<!DOCTYPE html>
             <input type="text" id="refine-surface">
           </label>
           <label class="form-field">
+            <span>Match surface (original)</span>
+            <input type="text" id="refine-match-surface" placeholder="Optional: require original surface">
+          </label>
+          <label class="form-field">
             <span>Part of speech</span>
             <input type="text" id="refine-pos" placeholder="noun, verb...">
           </label>
@@ -1276,6 +1346,10 @@ INDEX_HTML = """<!DOCTYPE html>
         </div>
         <div class="modal-actions">
           <div class="modal-note" id="refine-error"></div>
+          <div class="refine-progress hidden" id="refine-progress">
+            <div class="refine-progress-bar" id="refine-progress-bar"></div>
+            <span class="pill" id="refine-progress-label">Refining…</span>
+          </div>
           <div class="modal-actions-rows">
             <div class="modal-button-row">
               <span class="modal-actions-label">Apply changes to current token</span>
@@ -1296,6 +1370,9 @@ INDEX_HTML = """<!DOCTYPE html>
                 </button>
                 <button type="button" data-scope="book" class="secondary" id="refine-submit-book">
                   The whole book
+                </button>
+                <button type="button" data-scope="book-source" class="secondary" id="refine-submit-book-source">
+                  The whole book (same source)
                 </button>
               </div>
             </div>
@@ -1324,7 +1401,9 @@ INDEX_HTML = """<!DOCTYPE html>
       };
       const overridesState = {
         items: [],
+        remove: [],
         selectedIndex: -1,
+        selectedRemoveIndex: -1,
         bookId: null,
         path: null,
       };
@@ -1469,22 +1548,28 @@ INDEX_HTML = """<!DOCTYPE html>
       const refineReadingInput = document.getElementById('refine-reading');
       const refineAccentInput = document.getElementById('refine-accent');
       const refineSurfaceInput = document.getElementById('refine-surface');
+      const refineMatchSurfaceInput = document.getElementById('refine-match-surface');
       const refinePosInput = document.getElementById('refine-pos');
       const refineRegexInput = document.getElementById('refine-regex');
       const refineScopeButtons = Array.from(document.querySelectorAll('[data-scope]'));
       const refineSubmitBook = document.getElementById('refine-submit-book');
+      const refineSubmitBookSource = document.getElementById('refine-submit-book-source');
       const refineSubmitChapter = document.getElementById('refine-submit-chapter');
       const refineSubmitToken = document.getElementById('refine-submit-token');
       const refineDeleteToken = document.getElementById('refine-delete-token');
       const refineCancel = document.getElementById('refine-cancel');
       const refineError = document.getElementById('refine-error');
+      const refineProgress = document.getElementById('refine-progress');
+      const refineProgressLabel = document.getElementById('refine-progress-label');
       const refineContextLabel = document.getElementById('refine-context');
       const refineMeta = document.getElementById('refine-meta');
       const overridesModal = document.getElementById('overrides-modal');
       const overridesOpenBtn = document.getElementById('overrides-open');
       const overridesList = document.getElementById('overrides-list');
+      const removeList = document.getElementById('remove-list');
       const overridesForm = document.getElementById('overrides-form');
       const overridesAddBtn = document.getElementById('overrides-add');
+      const removeAddBtn = document.getElementById('remove-add');
       const overridesCloseBtn = document.getElementById('overrides-close');
       const overridesError = document.getElementById('overrides-error');
       const overridesMeta = document.getElementById('overrides-meta');
@@ -1497,8 +1582,15 @@ INDEX_HTML = """<!DOCTYPE html>
       const overrideAccentInput = document.getElementById('override-accent');
       const overrideRegexInput = document.getElementById('override-regex');
       const overrideDeleteBtn = document.getElementById('override-delete');
+      const removeDeleteBtn = document.getElementById('remove-delete');
+      const removeReadingInput = document.getElementById('remove-reading');
+      const removeSurfaceInput = document.getElementById('remove-surface');
       const overrideSaveBtn = document.getElementById('override-save');
+      const overridesProgress = document.getElementById('overrides-progress');
+      const overridesProgressLabel = document.getElementById('overrides-progress-label');
+      const overrideSaveDefaultLabel = overrideSaveBtn ? overrideSaveBtn.textContent : 'Save and run refine';
       let alignFrame = null;
+      let refineCurrentScope = 'book';
       const SORT_STORAGE_KEY = 'nkReaderSortOrder';
       const SORT_OPTIONS = ['author', 'recent', 'played'];
       const storedSort = window.localStorage.getItem(SORT_STORAGE_KEY);
@@ -1511,6 +1603,7 @@ INDEX_HTML = """<!DOCTYPE html>
       let refineBusy = false;
       let diagnosticSearchTimer = null;
       let selectionAnchor = null;
+      let overrideSaveResetTimer = null;
       const UPLOAD_POLL_INTERVAL = 4000;
       const initialHashPath = getChapterPathFromHash();
       if (initialHashPath) {
@@ -1586,6 +1679,7 @@ INDEX_HTML = """<!DOCTYPE html>
         if (payload.surface) body.surface = payload.surface;
         if (payload.pos) body.pos = payload.pos;
         if (typeof payload.accent === 'number') body.accent = payload.accent;
+        refineCurrentScope = 'token';
         setRefineBusy(true);
         setRefineError('');
         const params = new URLSearchParams();
@@ -1614,7 +1708,12 @@ INDEX_HTML = """<!DOCTYPE html>
           return;
         }
         const normalizedScope =
-          scope === 'chapter' ? 'chapter' : (scope === 'token' ? 'token' : 'book');
+          scope === 'chapter'
+            ? 'chapter'
+            : (scope === 'token'
+              ? 'token'
+              : ((scope === 'book-source' || scope === 'book_source') ? 'book-source' : 'book'));
+        refineCurrentScope = normalizedScope;
         const pattern = refinePatternInput ? refinePatternInput.value.trim() : '';
         if (normalizedScope !== 'token' && !pattern) {
           setRefineError('Pattern is required.');
@@ -1623,8 +1722,9 @@ INDEX_HTML = """<!DOCTYPE html>
         const replacement = refineReplacementInput ? refineReplacementInput.value.trim() : '';
         const reading = refineReadingInput ? refineReadingInput.value.trim() : '';
         const surface = refineSurfaceInput ? refineSurfaceInput.value.trim() : '';
-        const matchSurface =
-          refineContext && refineContext.token ? (refineContext.token.surface || '') : '';
+        const matchSurface = refineMatchSurfaceInput
+          ? refineMatchSurfaceInput.value.trim()
+          : (refineContext && refineContext.token ? (refineContext.token.surface || '') : '');
         const pos = refinePosInput ? refinePosInput.value.trim() : '';
         const accentRaw = refineAccentInput ? refineAccentInput.value.trim() : '';
         let accentPayload = null;
@@ -1662,15 +1762,30 @@ INDEX_HTML = """<!DOCTYPE html>
           setRefineError('Select a token to edit.');
           return;
         }
+        const tokenSources = (
+          refineContext
+          && refineContext.token
+          && Array.isArray(refineContext.token.sources)
+            ? refineContext.token.sources.filter((src) => typeof src === 'string' && src.trim())
+            : []
+        );
+        const sourceFilter = tokenSources.length ? tokenSources[0].trim() : '';
         const payload = {
           path: state.selectedPath,
-          scope: normalizedScope,
+          scope: normalizedScope === 'book-source' ? 'book_source' : normalizedScope,
         };
         if (normalizedScope !== 'token') {
           payload.pattern = pattern;
           payload.regex = Boolean(refineRegexInput && refineRegexInput.checked);
         } else if (refineContext && typeof refineContext.index === 'number') {
           payload.token_index = refineContext.index;
+        }
+        if (normalizedScope === 'book-source') {
+          if (!sourceFilter) {
+            setRefineError('Source is required to apply changes by source.');
+            return;
+          }
+          payload.source = sourceFilter;
         }
         if (replacement) {
           payload.replacement = replacement;
@@ -1682,53 +1797,57 @@ INDEX_HTML = """<!DOCTYPE html>
         }
         if (pos) payload.pos = pos;
         if (accentPayload !== null) payload.accent = accentPayload;
-        setRefineBusy(true);
-        setRefineError('');
-        fetchJSON('/api/refine', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-            .then((result) => {
-              const updated = result && typeof result.updated === 'number' ? result.updated : 0;
-              const scopeResult =
-                result && typeof result.scope === 'string' ? result.scope : normalizedScope;
-              const chapterLabel = result && result.chapter ? result.chapter : state.selectedPath;
-              const bookLabel =
-                (result && result.book) ||
-                (state.currentBook && (state.currentBook.title || state.currentBook.id)) ||
-                (state.currentBook && state.currentBook.id) ||
-                'book';
-              let statusMessage = '';
-              if (scopeResult === 'token') {
-                statusMessage = updated
-                  ? `Updated token in ${chapterLabel}.`
-                  : `No changes applied to token in ${chapterLabel}.`;
-              } else if (scopeResult === 'chapter') {
-                if (updated) {
-                  statusMessage = `Refined current chapter (${chapterLabel}).`;
+        if (normalizedScope === 'token') {
+          setRefineBusy(true);
+          setRefineError('');
+          fetchJSON('/api/refine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+              .then((result) => {
+                const updated = result && typeof result.updated === 'number' ? result.updated : 0;
+                const scopeResult =
+                  result && typeof result.scope === 'string' ? result.scope : normalizedScope;
+                const chapterLabel = result && result.chapter ? result.chapter : state.selectedPath;
+                const bookLabel =
+                  (result && result.book) ||
+                  (state.currentBook && (state.currentBook.title || state.currentBook.id)) ||
+                  (state.currentBook && state.currentBook.id) ||
+                  'book';
+                let statusMessage = '';
+                if (scopeResult === 'token') {
+                  statusMessage = updated
+                    ? `Updated token in ${chapterLabel}.`
+                    : `No changes applied to token in ${chapterLabel}.`;
+                } else if (scopeResult === 'chapter') {
+                  if (updated) {
+                    statusMessage = `Refined current chapter (${chapterLabel}).`;
+                  } else {
+                    statusMessage = `No changes required for ${chapterLabel}.`;
+                  }
                 } else {
-                  statusMessage = `No changes required for ${chapterLabel}.`;
+                  if (updated) {
+                    statusMessage = `Refined ${updated} chapter(s) in ${bookLabel}.`;
+                  } else {
+                    statusMessage = `No changes required in ${bookLabel}.`;
+                  }
                 }
-              } else {
-                if (updated) {
-                  statusMessage = `Refined ${updated} chapter(s) in ${bookLabel}.`;
-                } else {
-                  statusMessage = `No changes required in ${bookLabel}.`;
+                renderStatus(statusMessage);
+                closeRefineModal();
+                if (state.selectedPath) {
+                  openChapter(state.selectedPath, { autoCollapse: false, preserveScroll: true });
                 }
-              }
-              renderStatus(statusMessage);
-              closeRefineModal();
-              if (state.selectedPath) {
-                openChapter(state.selectedPath, { autoCollapse: false, preserveScroll: true });
-              }
-            })
-            .catch((error) => {
-              setRefineError(error.message || 'Failed to apply override.');
-            })
-            .finally(() => {
-            setRefineBusy(false);
-          });
+              })
+              .catch((error) => {
+                setRefineError(error.message || 'Failed to apply override.');
+              })
+              .finally(() => {
+              setRefineBusy(false);
+            });
+          return;
+        }
+        runRefineStream(payload, normalizedScope);
       }
 
       function removeCurrentToken() {
@@ -1752,6 +1871,7 @@ INDEX_HTML = """<!DOCTYPE html>
         if (refineDeleteToken) {
           refineDeleteToken.textContent = 'Removing token…';
         }
+        refineCurrentScope = 'token';
         setRefineBusy(true);
         setRefineError('');
         fetchJSON('/api/remove-token', {
@@ -1828,9 +1948,25 @@ INDEX_HTML = """<!DOCTYPE html>
           syncFormToState();
           overridesState.items.push({ pattern: '', regex: false });
           overridesState.selectedIndex = overridesState.items.length - 1;
+          overridesState.selectedRemoveIndex = -1;
           renderOverridesList();
           if (overridePatternInput) {
             overridePatternInput.focus();
+          }
+        });
+      }
+      if (removeAddBtn) {
+        removeAddBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          syncFormToState();
+          syncRemoveFormToState();
+          overridesState.remove.push({ reading: '', surface: '' });
+          overridesState.selectedRemoveIndex = overridesState.remove.length - 1;
+          overridesState.selectedIndex = overridesState.items.length ? overridesState.selectedIndex : -1;
+          renderOverridesList();
+          renderRemoveList();
+          if (removeReadingInput) {
+            removeReadingInput.focus();
           }
         });
       }
@@ -1842,6 +1978,16 @@ INDEX_HTML = """<!DOCTYPE html>
           overridesState.items.splice(overridesState.selectedIndex, 1);
           overridesState.selectedIndex = overridesState.items.length ? 0 : -1;
           renderOverridesList();
+        });
+      }
+      if (removeDeleteBtn) {
+        removeDeleteBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          if (overridesState.selectedRemoveIndex < 0) return;
+          syncRemoveFormToState();
+          overridesState.remove.splice(overridesState.selectedRemoveIndex, 1);
+          overridesState.selectedRemoveIndex = overridesState.remove.length ? 0 : -1;
+          renderRemoveList();
         });
       }
       if (overridesForm) {
@@ -1856,12 +2002,240 @@ INDEX_HTML = """<!DOCTYPE html>
         }
       }
 
+      function setOverrideSaveLabel(text) {
+        if (overrideSaveBtn && typeof text === 'string') {
+          overrideSaveBtn.textContent = text;
+        }
+      }
+
+      function resetOverrideSaveLabel(delay = 0) {
+        if (overrideSaveResetTimer) {
+          window.clearTimeout(overrideSaveResetTimer);
+          overrideSaveResetTimer = null;
+        }
+        const apply = () => {
+          setOverrideSaveLabel(overrideSaveDefaultLabel);
+          overrideSaveResetTimer = null;
+        };
+        if (delay > 0) {
+          overrideSaveResetTimer = window.setTimeout(apply, delay);
+        } else {
+          apply();
+        }
+      }
+
+      function updateOverridesProgressLabel(text) {
+        if (overridesProgressLabel && typeof text === 'string') {
+          overridesProgressLabel.textContent = text;
+        }
+        if (typeof text === 'string') {
+          setOverrideSaveLabel(text);
+        }
+      }
+
+      function runOverridesRefine(bookId) {
+        if (!bookId) {
+          if (overrideSaveBtn) overrideSaveBtn.disabled = false;
+          resetOverrideSaveLabel();
+          return Promise.resolve();
+        }
+        resetOverrideSaveLabel();
+        if (overridesProgress) overridesProgress.classList.remove('hidden');
+        updateOverridesProgressLabel('Refining…');
+        const pathParam = state.selectedPath ? `?path=${encodeURIComponent(state.selectedPath)}` : '';
+        return fetch(`/api/books/${encodeURIComponent(bookId)}/refine${pathParam}`, {
+          method: 'POST',
+        })
+          .then((response) => {
+            if (!response.ok || !response.body) {
+              throw new Error('Refine failed.');
+            }
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            const processLines = (chunk) => {
+              buffer += chunk;
+              const lines = buffer.split('\\n');
+              buffer = lines.pop() || '';
+              lines.forEach((line) => {
+                if (!line.trim()) return;
+                try {
+                  const event = JSON.parse(line);
+                  handleOverrideProgress(event);
+                } catch (err) {
+                  console.warn('Failed to parse refine progress', err);
+                }
+              });
+            };
+            const pump = () =>
+              reader.read().then(({ done, value }) => {
+                if (done) {
+                  if (buffer.trim()) {
+                    processLines('\\n');
+                  }
+              return;
+            }
+            processLines(decoder.decode(value, { stream: true }));
+            return pump();
+          });
+        })
+        .catch((err) => {
+          setOverridesError(err.message || 'Failed to refine.');
+          updateOverridesProgressLabel('Refine failed');
+        })
+        .finally(() => {
+          if (overridesProgress) overridesProgress.classList.add('hidden');
+          if (overrideSaveBtn) overrideSaveBtn.disabled = false;
+          resetOverrideSaveLabel(1200);
+        });
+      }
+
+      function handleOverrideProgress(event) {
+        if (!event || typeof event !== 'object') return;
+        const type = event.event;
+        const pathText = typeof event.path === 'string'
+          ? event.path.split('/').slice(-1)[0] || event.path
+          : '';
+        if (type === 'book_start') {
+          const total = typeof event.total_chapters === 'number' ? event.total_chapters : null;
+          const label = total ? `Refining 1/${total}…` : 'Refining…';
+          updateOverridesProgressLabel(label);
+        } else if (type === 'chapter_start') {
+          const idx = typeof event.index === 'number' ? event.index : null;
+          const total = typeof event.total === 'number' ? event.total : null;
+          const chapterLabel = pathText ? ` ${pathText}` : '';
+          const label = idx && total
+            ? `Refining ${idx}/${total}${chapterLabel}…`
+            : `Refining${chapterLabel || ''}…`;
+          updateOverridesProgressLabel(label);
+        } else if (type === 'done') {
+          const updated = typeof event.updated === 'number' ? event.updated : 0;
+          renderStatus(`Refined ${updated} chapter(s).`);
+          if (state.selectedPath) {
+            openChapter(state.selectedPath, { autoCollapse: false, preserveScroll: true });
+          }
+          updateOverridesProgressLabel('Finished');
+        } else if (type === 'error') {
+          setOverridesError(event.detail || 'Refine failed.');
+          updateOverridesProgressLabel('Refine failed');
+        }
+      }
+
+      function runRefineStream(payload, scope) {
+        setRefineBusy(true);
+        setRefineError('');
+        if (refineProgress) refineProgress.classList.remove('hidden');
+        if (refineProgressLabel) {
+          refineProgressLabel.textContent = 'Saving…';
+        }
+        fetch('/api/refine', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+          .then((response) => {
+            if (!response.ok || !response.body) {
+              throw new Error('Refine failed.');
+            }
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            const processLines = (chunk) => {
+              buffer += chunk;
+              const lines = buffer.split('\\n');
+              buffer = lines.pop() || '';
+              lines.forEach((line) => {
+                if (!line.trim()) return;
+                try {
+                  const event = JSON.parse(line);
+                  handleRefineProgress(event, scope);
+                } catch (err) {
+                  console.warn('Failed to parse refine progress', err);
+                }
+              });
+            };
+            const pump = () =>
+              reader.read().then(({ done, value }) => {
+                if (done) {
+                  if (buffer.trim()) {
+                    processLines('\\n');
+                  }
+                  return;
+                }
+                processLines(decoder.decode(value, { stream: true }));
+                return pump();
+              });
+            return pump();
+          })
+          .catch((err) => {
+            setRefineError(err.message || 'Failed to apply override.');
+          })
+          .finally(() => {
+            setRefineBusy(false);
+            if (refineProgress) refineProgress.classList.add('hidden');
+          });
+      }
+
+      function handleRefineProgress(event, scope) {
+        if (!event || typeof event !== 'object') return;
+        const type = event.event;
+        if (type === 'book_start') {
+          if (refineProgressLabel) {
+            const total = typeof event.total_chapters === 'number' ? event.total_chapters : null;
+            refineProgressLabel.textContent = total ? `Refining 1/${total}…` : 'Refining…';
+          }
+        } else if (type === 'chapter_start') {
+          if (refineProgressLabel) {
+            const idx = typeof event.index === 'number' ? event.index : null;
+            const total = typeof event.total === 'number' ? event.total : null;
+            if (idx && total) {
+              refineProgressLabel.textContent = `Refining ${idx}/${total}…`;
+            } else {
+              refineProgressLabel.textContent = 'Refining…';
+            }
+          }
+        } else if (type === 'done') {
+          const updated = typeof event.updated === 'number' ? event.updated : 0;
+          const chapterLabel = event.chapter || state.selectedPath || '';
+          const bookLabel =
+            event.book ||
+            (state.currentBook && (state.currentBook.title || state.currentBook.id)) ||
+            (state.currentBook && state.currentBook.id) ||
+            'book';
+          let statusMessage = '';
+          if (scope === 'chapter') {
+            statusMessage = updated
+              ? `Refined current chapter (${chapterLabel}).`
+              : `No changes required for ${chapterLabel}.`;
+          } else if (scope === 'book-source') {
+            statusMessage = updated
+              ? `Refined ${updated} chapter(s) in ${bookLabel} (same source).`
+              : `No changes required in ${bookLabel} (same source).`;
+          } else {
+            statusMessage = updated
+              ? `Refined ${updated} chapter(s) in ${bookLabel}.`
+              : `No changes required in ${bookLabel}.`;
+          }
+          renderStatus(statusMessage);
+          closeRefineModal();
+          if (state.selectedPath) {
+            openChapter(state.selectedPath, { autoCollapse: false, preserveScroll: true });
+          }
+          if (refineProgressLabel) {
+            refineProgressLabel.textContent = 'Finished';
+          }
+        } else if (type === 'error') {
+          setRefineError(event.detail || 'Refine failed.');
+        }
+      }
+
       function closeOverridesModal() {
         if (!overridesModal) return;
         overridesModal.classList.add('hidden');
         overridesModal.setAttribute('aria-hidden', 'true');
         document.body.classList.remove('modal-open');
         overridesState.selectedIndex = -1;
+        overridesState.selectedRemoveIndex = -1;
         setOverridesError('');
       }
 
@@ -1905,6 +2279,28 @@ INDEX_HTML = """<!DOCTYPE html>
           target.accent = Number.isFinite(parsed) ? parsed : undefined;
         }
         target.regex = overrideRegexInput ? Boolean(overrideRegexInput.checked) : false;
+      }
+
+      function populateRemoveForm(entry) {
+        if (!entry) {
+          if (removeReadingInput) removeReadingInput.value = '';
+          if (removeSurfaceInput) removeSurfaceInput.value = '';
+          return;
+        }
+        if (removeReadingInput) removeReadingInput.value = entry.reading || '';
+        if (removeSurfaceInput) removeSurfaceInput.value = entry.surface || '';
+      }
+
+      function syncRemoveFormToState() {
+        if (
+          overridesState.selectedRemoveIndex < 0
+          || overridesState.selectedRemoveIndex >= overridesState.remove.length
+        ) {
+          return;
+        }
+        const target = overridesState.remove[overridesState.selectedRemoveIndex];
+        target.reading = removeReadingInput ? removeReadingInput.value.trim() : '';
+        target.surface = removeSurfaceInput ? removeSurfaceInput.value.trim() : '';
       }
 
       function renderOverridesList() {
@@ -1964,6 +2360,57 @@ INDEX_HTML = """<!DOCTYPE html>
         } else {
           populateOverrideForm(null);
         }
+        renderRemoveList();
+      }
+
+      function renderRemoveList() {
+        if (!removeList) return;
+        removeList.innerHTML = '';
+        if (!overridesState.remove.length) {
+          const empty = document.createElement('div');
+          empty.className = 'overrides-empty';
+          empty.textContent = 'No removal rules yet.';
+          removeList.appendChild(empty);
+          populateRemoveForm(null);
+          return;
+        }
+        overridesState.remove.forEach((entry, index) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'overrides-item' + (index === overridesState.selectedRemoveIndex ? ' active' : '');
+          const title = document.createElement('strong');
+          title.textContent = entry.surface || entry.reading || '(no rule)';
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          if (entry.reading) {
+            const span = document.createElement('span');
+            span.textContent = `reading: ${entry.reading}`;
+            meta.appendChild(span);
+          }
+          if (entry.surface) {
+            const span = document.createElement('span');
+            span.textContent = `surface: ${entry.surface}`;
+            meta.appendChild(span);
+          }
+          button.appendChild(title);
+          button.appendChild(meta);
+          button.addEventListener('click', () => {
+            syncFormToState();
+            syncRemoveFormToState();
+            overridesState.selectedRemoveIndex = index;
+            populateRemoveForm(entry);
+            renderRemoveList();
+          });
+          removeList.appendChild(button);
+        });
+        if (
+          overridesState.selectedRemoveIndex >= 0
+          && overridesState.selectedRemoveIndex < overridesState.remove.length
+        ) {
+          populateRemoveForm(overridesState.remove[overridesState.selectedRemoveIndex]);
+        } else {
+          populateRemoveForm(null);
+        }
       }
 
       function openOverridesModal() {
@@ -1982,8 +2429,13 @@ INDEX_HTML = """<!DOCTYPE html>
             overridesState.items = Array.isArray(payload.overrides)
               ? payload.overrides.map(entry => ({ ...entry }))
               : [];
+            overridesState.remove = Array.isArray(payload.remove)
+              ? payload.remove.map(entry => ({ ...entry }))
+              : [];
             overridesState.selectedIndex = overridesState.items.length ? 0 : -1;
+            overridesState.selectedRemoveIndex = overridesState.remove.length ? 0 : -1;
             renderOverridesList();
+            renderRemoveList();
             if (!overridesModal) return;
             overridesModal.classList.remove('hidden');
             overridesModal.setAttribute('aria-hidden', 'false');
@@ -2000,6 +2452,7 @@ INDEX_HTML = """<!DOCTYPE html>
       function saveOverrides() {
         if (!overridesState.bookId) return;
         syncFormToState();
+        syncRemoveFormToState();
         const normalized = overridesState.items.map(entry => ({
           pattern: (entry.pattern || '').trim(),
           replacement: (entry.replacement || '').trim(),
@@ -2019,26 +2472,44 @@ INDEX_HTML = """<!DOCTYPE html>
           if (entry.accent !== undefined) clean.accent = entry.accent;
           return clean;
         }).filter(entry => entry.pattern);
+        const normalizedRemove = overridesState.remove.map(entry => ({
+          reading: (entry.reading || '').trim(),
+          surface: (entry.surface || '').trim(),
+        })).map(entry => {
+          const clean = {};
+          if (entry.reading) clean.reading = entry.reading;
+          if (entry.surface) clean.surface = entry.surface;
+          return clean;
+        }).filter(entry => Object.keys(entry).length > 0);
         setOverridesError('');
         overrideSaveBtn.disabled = true;
+        if (overridesProgress) {
+          overridesProgress.classList.remove('hidden');
+        }
+        updateOverridesProgressLabel('Saving…');
         fetchJSON(`/api/books/${encodeURIComponent(overridesState.bookId)}/overrides`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ overrides: normalized }),
+          body: JSON.stringify({ overrides: normalized, remove: normalizedRemove }),
         })
           .then((payload) => {
             overridesState.items = Array.isArray(payload.overrides)
               ? payload.overrides.map(entry => ({ ...entry }))
               : [];
+            overridesState.remove = Array.isArray(payload.remove)
+              ? payload.remove.map(entry => ({ ...entry }))
+              : [];
             overridesState.selectedIndex = overridesState.items.length ? 0 : -1;
+            overridesState.selectedRemoveIndex = overridesState.remove.length ? 0 : -1;
             renderOverridesList();
-            closeOverridesModal();
-            renderStatus('Overrides saved.');
+            renderRemoveList();
+            return runOverridesRefine(overridesState.bookId);
           })
           .catch((err) => {
             setOverridesError(err.message || 'Failed to save overrides.');
-          })
-          .finally(() => {
+            if (overridesProgress) overridesProgress.classList.add('hidden');
+            updateOverridesProgressLabel('Save failed');
+            resetOverrideSaveLabel(1500);
             overrideSaveBtn.disabled = false;
           });
       }
@@ -2165,6 +2636,14 @@ INDEX_HTML = """<!DOCTYPE html>
         if (refineDeleteToken) {
           refineDeleteToken.disabled = refineBusy || !canRemoveCurrentToken();
         }
+        if (refineSubmitBookSource) {
+          const hasSource =
+            !!refineContext
+            && !!refineContext.token
+            && Array.isArray(refineContext.token.sources)
+            && refineContext.token.sources.some((src) => typeof src === 'string' && src.trim());
+          refineSubmitBookSource.disabled = refineBusy || !hasSource;
+        }
       }
 
       function setRefineBusy(busy) {
@@ -2172,6 +2651,17 @@ INDEX_HTML = """<!DOCTYPE html>
         if (!refineForm) {
           updateRefineButtons();
           return;
+        }
+        const showProgress = busy && (refineCurrentScope === 'book' || refineCurrentScope === 'book-source' || refineCurrentScope === 'chapter');
+        if (refineProgress) {
+          refineProgress.classList.toggle('hidden', !showProgress);
+        }
+        if (refineProgressLabel) {
+          const label =
+            refineCurrentScope === 'book' || refineCurrentScope === 'book-source'
+              ? 'Refining whole book…'
+              : 'Refining chapter…';
+          refineProgressLabel.textContent = label;
         }
         const controls = refineForm.querySelectorAll('input, button, textarea');
         controls.forEach((control) => {
@@ -2183,6 +2673,11 @@ INDEX_HTML = """<!DOCTYPE html>
         });
         if (refineSubmitBook) {
           refineSubmitBook.textContent = busy ? 'Applying to whole book…' : 'The whole book';
+        }
+        if (refineSubmitBookSource) {
+          refineSubmitBookSource.textContent = busy
+            ? 'Applying to book (same source)…'
+            : 'The whole book (same source)';
         }
         if (refineSubmitChapter) {
           refineSubmitChapter.textContent = busy ? 'Applying to chapter…' : 'This chapter only';
@@ -2217,17 +2712,142 @@ INDEX_HTML = """<!DOCTYPE html>
             ? context.index
             : null;
         const surfaceLabel = token.surface || chunk || '';
+        const originalTextValue =
+          state.chapterPayload && typeof state.chapterPayload.original_text === 'string'
+            ? state.chapterPayload.original_text
+            : null;
+        const isSelectionToken =
+          token && Array.isArray(token.sources) && token.sources.includes('selection');
+
+        const isKanaChar = (ch) => {
+          if (!ch) return false;
+          const code = ch.codePointAt(0);
+          return (
+            (code >= 0x3040 && code <= 0x309F)
+            || (code >= 0x30A0 && code <= 0x30FF)
+            || ch === 'ー'
+            || ch === 'ゝ'
+            || ch === 'ゞ'
+          );
+        };
+
+        const isCjkChar = (ch) => {
+          if (!ch) return false;
+          const code = ch.codePointAt(0);
+          return (
+            (code >= 0x4E00 && code <= 0x9FFF)
+            || (code >= 0x3400 && code <= 0x4DBF)
+            || (code >= 0x20000 && code <= 0x2A6DF)
+            || ch === '々'
+            || ch === '〆'
+            || ch === 'ヵ'
+            || ch === 'ヶ'
+          );
+        };
+
+        const buildLookaheadFromSelection = (text) => {
+          if (!text || text.length < 2) return null;
+          let split = text.length;
+          while (split > 0 && isKanaChar(text.charAt(split - 1))) {
+            split -= 1;
+          }
+          if (split <= 0 || split >= text.length) {
+            return null;
+          }
+          const head = text.slice(0, split);
+          const tail = text.slice(split);
+          const headChars = Array.from(head);
+          const tailChars = Array.from(tail);
+          if (!tailChars.length || !tailChars.every(isKanaChar)) {
+            return null;
+          }
+          if (!headChars.length || !headChars.some(isCjkChar)) {
+            return null;
+          }
+          const lastHeadChar = headChars[headChars.length - 1];
+          if (!isCjkChar(lastHeadChar)) {
+            return null;
+          }
+          return {
+            pattern: `${head}(?=${tail})`,
+            replacement: head,
+            surface: head,
+            matchSurface: head,
+          };
+        };
+
+        const sliceOriginalSurface = (candidateToken, allowFallbackSurface = true) => {
+          if (!candidateToken) return '';
+          const startOriginal = offsetValue(candidateToken.start, 'original');
+          const endOriginal = offsetValue(candidateToken.end, 'original');
+          if (
+            originalTextValue
+            && Number.isFinite(startOriginal)
+            && Number.isFinite(endOriginal)
+            && endOriginal > startOriginal
+          ) {
+            return originalTextValue.slice(startOriginal, endOriginal);
+          }
+          if (allowFallbackSurface) {
+            return candidateToken.surface || '';
+          }
+          return '';
+        };
+
+        const selectionMatchSurface = (() => {
+          const tokenSurface = sliceOriginalSurface(token, !isSelectionToken);
+          if (tokenSurface) return tokenSurface;
+          if (
+            selection
+            && typeof selection.start === 'number'
+            && typeof selection.end === 'number'
+            && Array.isArray(state.tokens)
+          ) {
+            const surfaces = state.tokens
+              .map((entry) => {
+                const tStart = offsetValue(entry.start, 'transformed');
+                const tEnd = offsetValue(entry.end, 'transformed');
+                if (!Number.isFinite(tStart) || !Number.isFinite(tEnd) || tEnd <= tStart) {
+                  return '';
+                }
+                const overlaps = tEnd > selection.start && selection.end > tStart;
+                return overlaps ? sliceOriginalSurface(entry, true) : '';
+              })
+              .filter(Boolean);
+            if (surfaces.length) {
+              return surfaces.join('');
+            }
+          }
+          return '';
+        })();
+
+        const selectionPatternSuggestion = (() => {
+          if (!isSelectionToken || view !== 'transformed') {
+            return null;
+          }
+          return buildLookaheadFromSelection(chunk);
+        })();
+
         const readingLabel = token.reading || '';
         const defaultPattern =
-          view === 'transformed' && chunk
-            ? chunk
-            : (readingLabel || surfaceLabel);
-        const defaultReplacement = chunk || '';
+          selectionPatternSuggestion && selectionPatternSuggestion.pattern
+            ? selectionPatternSuggestion.pattern
+            : (
+              view === 'transformed' && chunk
+                ? chunk
+                : (readingLabel || surfaceLabel)
+            );
+        const defaultReplacement = selectionPatternSuggestion
+          ? selectionPatternSuggestion.replacement
+          : (chunk || '');
         const defaultReading = token.reading || chunk || '';
         const accentValue =
           typeof token.accent === 'number' && Number.isFinite(token.accent)
             ? String(token.accent)
             : '';
+        const defaultRegex = selectionPatternSuggestion
+          ? true
+          : Boolean(context && context.regex);
         if (refinePatternInput) {
           refinePatternInput.value = defaultPattern || '';
         }
@@ -2240,14 +2860,20 @@ INDEX_HTML = """<!DOCTYPE html>
         if (refineAccentInput) {
           refineAccentInput.value = accentValue;
         }
+        const lookaheadSurface = selectionPatternSuggestion ? selectionPatternSuggestion.surface : '';
+        const lookaheadMatchSurface = selectionPatternSuggestion ? selectionPatternSuggestion.matchSurface : '';
         if (refineSurfaceInput) {
-          refineSurfaceInput.value = token.surface || '';
+          const defaultSurface = lookaheadSurface || selectionMatchSurface || token.surface || '';
+          refineSurfaceInput.value = defaultSurface;
+        }
+        if (refineMatchSurfaceInput) {
+          refineMatchSurfaceInput.value = lookaheadMatchSurface || selectionMatchSurface || '';
         }
         if (refinePosInput) {
           refinePosInput.value = token.pos || '';
         }
         if (refineRegexInput) {
-          refineRegexInput.checked = Boolean(context && context.regex);
+          refineRegexInput.checked = defaultRegex;
         }
         if (refineContextLabel) {
           const parts = [];
@@ -2291,6 +2917,7 @@ INDEX_HTML = """<!DOCTYPE html>
           refinePatternInput.focus();
           refinePatternInput.select();
         }
+        updateRefineButtons();
       }
 
       function fetchJSON(url, options = {}) {
@@ -4324,10 +4951,10 @@ def create_reader_app(root: Path) -> FastAPI:
 
     def _read_overrides(
         book_dir: Path,
-    ) -> tuple[list[dict[str, object]], bool, float | None]:
+    ) -> tuple[list[dict[str, object]], list[dict[str, object]], bool, float | None]:
         overrides_path = book_dir / "custom_token.json"
         if not overrides_path.exists():
-            return [], False, None
+            return [], [], False, None
         try:
             raw = json.loads(overrides_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
@@ -4345,6 +4972,16 @@ def create_reader_app(root: Path) -> FastAPI:
                 status_code=400,
                 detail="Overrides file must contain an 'overrides' array.",
             )
+        remove_payload = raw.get("remove")
+        if remove_payload is None:
+            remove_payload = raw.get("removals")
+        if remove_payload is None:
+            remove_payload = []
+        if remove_payload is not None and not isinstance(remove_payload, list):
+            raise HTTPException(
+                status_code=400,
+                detail="Overrides file must contain a 'remove' array if provided.",
+            )
         try:
             modified = overrides_path.stat().st_mtime
         except OSError:
@@ -4353,7 +4990,8 @@ def create_reader_app(root: Path) -> FastAPI:
         for entry in payload:
             if isinstance(entry, dict):
                 normalized.append(entry)
-        return normalized, True, modified
+        normalized_remove = _normalize_remove_payload(raw)
+        return normalized, normalized_remove, True, modified
 
     def _normalize_override_entry(entry: Mapping[str, object]) -> dict[str, object]:
         pattern = entry.get("pattern")
@@ -4393,6 +5031,33 @@ def create_reader_app(root: Path) -> FastAPI:
             **({"pos": pos} if pos else {}),
             **({"accent": accent} if accent is not None else {}),
         }
+
+    def _normalize_remove_entry(entry: Mapping[str, object]) -> dict[str, object]:
+        reading = entry.get("reading")
+        surface = entry.get("surface")
+        normalized: dict[str, object] = {}
+        if isinstance(reading, str) and reading.strip():
+            normalized["reading"] = reading.strip()
+        if isinstance(surface, str) and surface.strip():
+            normalized["surface"] = surface.strip()
+        return normalized
+
+    def _normalize_remove_payload(payload: object) -> list[dict[str, object]]:
+        if not isinstance(payload, Mapping):
+            return []
+        raw_remove = payload.get("remove")
+        if raw_remove is None:
+            raw_remove = payload.get("removals")
+        if not isinstance(raw_remove, list):
+            return []
+        cleaned: list[dict[str, object]] = []
+        for entry in raw_remove:
+            if not isinstance(entry, Mapping):
+                continue
+            normalized = _normalize_remove_entry(entry)
+            if normalized:
+                cleaned.append(normalized)
+        return cleaned
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> HTMLResponse:
@@ -4456,12 +5121,13 @@ def create_reader_app(root: Path) -> FastAPI:
     @app.get("/api/books/{book_id:path}/overrides")
     def api_get_overrides(book_id: str) -> JSONResponse:
         book_dir = _resolve_book_dir(resolved_root, book_id)
-        overrides, exists, modified = _read_overrides(book_dir)
+        overrides, remove_rules, exists, modified = _read_overrides(book_dir)
         return JSONResponse(
             {
                 "book": book_id,
                 "path": _relative_to_root(resolved_root, book_dir).as_posix(),
                 "overrides": overrides,
+                "remove": remove_rules,
                 "exists": exists,
                 "modified": modified,
             }
@@ -4477,14 +5143,33 @@ def create_reader_app(root: Path) -> FastAPI:
         overrides_payload = payload.get("overrides")
         if not isinstance(overrides_payload, list):
             raise HTTPException(status_code=400, detail="'overrides' must be an array.")
+        remove_payload = payload.get("remove")
+        if remove_payload is not None and not isinstance(remove_payload, list):
+            raise HTTPException(status_code=400, detail="'remove' must be an array when provided.")
         normalized: list[dict[str, object]] = []
+        normalized_remove: list[dict[str, object]] = []
         for entry in overrides_payload:
             if not isinstance(entry, Mapping):
                 continue
             normalized.append(_normalize_override_entry(entry))
+        if remove_payload is not None:
+            for entry in remove_payload:
+                if not isinstance(entry, Mapping):
+                    continue
+                cleaned = _normalize_remove_entry(entry)
+                if cleaned:
+                    normalized_remove.append(cleaned)
         overrides_path = book_dir / "custom_token.json"
+        if remove_payload is None:
+            try:
+                existing_raw = json.loads(overrides_path.read_text(encoding="utf-8"))
+                existing_remove = _normalize_remove_payload(existing_raw)
+                if existing_remove:
+                    normalized_remove = existing_remove
+            except Exception:
+                normalized_remove = normalized_remove
         overrides_path.write_text(
-            json.dumps({"overrides": normalized}, ensure_ascii=False, indent=2),
+            json.dumps({"overrides": normalized, "remove": normalized_remove}, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         try:
@@ -4496,10 +5181,55 @@ def create_reader_app(root: Path) -> FastAPI:
                 "book": book_id,
                 "path": _relative_to_root(resolved_root, book_dir).as_posix(),
                 "overrides": normalized,
+                "remove": normalized_remove,
                 "exists": True,
                 "modified": modified,
             }
         )
+
+    @app.post("/api/books/{book_id:path}/refine")
+    def api_refine_book(book_id: str) -> StreamingResponse:
+        book_dir = _resolve_book_dir(resolved_root, book_id)
+        overrides, removals = load_refine_config(book_dir)
+        def _serialize_event(event: dict[str, object]) -> dict[str, object]:
+            def _coerce(value: object) -> object:
+                if isinstance(value, Path):
+                    return value.as_posix()
+                if isinstance(value, dict):
+                    return {k: _coerce(v) for k, v in value.items()}
+                if isinstance(value, list):
+                    return [_coerce(v) for v in value]
+                return value
+
+            clean: dict[str, object] = {}
+            for key, value in event.items():
+                clean[key] = _coerce(value)
+            return clean
+
+        def _event_stream():
+            q: queue.Queue[dict[str, object] | None] = queue.Queue()
+
+            def _progress(event: dict[str, object]) -> None:
+                q.put(_serialize_event(event))
+
+            def _runner():
+                try:
+                    updated = refine_book(book_dir, overrides, removals=removals, progress=_progress)
+                    q.put({"event": "done", "updated": updated})
+                except Exception as exc:  # pragma: no cover - defensive
+                    q.put({"event": "error", "detail": str(exc)})
+                finally:
+                    q.put(None)
+
+            thread = threading.Thread(target=_runner, daemon=True)
+            thread.start()
+            while True:
+                item = q.get()
+                if item is None:
+                    break
+                yield json.dumps(item, ensure_ascii=False).encode("utf-8") + b"\n"
+
+        return StreamingResponse(_event_stream(), media_type="application/x-ndjson")
 
     @app.get("/api/chapter")
     def api_chapter(
@@ -4565,7 +5295,7 @@ def create_reader_app(root: Path) -> FastAPI:
         return JSONResponse(response)
 
     @app.post("/api/refine")
-    def api_refine(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    def api_refine(payload: dict[str, object] = Body(...)) -> Response:
         if not isinstance(payload, Mapping):
             raise HTTPException(status_code=400, detail="Invalid payload.")
         path_value = payload.get("path")
@@ -4598,8 +5328,8 @@ def create_reader_app(root: Path) -> FastAPI:
         scope = "book"
         if isinstance(scope_value, str):
             normalized_scope = scope_value.strip().lower()
-            if normalized_scope in {"book", "chapter", "token"}:
-                scope = normalized_scope
+            if normalized_scope in {"book", "chapter", "token", "book_source", "book-source"}:
+                scope = "book_source" if normalized_scope in {"book_source", "book-source"} else normalized_scope
 
         pattern = _trim(payload.get("pattern"))
         replacement = _trim(payload.get("replacement"))
@@ -4620,6 +5350,13 @@ def create_reader_app(root: Path) -> FastAPI:
                 raise HTTPException(
                     status_code=400, detail="accent must be an integer."
                 ) from None
+
+        source_filter = None
+        if scope == "book_source":
+            source_value = payload.get("source")
+            if not isinstance(source_value, str) or not source_value.strip():
+                raise HTTPException(status_code=400, detail="source is required for book_source scope.")
+            source_filter = source_value.strip()
 
         if scope == "token":
             token_index = payload.get("token_index")
@@ -4672,29 +5409,109 @@ def create_reader_app(root: Path) -> FastAPI:
             entry["pos"] = pos
         if accent is not None:
             entry["accent"] = accent
+        if source_filter:
+            entry["source"] = source_filter
         if scope == "chapter":
             scope = "chapter"
         try:
             override_path = append_override_entry(book_dir, entry)
-            overrides = load_override_config(book_dir)
-            if scope == "chapter":
-                refined_value = refine_chapter(chapter_path, overrides)
-                updated = 1 if refined_value else 0
-            else:
-                updated = refine_book(book_dir, overrides)
+            overrides, removals = load_refine_config(book_dir)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         override_rel = _relative_to_root(resolved_root, override_path)
         book_rel = _relative_to_root(resolved_root, book_dir)
-        return JSONResponse(
-            {
-                "updated": updated,
-                "override_path": override_rel.as_posix(),
-                "chapter": rel_path.as_posix(),
-                "book": book_rel.as_posix(),
-                "scope": scope,
-            }
-        )
+
+        if scope == "token":
+            try:
+                refined_value = refine_chapter(chapter_path, overrides, removals=removals)
+                updated = 1 if refined_value else 0
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            return JSONResponse(
+                {
+                    "updated": updated,
+                    "override_path": override_rel.as_posix(),
+                    "chapter": rel_path.as_posix(),
+                    "book": book_rel.as_posix(),
+                    "scope": scope,
+                }
+            )
+
+        def _coerce(value: object) -> object:
+            if isinstance(value, Path):
+                return value.as_posix()
+            if isinstance(value, dict):
+                return {k: _coerce(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_coerce(v) for v in value]
+            return value
+
+        def _serialize_event(event: dict[str, object]) -> dict[str, object]:
+            clean: dict[str, object] = {}
+            for key, value in event.items():
+                clean[key] = _coerce(value)
+            return clean
+
+        def _event_stream():
+            q: queue.Queue[dict[str, object] | None] = queue.Queue()
+
+            def _progress(event: dict[str, object]) -> None:
+                q.put(_serialize_event(event))
+
+            def _runner():
+                try:
+                    if scope == "chapter":
+                        refined_value = refine_chapter(
+                            chapter_path,
+                            overrides,
+                            removals=removals,
+                            progress=_progress,
+                            chapter_index=1,
+                            chapter_total=1,
+                        )
+                        updated = 1 if refined_value else 0
+                        q.put(
+                            {
+                                "event": "done",
+                                "updated": updated,
+                                "chapter": rel_path.as_posix(),
+                                "book": book_rel.as_posix(),
+                                "scope": scope,
+                                "override_path": override_rel.as_posix(),
+                            }
+                        )
+                    else:
+                        updated = refine_book(
+                            book_dir,
+                            overrides,
+                            removals=removals,
+                            source_filter=source_filter,
+                            progress=_progress,
+                        )
+                        q.put(
+                            {
+                                "event": "done",
+                                "updated": updated,
+                                "chapter": rel_path.as_posix(),
+                                "book": book_rel.as_posix(),
+                                "scope": scope,
+                                "override_path": override_rel.as_posix(),
+                            }
+                        )
+                except Exception as exc:  # pragma: no cover - defensive
+                    q.put({"event": "error", "detail": str(exc)})
+                finally:
+                    q.put(None)
+
+            thread = threading.Thread(target=_runner, daemon=True)
+            thread.start()
+            while True:
+                item = q.get()
+                if item is None:
+                    break
+                yield json.dumps(item, ensure_ascii=False).encode("utf-8") + b"\n"
+
+        return StreamingResponse(_event_stream(), media_type="application/x-ndjson")
 
     @app.post("/api/remove-token")
     def api_remove_token(payload: dict[str, object] = Body(...)) -> JSONResponse:

@@ -184,6 +184,40 @@ def test_write_book_package_removes_legacy_partial_files(tmp_path: Path) -> None
     assert package.chapter_records[0].path.read_text(encoding="utf-8") == "アメ"
 
 
+def test_write_book_package_migrates_legacy_pitch_and_merges_template(tmp_path: Path) -> None:
+    output_dir = tmp_path / "LegacyBook"
+    output_dir.mkdir()
+    legacy_payload = {
+        "overrides": [
+            {"pattern": "LEGACY", "reading": "レガシー", "surface": "LEGACY"},
+        ]
+    }
+    legacy_path = output_dir / "custom_pitch.json"
+    legacy_path.write_text(json.dumps(legacy_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    chapters = [
+        ChapterText(
+            source="c.xhtml",
+            title="Reading",
+            text="Body",
+            original_text="Body",
+        )
+    ]
+
+    package = write_book_package(output_dir, chapters, apply_overrides=False)
+
+    assert not legacy_path.exists()
+    merged_path = output_dir / "custom_token.json"
+    assert merged_path.exists()
+    payload = json.loads(merged_path.read_text(encoding="utf-8"))
+    overrides = payload.get("overrides") or []
+    patterns = {entry.get("pattern") for entry in overrides if isinstance(entry, dict)}
+    # template should be merged in alongside the migrated legacy rule
+    assert "LEGACY" in patterns
+    assert "CONTENTS" in patterns
+    # smoke check that other package files are still emitted
+    assert package.metadata_path.exists()
+
+
 def test_write_book_package_preserves_tts_defaults(tmp_path: Path) -> None:
     output_dir = tmp_path / "Book"
     output_dir.mkdir()

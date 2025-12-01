@@ -15,7 +15,7 @@ from .book_io import write_book_package
 from .chunk_manifest import write_chunk_manifests
 from .core import epub_to_chapter_texts, get_epub_cover
 from .nlp import NLPBackend, NLPBackendUnavailableError
-from .refine import OverrideRule, load_override_config, refine_book
+from .refine import OverrideRule, load_override_config, load_refine_config, refine_book
 
 _INVALID_BOOK_CHARS = set('<>:"/\\|?*')
 
@@ -373,13 +373,15 @@ class UploadManager:
             )
 
             overrides: list[OverrideRule] = []
+            removals = []
             try:
-                overrides = load_override_config(job.output_dir)
+                overrides, removals = load_refine_config(job.output_dir)
             except ValueError as exc:
                 job.set_status("running", f"Overrides skipped: {exc}")
                 overrides = []
+                removals = []
 
-            if overrides:
+            if overrides or removals:
                 override_total = base_total or len(overrides)
                 total_steps = base_total + 1 + override_total
                 override_completed = 0
@@ -441,7 +443,12 @@ class UploadManager:
 
                 job.set_status("running", "Applying overrides…")
                 try:
-                    refine_book(job.output_dir, overrides, progress=_refine_progress_handler)
+                    refine_book(
+                        job.output_dir,
+                        overrides if overrides else None,
+                        removals=removals,
+                        progress=_refine_progress_handler,
+                    )
                 except ValueError as exc:
                     job.set_status("running", f"Overrides skipped: {exc}")
 

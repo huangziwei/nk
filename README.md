@@ -9,6 +9,13 @@ Tested on macOS and Ubuntu.
 ## Installation
 
 ```bash
+uv tool install git+https://github.com/huangziwei/nk
+nk deps install
+```
+
+or 
+
+```bash
 git clone https://github.com/huangziwei/nk
 cd nk
 ./install.sh  # prepares uv, UniDic, ffmpeg, VoiceVox, etc.

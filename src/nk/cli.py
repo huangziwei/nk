@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 import time
+import tomllib
 import webbrowser
 from importlib import metadata
 from multiprocessing import Process
@@ -16,8 +17,6 @@ from pathlib import Path
 from typing import Mapping
 
 import uvicorn
-from watchdog.events import FileSystemEventHandler
-from watchdog.observers.polling import PollingObserver
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -28,8 +27,8 @@ from rich.progress import (
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
-
-import tomllib
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers.polling import PollingObserver
 
 from .book_io import (
     BOOK_METADATA_FILENAME,
@@ -49,16 +48,26 @@ from .core import (
     epub_to_chapter_texts,
     get_epub_cover,
 )
+from .deps import (
+    DependencyInstallError,
+    DependencyUninstallError,
+    dependency_statuses,
+    install_dependencies,
+    uninstall_dependencies,
+)
+from .logging_utils import build_uvicorn_log_config
 from .nlp import NLPBackend, NLPBackendUnavailableError
-from .deps import dependency_statuses
+from .player import PlayerConfig, create_app
+from .reader import create_reader_app
+from .refine import OverrideRule, load_override_config, load_refine_config, refine_book, refine_chapter
 from .tts import (
     FFmpegError,
     TTSTarget,
     VoiceVoxError,
     VoiceVoxRuntimeError,
     VoiceVoxUnavailableError,
-    ensure_dedicated_voicevox_url,
     discover_voicevox_runtime,
+    ensure_dedicated_voicevox_url,
     managed_voicevox_runtime,
     resolve_text_targets,
     synthesize_texts_to_mp3,
@@ -66,17 +75,12 @@ from .tts import (
     VoiceProfile,
     _voice_profile_from_defaults,
 )
-from .refine import OverrideRule, load_override_config, refine_book, refine_chapter
-from .reader import create_reader_app
-from .player import PlayerConfig, create_app
-from .logging_utils import build_uvicorn_log_config
 from .voice_defaults import (
     DEFAULT_INTONATION_SCALE,
     DEFAULT_PITCH_SCALE,
     DEFAULT_SPEAKER_ID,
     DEFAULT_SPEED_SCALE,
 )
-
 
 _READER_RELOAD_ENV = "NK_READER_RELOAD_ROOT"
 _PLAYER_RELOAD_ENV = "NK_PLAYER_RELOAD_CONFIG"
@@ -166,7 +170,9 @@ def _player_reload_app():
         return Path(value)
 
     engine_threads_value = data.get("engine_threads")
-    engine_threads = int(engine_threads_value) if engine_threads_value is not None else None
+    engine_threads = (
+        int(engine_threads_value) if engine_threads_value is not None else None
+    )
     config = PlayerConfig(
         root=Path(data["root"]),
         speaker=int(data["speaker"]),
@@ -186,7 +192,9 @@ def _player_reload_app():
     return create_app(config, reader_url=reader_url)
 
 
-def _reader_process_entry(host: str, port: int, log_config: dict[str, object] | None) -> None:
+def _reader_process_entry(
+    host: str, port: int, log_config: dict[str, object] | None
+) -> None:
     uvicorn.run(
         "nk.cli:_reader_reload_app",
         host=host,
@@ -482,8 +490,8 @@ def build_play_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--reader-port",
         type=int,
-        default=2147,
-        help="Port for the companion reader server (default: 2147).",
+        default=2047,
+        help="Port for the companion reader server (default: 2047).",
     )
     ap.add_argument(
         "--reader-host",
@@ -615,7 +623,9 @@ def build_reader_parser() -> argparse.ArgumentParser:
 
 
 def build_refine_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(description="Apply custom pitch overrides to a chapterized book.")
+    ap = argparse.ArgumentParser(
+        description="Apply custom pitch overrides to a chapterized book."
+    )
     _add_version_flag(ap)
     ap.add_argument("book_dir", help="Path to the chapterized book directory.")
     ap.add_argument(
@@ -629,8 +639,41 @@ def build_refine_parser() -> argparse.ArgumentParser:
 
 
 def build_deps_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(description="Show nk dependency status.")
+    ap = argparse.ArgumentParser(
+        description="Check or install nk runtime dependencies (UniDic, VoiceVox, ffmpeg)."
+    )
     _add_version_flag(ap)
+    subparsers = ap.add_subparsers(dest="command", required=False)
+
+    check_parser = subparsers.add_parser(
+        "check",
+        help="Print detected dependency versions and locations.",
+    )
+    _add_version_flag(check_parser)
+
+    install_parser = subparsers.add_parser(
+        "install",
+        help="Run the bundled install.sh helper to install runtimes.",
+    )
+    _add_version_flag(install_parser)
+    install_parser.add_argument(
+        "--script",
+        type=Path,
+        help="Override install.sh path (defaults to the copy shipped with nk).",
+    )
+
+    uninstall_parser = subparsers.add_parser(
+        "uninstall",
+        help="Remove dependencies that nk installed via install.sh (tracked in the manifest).",
+    )
+    _add_version_flag(uninstall_parser)
+    uninstall_parser.add_argument(
+        "--manifest",
+        type=Path,
+        help="Override the install manifest location (defaults to ~/.local/share/nk/deps-manifest.json or NK_STATE_DIR).",
+    )
+
+    ap.set_defaults(command="check")
     return ap
 
 
@@ -758,7 +801,9 @@ def _chapterize_epub(
     task_id: int | None = None
     override_progress_step = 1.0
 
-    def _format_override_label(path_value: object, index_value: object, total_value: object) -> str:
+    def _format_override_label(
+        path_value: object, index_value: object, total_value: object
+    ) -> str:
         path_label = ""
         if isinstance(path_value, Path):
             path_label = path_value.name
@@ -772,6 +817,7 @@ def _chapterize_epub(
         if prefix and path_label:
             return f"{prefix} {path_label}"
         return path_label or prefix
+
     if progress_display:
         task_id = progress_display.add_task(book_label, total=1)
     else:
@@ -798,13 +844,19 @@ def _chapterize_epub(
         if progress_display and task_id is not None:
             task = progress_display.tasks[task_id]
             if isinstance(total, int) and (task.total is None or task.total == 1):
-                progress_display.update(task_id, total=total, completed=min(task.completed, total - 1))
+                progress_display.update(
+                    task_id, total=total, completed=min(task.completed, total - 1)
+                )
             if event_type == "chapter_prepare":
-                progress_display.update(task_id, description=f"{book_label} · preparing")
+                progress_display.update(
+                    task_id, description=f"{book_label} · preparing"
+                )
             elif event_type == "chapter_start":
                 progress_display.update(task_id, description=description)
             elif event_type == "chapter_done":
-                completed_value = index if isinstance(index, int) else task.completed + 1
+                completed_value = (
+                    index if isinstance(index, int) else task.completed + 1
+                )
                 progress_display.update(
                     task_id,
                     completed=completed_value,
@@ -847,19 +899,25 @@ def _chapterize_epub(
         apply_overrides=False,
     )
     overrides: list[OverrideRule] = []
+    removals = []
     try:
-        overrides = load_override_config(output_dir)
+        overrides, removals = load_refine_config(output_dir)
     except ValueError as exc:
-        console.print(f"[nk] Warn: failed to load custom_token.json: {exc}", style="yellow")
+        console.print(
+            f"[nk] Warn: failed to load custom_token.json: {exc}", style="yellow"
+        )
+    has_refinements = bool(overrides or removals)
     if progress_display and task_id is not None:
         task = progress_display.tasks[task_id]
-        completed_after_write = min(task.completed, task.total - 1 if task.total else base_completed)
+        completed_after_write = min(
+            task.completed, task.total - 1 if task.total else base_completed
+        )
         progress_display.update(
             task_id,
             completed=completed_after_write + 1,
             description=f"{book_label} · writing…",
         )
-        if overrides:
+        if has_refinements:
             override_total = len(chapters)
             if override_total > 0:
                 override_progress_step = 1.0 / override_total
@@ -869,8 +927,9 @@ def _chapterize_epub(
                 description=f"{book_label} · applying overrides…",
             )
     else:
-        if overrides:
+        if has_refinements:
             console.print(f"[nk] Applying overrides for {book_label}…", style="dim")
+
     def _refine_progress_handler(event: dict[str, object]) -> None:
         nonlocal override_progress_step
         if not (progress_display and task_id is not None):
@@ -904,17 +963,27 @@ def _chapterize_epub(
                 event.get("total"),
             )
             if label:
-                progress_display.update(task_id, description=f"{book_label} · applying overrides… · {label}")
+                progress_display.update(
+                    task_id, description=f"{book_label} · applying overrides… · {label}"
+                )
+
     try:
         refined = (
-            refine_book(output_dir, overrides, progress=_refine_progress_handler) if overrides else 0
+            refine_book(
+                output_dir,
+                overrides if overrides else None,
+                removals=removals,
+                progress=_refine_progress_handler,
+            )
+            if has_refinements
+            else 0
         )
     except ValueError as exc:
         console.print(f"[nk] Warn: failed to apply overrides: {exc}", style="yellow")
         refined = 0
     if progress_display and task_id is not None:
         task = progress_display.tasks[task_id]
-        final_total = task.total or (base_total + (2 if overrides else 1))
+        final_total = task.total or (base_total + (2 if has_refinements else 1))
         progress_display.update(
             task_id,
             total=final_total,
@@ -923,7 +992,10 @@ def _chapterize_epub(
         )
     else:
         if refined:
-            console.print(f"[nk] Applied {refined} override(s) from custom_token.json", style="dim")
+            console.print(
+                f"[nk] Applied {refined} refine pass(es) from custom_token.json",
+                style="dim",
+            )
         console.print(f"  → {output_dir}", style="dim")
 
 
@@ -961,7 +1033,9 @@ def _run_tts(args: argparse.Namespace) -> int:
     metadata_for_defaults = None
     if defaults_book_dir.is_dir():
         metadata_for_defaults = load_book_metadata(defaults_book_dir)
-    stored_defaults = metadata_for_defaults.tts_defaults if metadata_for_defaults else None
+    stored_defaults = (
+        metadata_for_defaults.tts_defaults if metadata_for_defaults else None
+    )
 
     if args.speaker is None:
         if stored_defaults and stored_defaults.speaker is not None:
@@ -991,7 +1065,9 @@ def _run_tts(args: argparse.Namespace) -> int:
             return f"{name}={format(value, 'g')}"
         return f"{name}={value}"
 
-    def _format_setting(name: str, value: float | int | None, source: str | None = None) -> str:
+    def _format_setting(
+        name: str, value: float | int | None, source: str | None = None
+    ) -> str:
         if value is None:
             return f"{name}=engine default"
         text = _format_value(name, value) or f"{name}={value}"
@@ -1001,7 +1077,9 @@ def _run_tts(args: argparse.Namespace) -> int:
             return f"{text} [saved]"
         return text
 
-    def _format_transition(name: str, previous: float | int | None, new_value: float | int | None) -> str:
+    def _format_transition(
+        name: str, previous: float | int | None, new_value: float | int | None
+    ) -> str:
         def _value_text(val: float | int | None) -> str:
             if val is None:
                 return "engine default"
@@ -1072,7 +1150,9 @@ def _run_tts(args: argparse.Namespace) -> int:
     if saved_values_summary:
         source_path = metadata_path if metadata_path else defaults_book_dir
         saved_summary = ", ".join(saved_values_summary)
-        print(f"[nk tts] Loaded saved voice defaults from {source_path} ({saved_summary}).")
+        print(
+            f"[nk tts] Loaded saved voice defaults from {source_path} ({saved_summary})."
+        )
 
     voice_settings = {
         "speaker": args.speaker,
@@ -1100,7 +1180,9 @@ def _run_tts(args: argparse.Namespace) -> int:
         and stored_defaults.speaker is not None
         and stored_defaults.speaker != args.speaker
     ):
-        changed_fields.append(_format_transition("speaker", stored_defaults.speaker, args.speaker))
+        changed_fields.append(
+            _format_transition("speaker", stored_defaults.speaker, args.speaker)
+        )
     if (
         speed_override_set
         and stored_defaults
@@ -1108,7 +1190,9 @@ def _run_tts(args: argparse.Namespace) -> int:
         and args.speed is not None
         and stored_defaults.speed != args.speed
     ):
-        changed_fields.append(_format_transition("speed", stored_defaults.speed, args.speed))
+        changed_fields.append(
+            _format_transition("speed", stored_defaults.speed, args.speed)
+        )
     if (
         pitch_override_set
         and stored_defaults
@@ -1116,7 +1200,9 @@ def _run_tts(args: argparse.Namespace) -> int:
         and args.pitch is not None
         and stored_defaults.pitch != args.pitch
     ):
-        changed_fields.append(_format_transition("pitch", stored_defaults.pitch, args.pitch))
+        changed_fields.append(
+            _format_transition("pitch", stored_defaults.pitch, args.pitch)
+        )
     if (
         intonation_override_set
         and stored_defaults
@@ -1125,11 +1211,16 @@ def _run_tts(args: argparse.Namespace) -> int:
         and stored_defaults.intonation != args.intonation
     ):
         changed_fields.append(
-            _format_transition("intonation", stored_defaults.intonation, args.intonation)
+            _format_transition(
+                "intonation", stored_defaults.intonation, args.intonation
+            )
         )
 
     if not saved_values_summary and not (
-        speaker_override_set or speed_override_set or pitch_override_set or intonation_override_set
+        speaker_override_set
+        or speed_override_set
+        or pitch_override_set
+        or intonation_override_set
     ):
         print("[nk tts] No saved voice defaults found; using built-in engine settings.")
 
@@ -1174,7 +1265,8 @@ def _run_tts(args: argparse.Namespace) -> int:
         normalized = {
             key: float(value)
             for key, value in defaults.items()
-            if isinstance(value, (int, float)) and key in {"speed", "pitch", "intonation"}
+            if isinstance(value, (int, float))
+            and key in {"speed", "pitch", "intonation"}
         }
         filtered = {
             key: normalized[key]
@@ -1203,7 +1295,11 @@ def _run_tts(args: argparse.Namespace) -> int:
         if not pending:
             return
         if update_book_tts_defaults(defaults_book_dir, pending):
-            saved_path = metadata_path if metadata_path else defaults_book_dir / BOOK_METADATA_FILENAME
+            saved_path = (
+                metadata_path
+                if metadata_path
+                else defaults_book_dir / BOOK_METADATA_FILENAME
+            )
             summary_values = [
                 _format_value(name, pending[name]) or f"{name}={pending[name]}"
                 for name in ("speaker", "speed", "pitch", "intonation")
@@ -1225,9 +1321,14 @@ def _run_tts(args: argparse.Namespace) -> int:
     if remember_updates and defaults_book_dir.is_dir():
         saved_overrides = update_book_tts_defaults(defaults_book_dir, remember_updates)
         if saved_overrides:
-            saved_path = metadata_path if metadata_path else defaults_book_dir / BOOK_METADATA_FILENAME
+            saved_path = (
+                metadata_path
+                if metadata_path
+                else defaults_book_dir / BOOK_METADATA_FILENAME
+            )
             saved_pairs = ", ".join(
-                _format_value(name, remember_updates[name]) or f"{name}={remember_updates[name]}"
+                _format_value(name, remember_updates[name])
+                or f"{name}={remember_updates[name]}"
                 for name in ("speaker", "speed", "pitch", "intonation")
                 if name in remember_updates
             )
@@ -1253,7 +1354,9 @@ def _run_tts(args: argparse.Namespace) -> int:
             raise SystemExit(str(exc)) from exc
         if args.start_index > 1:
             skipped = min(total_targets, args.start_index - 1)
-            print(f"Skipping {skipped} chapters; starting synthesis at index {args.start_index}.")
+            print(
+                f"Skipping {skipped} chapters; starting synthesis at index {args.start_index}."
+            )
 
     total_targets = len(targets)
     printed_progress = {"value": False}
@@ -1294,7 +1397,9 @@ def _run_tts(args: argparse.Namespace) -> int:
                 transient=False,
             )
             self.progress.start()
-            self.overall_task = self.progress.add_task("All chapters", total=total, detail="")
+            self.overall_task = self.progress.add_task(
+                "All chapters", total=total, detail=""
+            )
 
         @staticmethod
         def _truncate(text: str, width: int = 24) -> str:
@@ -1344,7 +1449,11 @@ def _run_tts(args: argparse.Namespace) -> int:
             reason = event.get("reason")
             with self.lock:
                 if event_type == "target_start":
-                    total = chunk_count if isinstance(chunk_count, int) and chunk_count > 0 else None
+                    total = (
+                        chunk_count
+                        if isinstance(chunk_count, int) and chunk_count > 0
+                        else None
+                    )
                     desc = label
                     task_id = self.progress.add_task(desc, total=total, detail="")
                     self.task_by_key[key] = {
@@ -1356,7 +1465,11 @@ def _run_tts(args: argparse.Namespace) -> int:
                     if info is not None:
                         task_id = info["task_id"]
                         total = info["total"]
-                        if total is None and isinstance(chunk_count, int) and chunk_count > 0:
+                        if (
+                            total is None
+                            and isinstance(chunk_count, int)
+                            and chunk_count > 0
+                        ):
                             total = chunk_count
                             info["total"] = total
                             self.progress.update(task_id, total=total)
@@ -1367,7 +1480,9 @@ def _run_tts(args: argparse.Namespace) -> int:
                                 detail = f"{chunk_index}/{total} chunks"
                             else:
                                 detail = f"chunk {chunk_index}"
-                            self.progress.update(task_id, completed=completed, detail=detail)
+                            self.progress.update(
+                                task_id, completed=completed, detail=detail
+                            )
                 elif event_type == "target_done":
                     info = self.task_by_key.pop(key, None)
                     if info is not None:
@@ -1382,10 +1497,14 @@ def _run_tts(args: argparse.Namespace) -> int:
                         else:
                             detail = "completed"
                         if total is not None:
-                            self.progress.update(task_id, completed=total, detail=detail)
+                            self.progress.update(
+                                task_id, completed=total, detail=detail
+                            )
                         else:
                             current = self.progress.tasks[task_id].completed
-                            self.progress.update(task_id, completed=current, detail=detail)
+                            self.progress.update(
+                                task_id, completed=current, detail=detail
+                            )
                         self.progress.stop_task(task_id)
                     if self.overall_task is not None:
                         self.progress.advance(self.overall_task, 1)
@@ -1488,7 +1607,9 @@ def _run_tts(args: argparse.Namespace) -> int:
                 ffmpeg_path=args.ffmpeg,
                 overwrite=args.overwrite,
                 timeout=args.timeout,
-                post_phoneme_length=max(args.pause, 0.0) if args.pause is not None else None,
+                post_phoneme_length=max(args.pause, 0.0)
+                if args.pause is not None
+                else None,
                 speed_scale=args.speed,
                 pitch_scale=args.pitch,
                 intonation_scale=args.intonation,
@@ -1541,18 +1662,20 @@ def _run_refine(args: argparse.Namespace) -> int:
         try:
             candidate.relative_to(book_dir)
         except ValueError as exc:
-            raise SystemExit("Chapter must be inside the provided book directory.") from exc
+            raise SystemExit(
+                "Chapter must be inside the provided book directory."
+            ) from exc
         if candidate.suffix.lower() != ".txt":
             raise SystemExit("Chapter must be a .txt file.")
         if not candidate.exists():
             raise SystemExit(f"Chapter file not found: {candidate}")
         chapter_path = candidate
     try:
-        overrides = load_override_config(book_dir)
+        overrides, removals = load_refine_config(book_dir)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    if not overrides:
-        print(f"No overrides found in {book_dir / 'custom_token.json'}")
+    if not overrides and not removals:
+        print(f"No overrides or remove rules found in {book_dir / 'custom_token.json'}")
         return 0
     console = Console()
     progress_display: Progress | None = None
@@ -1585,7 +1708,9 @@ def _run_refine(args: argparse.Namespace) -> int:
             if event_type == "book_start":
                 total_chapters = event.get("total_chapters")
                 if isinstance(total_chapters, int) and total_chapters > 0:
-                    progress_display.update(progress_task, total=total_chapters, completed=0)
+                    progress_display.update(
+                        progress_task, total=total_chapters, completed=0
+                    )
             elif event_type == "chapter_start":
                 label = _format_chapter_label(
                     event.get("path"),
@@ -1616,7 +1741,11 @@ def _run_refine(args: argparse.Namespace) -> int:
                 event.get("total"),
             )
             token_total = event.get("token_total")
-            token_text = f" ({token_total} tokens)" if isinstance(token_total, int) and token_total > 0 else ""
+            token_text = (
+                f" ({token_total} tokens)"
+                if isinstance(token_total, int) and token_total > 0
+                else ""
+            )
             if label:
                 print(f"[nk refine] {label}{token_text}")
         elif event_type == "chapter_done":
@@ -1646,6 +1775,7 @@ def _run_refine(args: argparse.Namespace) -> int:
             refined = refine_chapter(
                 chapter_path,
                 overrides,
+                removals=removals,
                 progress=_progress_handler,
                 chapter_index=1,
                 chapter_total=1,
@@ -1656,7 +1786,7 @@ def _run_refine(args: argparse.Namespace) -> int:
             else:
                 print(f"No changes required for {rel}")
             return 0
-        updated = refine_book(book_dir, overrides, progress=_progress_handler)
+        updated = refine_book(book_dir, overrides, removals=removals, progress=_progress_handler)
         if updated:
             print(f"Refined {updated} chapter(s).")
         else:
@@ -1665,22 +1795,28 @@ def _run_refine(args: argparse.Namespace) -> int:
 
     if progress_display:
         with progress_display:
-            progress_task = progress_display.add_task("Applying overrides", total=0, chapter="")
+            progress_task = progress_display.add_task(
+                "Applying overrides", total=0, chapter=""
+            )
             return _execute_refine()
     return _execute_refine()
 
 
-def _slice_targets_by_index(targets: list[TTSTarget], start_index: int | None) -> list[TTSTarget]:
+def _slice_targets_by_index(
+    targets: list[TTSTarget], start_index: int | None
+) -> list[TTSTarget]:
     if not targets:
         raise ValueError("No chapters available for synthesis.")
     if start_index is None or start_index <= 1:
         return targets
     if start_index > len(targets):
-        raise ValueError(f"--start-index {start_index} exceeds total chapters ({len(targets)}).")
+        raise ValueError(
+            f"--start-index {start_index} exceeds total chapters ({len(targets)})."
+        )
     return targets[start_index - 1 :]
 
 
-def _run_deps(args: argparse.Namespace) -> int:
+def _run_deps_check() -> int:
     statuses = dependency_statuses()
     all_ok = True
     for status in statuses:
@@ -1698,6 +1834,40 @@ def _run_deps(args: argparse.Namespace) -> int:
     return 0 if all_ok else 1
 
 
+def _run_deps_install(args: argparse.Namespace) -> int:
+    script_path = getattr(args, "script", None)
+    try:
+        return install_dependencies(script_path=script_path)
+    except DependencyInstallError as exc:
+        raise SystemExit(str(exc)) from exc
+
+
+def _run_deps_uninstall(args: argparse.Namespace) -> int:
+    manifest_path = getattr(args, "manifest", None)
+    try:
+        results = uninstall_dependencies(manifest_path=manifest_path)
+    except DependencyUninstallError as exc:
+        raise SystemExit(str(exc)) from exc
+
+    exit_code = 0
+    for result in results:
+        print(f"{result.name}: {result.status}")
+        if result.detail:
+            print(f"  {result.detail}")
+        if result.status in {"error", "unsafe", "nonempty"}:
+            exit_code = 1
+    return exit_code
+
+
+def _run_deps(args: argparse.Namespace) -> int:
+    command = getattr(args, "command", None) or "check"
+    if command == "install":
+        return _run_deps_install(args)
+    if command == "uninstall":
+        return _run_deps_uninstall(args)
+    return _run_deps_check()
+
+
 def _run_cast(args: argparse.Namespace) -> int:
     target = Path(args.target).expanduser()
     if not target.exists():
@@ -1709,7 +1879,9 @@ def _run_cast(args: argparse.Namespace) -> int:
     total_updated = sum(res.updated_chunks for res in results)
     total_chunks = sum(res.total_chunks for res in results)
     for res in results:
-        print(f"{res.manifest_path}: updated {res.updated_chunks}/{res.total_chunks} chunks")
+        print(
+            f"{res.manifest_path}: updated {res.updated_chunks}/{res.total_chunks} chunks"
+        )
     print(f"Total: updated {total_updated}/{total_chunks} chunks")
     return 0
 
@@ -1719,7 +1891,11 @@ def _run_play(args: argparse.Namespace) -> None:
     if not root.exists() or not root.is_dir():
         raise SystemExit(f"Books root not found: {root}")
     cache_dir = Path(args.cache_dir).expanduser().resolve() if args.cache_dir else None
-    engine_runtime = Path(args.engine_runtime).expanduser().resolve() if args.engine_runtime else None
+    engine_runtime = (
+        Path(args.engine_runtime).expanduser().resolve()
+        if args.engine_runtime
+        else None
+    )
 
     config = PlayerConfig(
         root=root,
@@ -1944,7 +2120,11 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-def _slice_targets_by_index(targets: list[TTSTarget], start_index: int | None) -> list[TTSTarget]:
+
+
+def _slice_targets_by_index(
+    targets: list[TTSTarget], start_index: int | None
+) -> list[TTSTarget]:
     if not targets:
         raise ValueError("No chapters available for synthesis.")
     if start_index is None or start_index <= 1:
@@ -1954,6 +2134,8 @@ def _slice_targets_by_index(targets: list[TTSTarget], start_index: int | None) -
             f"--start-index {start_index} exceeds total chapters ({len(targets)})."
         )
     return targets[start_index - 1 :]
+
+
 def _run_dav(args: argparse.Namespace) -> int:
     root = Path(args.root).expanduser().resolve()
     if not root.exists() or not root.is_dir():
@@ -1962,12 +2144,14 @@ def _run_dav(args: argparse.Namespace) -> int:
     view_root = _prepare_mp3_view(root)
     try:
         from cheroot import wsgi as cheroot_wsgi
+        from wsgidav.dc.pam_dc import PAMDomainController
         from wsgidav.fs_dav_provider import FilesystemProvider
         from wsgidav.wsgidav_app import WsgiDAVApp
-        from wsgidav.dc.pam_dc import PAMDomainController
     except ImportError as exc:
         shutil.rmtree(view_root, ignore_errors=True)
-        raise SystemExit(f"WsgiDAV is required for `nk dav`. Install dependencies and retry. ({exc})")
+        raise SystemExit(
+            f"WsgiDAV is required for `nk dav`. Install dependencies and retry. ({exc})"
+        )
 
     view_root, observer = _prepare_mp3_view(root)
     provider = FilesystemProvider(str(view_root))

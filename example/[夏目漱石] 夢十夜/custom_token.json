@@ -126,5 +126,10 @@
       "reading": "ナニよりも",
       "surface": "何よりも"
     }
+  ],
+  "remove": [
+    {
+      "reading": "ヽ"
+    }
   ]
 }

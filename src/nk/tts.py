@@ -1523,10 +1523,10 @@ def _enrich_pitch_tokens_with_voicevox(
         if accent_type is None:
             continue
         for token in token_group:
-            if token.accent_type == accent_type:
+            if token.accent_type is not None:
                 continue
             _debug_log(
-                f"VoiceVox accent override for '{surface}': {token.accent_type} -> {accent_type}"
+                f"VoiceVox accent fill for '{surface}': {accent_type}"
             )
             token.accent_type = accent_type
 
