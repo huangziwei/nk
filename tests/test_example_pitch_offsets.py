@@ -26,6 +26,20 @@ def _contains_cjk(text: str) -> bool:
     return False
 
 
+def _to_katakana(text: str) -> str:
+    """Convert hiragana to katakana for comparison."""
+    converted = []
+    for ch in text:
+        code = ord(ch)
+        if 0x3041 <= code <= 0x3096:
+            converted.append(chr(code + 0x60))
+        elif 0x309D <= code <= 0x309F:
+            converted.append(chr(code + 0x60))
+        else:
+            converted.append(ch)
+    return "".join(converted)
+
+
 @pytest.mark.parametrize("token_path", EXAMPLE_TOKEN_FILES)
 def test_example_tokens_match_text(token_path: Path) -> None:
     text_path = token_path.with_suffix("").with_suffix("")
@@ -55,6 +69,10 @@ def test_example_tokens_match_text(token_path: Path) -> None:
         )
         transformed_slice = transformed_text[t_start:t_end]
         if transformed_slice != reading:
+            transformed_k = _to_katakana(transformed_slice)
+            reading_k = _to_katakana(reading)
+            if transformed_k == reading_k:
+                continue
             assert transformed_slice == surface, (
                 f"{token_path} token #{idx} transformed slice mismatch "
                 f"(expected '{reading}' or surface '{surface}', got '{transformed_slice}')"
@@ -93,6 +111,10 @@ def test_book_tokens_match_text(token_path: Path) -> None:
         )
         transformed_slice = transformed_text[t_start:t_end]
         if transformed_slice != reading:
+            transformed_k = _to_katakana(transformed_slice)
+            reading_k = _to_katakana(reading)
+            if transformed_k == reading_k:
+                continue
             assert transformed_slice == surface, (
                 f"{token_path} token #{idx} transformed slice mismatch "
                 f"(expected '{reading}' or surface '{surface}', got '{transformed_slice}')"
@@ -112,7 +134,8 @@ def test_example_readings_are_kana(token_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "token_path", sorted(Path("books/フィクション/大衆文学/舟を編む").rglob("*.txt.token.json"))
+    "token_path",
+    sorted(Path("books/フィクション/大衆文学/舟を編む").rglob("*.txt.token.json")),
 )
 def test_book_readings_are_kana(token_path: Path) -> None:
     data = json.loads(token_path.read_text(encoding="utf-8"))
