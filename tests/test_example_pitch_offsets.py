@@ -134,7 +134,8 @@ def test_example_readings_are_kana(token_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "token_path", sorted(Path("books/フィクション/大衆文学/舟を編む").rglob("*.txt.token.json"))
+    "token_path",
+    sorted(Path("books/フィクション/大衆文学/舟を編む").rglob("*.txt.token.json")),
 )
 def test_book_readings_are_kana(token_path: Path) -> None:
     data = json.loads(token_path.read_text(encoding="utf-8"))
