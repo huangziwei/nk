@@ -108,6 +108,31 @@
             "reading": "オモテ",
             "surface": "表",
             "match_surface": "表"
+        },
+        {
+            "pattern": "(?<=[のと])間(?=[はにへでをもとそ、。\\s])",
+            "regex": true,
+            "replacement": "あいだ",
+            "reading": "アイダ",
+            "surface": "間",
+            "match_surface": "間",
+            "accent": 0
+        },
+        {
+            "pattern": "間(?=に合)",
+            "regex": true,
+            "replacement": "ま",
+            "reading": "マ",
+            "surface": "間",
+            "match_surface": "間"
+        },
+        {
+            "pattern": "間(?=もな(?:く|し))",
+            "regex": true,
+            "replacement": "ま",
+            "reading": "マ",
+            "surface": "間",
+            "match_surface": "間"
         }
     ],
     "remove": [
