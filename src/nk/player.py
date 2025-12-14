@@ -1640,6 +1640,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
     const SEEK_STEP = 15;
     const PREVIOUS_CHAPTER_RESTART_THRESHOLD = 5;
     const RESUME_TARGET_TOLERANCE = 0.5;
+    const CHAPTER_TITLE_MAX_LENGTH = 50;
     let isScrubbing = false;
     let playbackRateIndex = PLAYBACK_RATES.indexOf(1);
     const voiceSpeakerInput = document.getElementById('voice-speaker');
@@ -1938,7 +1939,18 @@ INDEX_HTML = r"""<!DOCTYPE html>
       return `${normalized % 1 === 0 ? normalized.toFixed(0) : normalized}x Speed`;
     }
 
-    function chapterDisplayTitle(chapter) {
+    function truncateText(text, maxLength) {
+      if (typeof text !== 'string') return '';
+      const normalized = text.trim();
+      if (!normalized) return '';
+      const limit = Number.isFinite(maxLength) && maxLength > 0 ? Math.floor(maxLength) : null;
+      if (!limit || normalized.length <= limit) return normalized;
+      const ellipsis = '...';
+      const sliceLength = Math.max(1, limit - ellipsis.length);
+      return `${normalized.slice(0, sliceLength).trimEnd()}${ellipsis}`;
+    }
+
+    function chapterTitleText(chapter) {
       if (!chapter) return '';
       const original = typeof chapter.original_title === 'string' ? chapter.original_title.trim() : '';
       if (original) return original;
@@ -1948,6 +1960,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
         return chapter.id.replace(/_/g, ' ');
       }
       return '';
+    }
+
+    function chapterDisplayTitle(chapter) {
+      return truncateText(chapterTitleText(chapter), CHAPTER_TITLE_MAX_LENGTH);
     }
 
     function currentChapter() {
@@ -2605,6 +2621,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
     function updatePlayerDetails(chapter) {
       if (!chapter) {
         nowPlaying.textContent = 'Select a chapter to begin.';
+        nowPlaying.title = 'Select a chapter to begin.';
         playerSubtitle.textContent = '';
         if (playerCover) {
           playerCover.classList.add('hidden');
@@ -2615,7 +2632,11 @@ INDEX_HTML = r"""<!DOCTYPE html>
       }
       const trackLabel = formatTrackNumber(chapter.track_number);
       const chapterTitle = chapterDisplayTitle(chapter) || chapter.id;
-      nowPlaying.textContent = trackLabel ? `${trackLabel} ${chapterTitle}` : chapterTitle;
+      const fullChapterTitle = chapterTitleText(chapter) || chapter.id;
+      const displayLabel = trackLabel ? `${trackLabel} ${chapterTitle}` : chapterTitle;
+      const fullLabel = trackLabel ? `${trackLabel} ${fullChapterTitle}` : fullChapterTitle;
+      nowPlaying.textContent = displayLabel;
+      nowPlaying.title = fullLabel;
       const album =
         (state.media && state.media.album) ||
         (state.currentBook && state.currentBook.title) ||
@@ -4032,8 +4053,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
         const name = document.createElement('div');
         name.className = 'name';
         const trackLabel = formatTrackNumber(ch.track_number);
-        const displayTitle = chapterDisplayTitle(ch);
+        const displayTitle = chapterDisplayTitle(ch) || ch.id;
+        const fullTitle = chapterTitleText(ch) || ch.id;
         name.textContent = trackLabel ? `${trackLabel} ${displayTitle}` : displayTitle;
+        name.title = trackLabel ? `${trackLabel} ${fullTitle}` : fullTitle;
         header.appendChild(name);
         wrapper.appendChild(header);
 
