@@ -94,7 +94,7 @@
             "match_surface": "何"
         },
         {
-            "pattern": "(?<![第0-9０-９])表(?=[でへにをはもともからまで、。\\s])",
+            "pattern": "表(?=(?:に|へ|から)(?:出|立|面|現|あらわ))",
             "regex": true,
             "replacement": "オモテ",
             "reading": "オモテ",
@@ -102,15 +102,7 @@
             "match_surface": "表"
         },
         {
-            "pattern": "表(?=に(?:出|立|面|現|あらわ|出さ))",
-            "regex": true,
-            "replacement": "オモテ",
-            "reading": "オモテ",
-            "surface": "表",
-            "match_surface": "表"
-        },
-        {
-            "pattern": "(?<=[のと])間(?=[はにへでをもとそ、。\\s])",
+            "pattern": "(?<!王座の)(?<!玉座の)(?<!謁見の)(?<!拝謁の)(?<=[のと])間(?=[はにへでをもとそ、。\\s])",
             "regex": true,
             "replacement": "あいだ",
             "reading": "アイダ",
