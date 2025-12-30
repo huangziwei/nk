@@ -78,6 +78,30 @@
             "surface": "十章"
         },
         {
+            "pattern": "(?<![一-龯々〆〤0-9０-９])後(?=(?:で|に|へ|から|より|まで|は|が|を|も))",
+            "regex": true,
+            "replacement": "アト",
+            "reading": "アト",
+            "surface": "後",
+            "match_surface": "後"
+        },
+        {
+            "pattern": "その他",
+            "regex": false,
+            "replacement": "そのほか",
+            "reading": "ソノホカ",
+            "surface": "その他",
+            "match_surface": "その他"
+        },
+        {
+            "pattern": "(?<![一-龯々〆〤0-9０-９])他(?=(?:に|の|は|が|を|も|で|から|より|まで))",
+            "regex": true,
+            "replacement": "ホカ",
+            "reading": "ホカ",
+            "surface": "他",
+            "match_surface": "他"
+        },
+        {
             "pattern": "何(?=(?:を|が|に|へ|も|か|より|から|まで|これ))",
             "regex": true,
             "replacement": "なに",
