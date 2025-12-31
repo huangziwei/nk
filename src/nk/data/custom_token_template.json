@@ -126,6 +126,14 @@
             "match_surface": "表"
         },
         {
+            "pattern": "(?<=[A-Za-z0-9Ａ-Ｚａ-ｚ０-９ァ-ヶー])風(?=(?:な|に|で|の))",
+            "regex": true,
+            "replacement": "ふう",
+            "reading": "フウ",
+            "surface": "風",
+            "match_surface": "風"
+        },
+        {
             "pattern": "(?<!王座の)(?<!玉座の)(?<!謁見の)(?<!拝謁の)(?<=[のと])間(?=[はにへでをもとそ、。\\s])",
             "regex": true,
             "replacement": "あいだ",
