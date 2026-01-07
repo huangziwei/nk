@@ -68,6 +68,7 @@ BOOKMARK_STATE_VERSION = 1
 _SORT_MODES = {"author", "recent", "played"}
 RECENTLY_PLAYED_PREFIX = "__nk_recently_played__"
 RECENTLY_PLAYED_LABEL = "Recently Played"
+VOICE_SAMPLES_DIR = "samples"
 
 
 def _normalize_sort_mode(value: str | None) -> str:
@@ -255,6 +256,40 @@ INDEX_HTML = r"""<!DOCTYPE html>
       text-align: center;
       color: var(--muted);
       border: 1px dashed rgba(255,255,255,0.08);
+    }
+    .voice-sample-card {
+      min-height: auto;
+      padding: 0.75rem 0.9rem 0.9rem;
+      gap: 0.6rem;
+    }
+    .voice-sample-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .voice-sample-name {
+      font-weight: 600;
+    }
+    .voice-sample-id {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .voice-sample-audio {
+      width: 100%;
+    }
+    .voice-samples-panel {
+      margin-top: 1rem;
+    }
+    .voice-samples-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .voice-samples-status {
+      font-size: 0.85rem;
+      color: var(--muted);
     }
     .card-menu-button {
       position: absolute;
@@ -1453,6 +1488,16 @@ INDEX_HTML = r"""<!DOCTYPE html>
       </details>
       <div class="cards collection-cards hidden" id="collections-grid"></div>
       <div class="cards" id="books-grid"></div>
+      <details class="voice-controls voice-samples-panel hidden" id="voice-samples-panel">
+        <summary>Voice samples (optional)</summary>
+        <div class="voice-controls-content">
+          <div class="voice-samples-actions">
+            <button id="voice-samples-load" class="secondary" type="button">Load voice samples</button>
+            <span class="voice-samples-status" id="voice-samples-status"></span>
+          </div>
+          <div class="cards voice-samples-grid" id="voice-samples-grid"></div>
+        </div>
+      </details>
     </section>
 
     <section class="panel hidden" id="chapters-panel">
@@ -1594,6 +1639,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
   <script>
     const booksGrid = document.getElementById('books-grid');
     const collectionsGrid = document.getElementById('collections-grid');
+    const voiceSamplesPanel = document.getElementById('voice-samples-panel');
+    const voiceSamplesGrid = document.getElementById('voice-samples-grid');
+    const voiceSamplesLoadBtn = document.getElementById('voice-samples-load');
+    const voiceSamplesStatus = document.getElementById('voice-samples-status');
     const libraryBreadcrumb = document.getElementById('library-breadcrumb');
     const libraryBackButton = document.getElementById('library-back');
     const chaptersPanel = document.getElementById('chapters-panel');
@@ -1662,6 +1711,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
     if (pendingEpubPanel) {
       pendingEpubPanel.open = false;
     }
+    if (voiceSamplesPanel) {
+      voiceSamplesPanel.open = false;
+    }
     const playerConfigNode = document.getElementById('nk-player-config');
     let readerBaseUrl = null;
     if (playerConfigNode && typeof playerConfigNode.textContent === 'string') {
@@ -1719,6 +1771,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
     const state = {
       books: [],
       collections: [],
+      voiceSamples: [],
+      voiceSamplesLoaded: false,
+      voiceSamplesLoading: false,
+      voiceSamplesError: null,
       chapters: [],
       currentBook: null,
       currentChapterIndex: -1,
@@ -3576,6 +3632,132 @@ INDEX_HTML = r"""<!DOCTYPE html>
       return card;
     }
 
+    function voiceSampleLabel(sample) {
+      if (sample && typeof sample.name === 'string' && sample.name.trim()) {
+        return sample.name.trim();
+      }
+      if (sample && typeof sample.filename === 'string' && sample.filename) {
+        const stem = sample.filename.replace(/\.mp3$/i, '');
+        return stem.replace(/^\d+-/, '') || stem;
+      }
+      return 'Voice sample';
+    }
+
+    function setVoiceSamplesStatus(message, isError = false) {
+      if (!voiceSamplesStatus) return;
+      voiceSamplesStatus.textContent = message || '';
+      voiceSamplesStatus.style.color = isError ? '#f87171' : 'var(--muted)';
+    }
+
+    function updateVoiceSamplesControls() {
+      if (!voiceSamplesLoadBtn) return;
+      if (state.voiceSamplesLoading) {
+        voiceSamplesLoadBtn.disabled = true;
+        voiceSamplesLoadBtn.textContent = 'Loading...';
+        return;
+      }
+      voiceSamplesLoadBtn.disabled = false;
+      voiceSamplesLoadBtn.textContent = state.voiceSamplesLoaded
+        ? 'Reload voice samples'
+        : 'Load voice samples';
+    }
+
+    function updateVoiceSamplesVisibility() {
+      if (!voiceSamplesPanel) return;
+      const isRoot = !normalizeLibraryPath(state.libraryPrefix);
+      voiceSamplesPanel.classList.toggle('hidden', !isRoot);
+      if (!isRoot) {
+        voiceSamplesPanel.open = false;
+        if (voiceSamplesGrid) {
+          voiceSamplesGrid.innerHTML = '';
+        }
+        setVoiceSamplesStatus('');
+      }
+    }
+
+    async function loadVoiceSamples({ force = false } = {}) {
+      if (state.voiceSamplesLoading) return;
+      if (state.voiceSamplesLoaded && !force) {
+        renderVoiceSamples();
+        return;
+      }
+      state.voiceSamplesLoading = true;
+      state.voiceSamplesError = null;
+      updateVoiceSamplesControls();
+      setVoiceSamplesStatus('Loading...');
+      try {
+        const data = await fetchJSON('/api/voice-samples');
+        const samples = Array.isArray(data?.samples)
+          ? data.samples
+          : (Array.isArray(data) ? data : []);
+        state.voiceSamples = samples;
+        state.voiceSamplesLoaded = true;
+        if (!samples.length) {
+          setVoiceSamplesStatus('No voice samples found.');
+        } else {
+          setVoiceSamplesStatus(`${samples.length} samples loaded.`);
+        }
+      } catch (err) {
+        state.voiceSamplesError = err;
+        setVoiceSamplesStatus('Failed to load voice samples.', true);
+      } finally {
+        state.voiceSamplesLoading = false;
+        updateVoiceSamplesControls();
+      }
+      renderVoiceSamples();
+    }
+
+    function renderVoiceSamples() {
+      if (!voiceSamplesPanel || !voiceSamplesGrid) return;
+      const isRoot = !normalizeLibraryPath(state.libraryPrefix);
+      if (!isRoot) {
+        return;
+      }
+      if (!voiceSamplesPanel.open) {
+        voiceSamplesGrid.innerHTML = '';
+        return;
+      }
+      const samples = Array.isArray(state.voiceSamples) ? state.voiceSamples : [];
+      voiceSamplesGrid.innerHTML = '';
+      if (samples.length === 0) {
+        return;
+      }
+      samples.forEach(sample => {
+        if (!sample || typeof sample !== 'object') {
+          return;
+        }
+        const url = sample.url;
+        if (typeof url !== 'string' || !url) {
+          return;
+        }
+        const card = document.createElement('article');
+        card.className = 'card voice-sample-card';
+        if (Number.isFinite(sample.id)) {
+          card.dataset.voiceId = String(sample.id);
+        }
+        const header = document.createElement('div');
+        header.className = 'voice-sample-header';
+        const name = document.createElement('div');
+        name.className = 'voice-sample-name';
+        name.textContent = voiceSampleLabel(sample);
+        header.appendChild(name);
+        if (Number.isFinite(sample.id)) {
+          const idLabel = document.createElement('div');
+          idLabel.className = 'voice-sample-id';
+          idLabel.textContent = `#${sample.id}`;
+          header.appendChild(idLabel);
+        }
+        card.appendChild(header);
+        const audio = document.createElement('audio');
+        audio.className = 'voice-sample-audio';
+        audio.controls = true;
+        audio.preload = 'none';
+        audio.src = url;
+        card.appendChild(audio);
+        voiceSamplesGrid.appendChild(card);
+      });
+    }
+
     function renderCollections() {
       if (!collectionsGrid) return;
       collectionsGrid.innerHTML = '';
@@ -4261,6 +4443,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
       state.lastPlayedBook = payload.last_played_book || null;
       syncPendingEpubBusy();
       renderLibraryNav();
+      updateVoiceSamplesVisibility();
+      updateVoiceSamplesControls();
+      renderVoiceSamples();
       renderCollections();
       renderPendingEpubs();
       renderBooks();
@@ -4893,6 +5078,28 @@ INDEX_HTML = r"""<!DOCTYPE html>
       closeBookView();
     };
 
+    if (voiceSamplesPanel) {
+      voiceSamplesPanel.addEventListener('toggle', () => {
+        if (!voiceSamplesPanel.open) {
+          if (voiceSamplesGrid) {
+            voiceSamplesGrid.innerHTML = '';
+          }
+          return;
+        }
+        updateVoiceSamplesControls();
+        if (!state.voiceSamplesLoaded && !state.voiceSamplesLoading) {
+          loadVoiceSamples();
+        } else {
+          renderVoiceSamples();
+        }
+      });
+    }
+    if (voiceSamplesLoadBtn) {
+      voiceSamplesLoadBtn.onclick = () => {
+        loadVoiceSamples({ force: state.voiceSamplesLoaded });
+      };
+    }
+
     voiceSaveBtn.onclick = () => {
       try {
         const payload = gatherVoicePayload();
@@ -4958,6 +5165,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
     setBookmarks({ manual: [], last_played: null });
 
     renderLibraryNav();
+    updateVoiceSamplesVisibility();
+    updateVoiceSamplesControls();
+    renderVoiceSamples();
     renderCollections();
     renderPendingEpubs();
 
@@ -5051,6 +5261,50 @@ def _cover_url_for_book_dir(root: Path, book_dir: Path) -> str | None:
     except ValueError:
         return None
     return _cover_url(book_id, cover_path)
+
+
+def _parse_voice_sample_filename(filename: str) -> tuple[int | None, str]:
+    if not filename:
+        return None, ""
+    stem = filename[:-4] if filename.lower().endswith(".mp3") else filename
+    if "-" in stem:
+        prefix, remainder = stem.split("-", 1)
+        if prefix.isdigit():
+            return int(prefix), remainder or stem
+    return None, stem
+
+
+def _list_voice_samples(root: Path) -> list[dict[str, object]]:
+    samples_dir = root / VOICE_SAMPLES_DIR
+    if not samples_dir.exists() or not samples_dir.is_dir():
+        return []
+    try:
+        entries = list(samples_dir.iterdir())
+    except OSError:
+        return []
+    payload: list[dict[str, object]] = []
+    for entry in entries:
+        if not entry.is_file():
+            continue
+        if entry.suffix.lower() != ".mp3":
+            continue
+        sample_id, name = _parse_voice_sample_filename(entry.name)
+        payload.append(
+            {
+                "id": sample_id,
+                "name": name,
+                "filename": entry.name,
+                "url": f"/api/voice-samples/{quote(entry.name)}",
+            }
+        )
+    payload.sort(
+        key=lambda item: (
+            item["id"] is None,
+            item["id"] or 0,
+            str(item["name"] or "").casefold(),
+        )
+    )
+    return payload
 
 
 def _scan_collection(
@@ -5927,6 +6181,23 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
             raise HTTPException(status_code=404, detail="Book not found")
         return canonical, candidate
 
+    def _resolve_voice_sample(sample_name: str) -> Path:
+        if not sample_name:
+            raise HTTPException(status_code=404, detail="Sample not found")
+        samples_dir = (root / VOICE_SAMPLES_DIR).resolve()
+        candidate = (samples_dir / sample_name).resolve()
+        try:
+            candidate.relative_to(samples_dir)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="Sample not found") from exc
+        if (
+            not candidate.exists()
+            or not candidate.is_file()
+            or candidate.suffix.lower() != ".mp3"
+        ):
+            raise HTTPException(status_code=404, detail="Sample not found")
+        return candidate
+
     def _book_id_from_target(target: TTSTarget) -> str:
         try:
             return _relative_library_path(root, target.source.parent)
@@ -6273,6 +6544,16 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
                 "last_played_book": last_played_payload,
             }
         )
+
+    @app.get("/api/voice-samples")
+    def api_voice_samples() -> JSONResponse:
+        samples = _list_voice_samples(root)
+        return JSONResponse({"samples": samples, "count": len(samples)})
+
+    @app.get("/api/voice-samples/{sample_name}")
+    def api_voice_sample(sample_name: str) -> FileResponse:
+        sample_path = _resolve_voice_sample(sample_name)
+        return FileResponse(sample_path, media_type="audio/mpeg")
 
     @app.get("/api/books/{book_id:path}/chapters")
     def api_chapters(book_id: str) -> JSONResponse:

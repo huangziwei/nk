@@ -30,6 +30,7 @@ source .venv/bin/activate
 nk example/\[夏目漱石\]\ 夢十夜.epub # # convert epubs into partially kana-transformed, chapterized txt files
 nk example/\[夏目漱石\]\ 夢十夜.epub --transform full # convert epubs into kana-only chapterized txt files
 nk tts example/\[夏目漱石\]\ 夢十夜 # convert txt files into mp3s
+nk samples books # generate VoiceVox samples in books/samples
 
 # web
 nk read example/\[夏目漱石\]\ 夢十夜 --host 0.0.0.0 --port 2045 # inspect tokens/original text in the browser
