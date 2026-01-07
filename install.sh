@@ -38,6 +38,8 @@ NK_SKIP_VOICEVOX="${NK_SKIP_VOICEVOX:-0}"
 VOICEVOX_API="${VOICEVOX_API:-https://api.github.com/repos/VOICEVOX/voicevox_engine/releases}"
 VOICEVOX_URL="${VOICEVOX_URL:-}"
 VOICEVOX_RELEASE_TAG=""
+VOICEVOX_RELEASE_API=""
+VOICEVOX_RELEASE_JSON=""
 VOICEVOX_ARCHIVE_PATH=""
 UNIDIC_VERSION="${UNIDIC_VERSION:-3.1.1}"
 UNIDIC_URL="${UNIDIC_URL:-https://clrd.ninjal.ac.jp/unidic_archive/cwj/3.1.1/unidic-cwj-3.1.1-full.zip}"
@@ -228,6 +230,39 @@ read_voicevox_version_marker() {
   fi
 }
 
+fetch_voicevox_release_json() {
+  if [[ -n "$VOICEVOX_RELEASE_JSON" ]]; then
+    echo "$VOICEVOX_RELEASE_JSON"
+    return
+  fi
+
+  if [[ "$VOICEVOX_VERSION" == "latest" ]]; then
+    VOICEVOX_RELEASE_API="$VOICEVOX_API/latest"
+  else
+    VOICEVOX_RELEASE_API="$VOICEVOX_API/tags/$VOICEVOX_VERSION"
+  fi
+
+  log "Fetching VoiceVox metadata from $VOICEVOX_RELEASE_API"
+  VOICEVOX_RELEASE_JSON="$(curl -fsSL "$VOICEVOX_RELEASE_API")"
+  if [[ -z "$VOICEVOX_RELEASE_JSON" ]]; then
+    echo "Unable to fetch VoiceVox release metadata (API: $VOICEVOX_RELEASE_API)" >&2
+    exit 1
+  fi
+
+  echo "$VOICEVOX_RELEASE_JSON"
+}
+
+resolve_voicevox_release_tag() {
+  local release_json tag
+  release_json="$(fetch_voicevox_release_json)"
+  tag="$(printf '%s' "$release_json" | jq -r '.tag_name')"
+  if [[ -z "$tag" || "$tag" == "null" ]]; then
+    echo "Unable to determine VoiceVox release tag (API: $VOICEVOX_RELEASE_API)" >&2
+    exit 1
+  fi
+  echo "$tag"
+}
+
 sync_python_dependencies() {
   if [[ ! -f "$ROOT_DIR/pyproject.toml" ]]; then
     log "Skipping uv sync (pyproject.toml not found at $ROOT_DIR)"
@@ -321,28 +356,17 @@ install_unidic() {
 }
 
 download_voicevox_release() {
-  local target_api asset_url asset_name release_json tag
+  local asset_url asset_name release_json tag
 
   if [[ -n "$VOICEVOX_URL" ]]; then
     asset_url="$VOICEVOX_URL"
     asset_name="$(basename "$VOICEVOX_URL")"
     tag="${VOICEVOX_VERSION:-custom}"
   else
-    if [[ "$VOICEVOX_VERSION" == "latest" ]]; then
-      target_api="$VOICEVOX_API/latest"
-    else
-      target_api="$VOICEVOX_API/tags/$VOICEVOX_VERSION"
-    fi
-
-    log "Fetching VoiceVox metadata from $target_api"
-    release_json="$(curl -fsSL "$target_api")"
-    tag="$(echo "$release_json" | jq -r '.tag_name')"
-    if [[ -z "$tag" || "$tag" == "null" ]]; then
-      echo "Unable to determine VoiceVox release tag (API: $target_api)" >&2
-      exit 1
-    fi
-    asset_url="$(echo "$release_json" | jq -r --arg pattern "$VOICEVOX_ASSET_PATTERN" '.assets[] | select(.name | test($pattern)) | .browser_download_url' | head -n 1)"
-    asset_name="$(echo "$release_json" | jq -r --arg pattern "$VOICEVOX_ASSET_PATTERN" '.assets[] | select(.name | test($pattern)) | .name' | head -n 1)"
+    release_json="$(fetch_voicevox_release_json)"
+    tag="$(resolve_voicevox_release_tag)"
+    asset_url="$(printf '%s' "$release_json" | jq -r --arg pattern "$VOICEVOX_ASSET_PATTERN" '.assets[] | select(.name | test($pattern)) | .browser_download_url' | head -n 1)"
+    asset_name="$(printf '%s' "$release_json" | jq -r --arg pattern "$VOICEVOX_ASSET_PATTERN" '.assets[] | select(.name | test($pattern)) | .name' | head -n 1)"
     if [[ -z "$asset_url" || "$asset_url" == "null" ]]; then
       echo "Could not find a VoiceVox engine asset matching pattern '$VOICEVOX_ASSET_PATTERN' in release $tag" >&2
       exit 1
@@ -421,9 +445,23 @@ install_voicevox() {
   fi
 
   if [[ -x "$VOICEVOX_INSTALL_DIR/run" && "$VOICEVOX_FORCE" != "1" ]]; then
-    log "VoiceVox already installed at $VOICEVOX_INSTALL_DIR (set VOICEVOX_FORCE=1 to reinstall)"
-    VOICEVOX_VERSION_NOTE="$(read_voicevox_version_marker || true)"
-    return
+    if [[ -n "$VOICEVOX_URL" ]]; then
+      log "VoiceVox already installed at $VOICEVOX_INSTALL_DIR (set VOICEVOX_FORCE=1 to reinstall)"
+      VOICEVOX_VERSION_NOTE="$(read_voicevox_version_marker || true)"
+      return
+    fi
+
+    local installed_tag desired_tag
+    installed_tag="$(read_voicevox_version_marker || true)"
+    desired_tag="$(resolve_voicevox_release_tag)"
+    if [[ -n "$installed_tag" && "$installed_tag" == "$desired_tag" ]]; then
+      log "VoiceVox already up to date at $VOICEVOX_INSTALL_DIR (version: $installed_tag)"
+      VOICEVOX_VERSION_NOTE="$installed_tag"
+      return
+    fi
+
+    local from_note="${installed_tag:-unknown}"
+    log "Upgrading VoiceVox from $from_note to $desired_tag"
   fi
 
   local archive_path extract_dir
@@ -476,7 +514,7 @@ def _bool_env(name: str) -> bool:
 
 manifest = {
     "version": 1,
-    "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
+    "generated_at": datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z"),
     "components": {
         "unidic": {
             "installed_by_nk": _bool_env("UNIDIC_INSTALLED_BY_NK"),
