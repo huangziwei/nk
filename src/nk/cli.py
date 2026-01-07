@@ -81,6 +81,15 @@ from .voice_defaults import (
 _READER_RELOAD_ENV = "NK_READER_RELOAD_ROOT"
 _PLAYER_RELOAD_ENV = "NK_PLAYER_RELOAD_CONFIG"
 _OPEN_AUTO = "__NK_OPEN_AUTO__"
+_SUBCOMMAND_HELP = """Subcommands:
+  nk tts ...      Synthesize MP3s from chapterized text
+  nk read ...     Launch the reader web UI
+  nk play ...     Launch the audio player
+  nk dav ...      Serve a WebDAV endpoint for books
+  nk convert ...  Convert arbitrary text to kana
+  nk deps ...     Check or install runtime dependencies
+  nk refine ...   Apply pitch overrides to chapterized text
+"""
 
 
 def _package_source_dir() -> Path:
@@ -260,6 +269,8 @@ def _add_version_flag(parser: argparse.ArgumentParser) -> None:
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="EPUB → TXT with ruby propagation and base removal. Use `nk tts` for speech.",
+        epilog=_SUBCOMMAND_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     _add_version_flag(ap)
     ap.add_argument(

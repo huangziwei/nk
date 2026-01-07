@@ -211,7 +211,7 @@ install_uv_if_missing() {
 
   local installer_url="${UV_INSTALLER_URL:-https://astral.sh/uv/install.sh}"
   log "uv not found. Installing via upstream installer ($installer_url)"
-  curl -LsSf "$installer_url" | sh
+  curl --no-config -LsSf "$installer_url" | sh
 
   if [[ -d "$LOCAL_BIN" && ":$PATH:" != *":$LOCAL_BIN:"* ]]; then
     export PATH="$LOCAL_BIN:$PATH"
@@ -243,7 +243,7 @@ fetch_voicevox_release_json() {
   fi
 
   log "Fetching VoiceVox metadata from $VOICEVOX_RELEASE_API"
-  VOICEVOX_RELEASE_JSON="$(curl -fsSL "$VOICEVOX_RELEASE_API")"
+  VOICEVOX_RELEASE_JSON="$(curl --no-config -fsSL "$VOICEVOX_RELEASE_API")"
   if [[ -z "$VOICEVOX_RELEASE_JSON" ]]; then
     echo "Unable to fetch VoiceVox release metadata (API: $VOICEVOX_RELEASE_API)" >&2
     exit 1
@@ -277,7 +277,7 @@ download_unidic_archive() {
   UNIDIC_DOWNLOAD_TMP="$(mktemp -d)"
   local archive_path="$UNIDIC_DOWNLOAD_TMP/unidic-${UNIDIC_VERSION}.zip"
   log "Downloading UniDic $UNIDIC_VERSION"
-  curl -fL "$UNIDIC_URL" -o "$archive_path"
+  curl --no-config -fL "$UNIDIC_URL" -o "$archive_path"
   echo "$archive_path"
 }
 
@@ -381,7 +381,7 @@ download_voicevox_release() {
   VOICEVOX_RELEASE_TAG="$tag"
   local display_name="${asset_name:-$default_asset_name}"
   log "Downloading VoiceVox engine release: $tag ($display_name)"
-  curl -fL "$asset_url" -o "$download_path"
+  curl --no-config -fL "$asset_url" -o "$download_path"
 
   VOICEVOX_ARCHIVE_PATH="$download_path"
 }
