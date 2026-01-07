@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import socket
 import sys
@@ -61,6 +62,7 @@ from .refine import OverrideRule, load_override_config, load_refine_config, refi
 from .tts import (
     FFmpegError,
     TTSTarget,
+    VoiceVoxClient,
     VoiceVoxError,
     VoiceVoxRuntimeError,
     VoiceVoxUnavailableError,
@@ -70,6 +72,7 @@ from .tts import (
     resolve_text_targets,
     set_debug_logging,
     synthesize_texts_to_mp3,
+    wav_bytes_to_mp3,
 )
 from .voice_defaults import (
     DEFAULT_INTONATION_SCALE,
@@ -88,8 +91,17 @@ _SUBCOMMAND_HELP = """Subcommands:
   nk dav ...      Serve a WebDAV endpoint for books
   nk convert ...  Convert arbitrary text to kana
   nk deps ...     Check or install runtime dependencies
+  nk samples ...  Generate VoiceVox voice samples
   nk refine ...   Apply pitch overrides to chapterized text
 """
+
+_DEFAULT_VOICE_SAMPLE_TEXTS = [
+    "こんにちは。こちらはVOICEVOXの音声サンプルです。",
+    "読み上げの速度と音程を確認しています。",
+    "お好みの声を選んでください。",
+]
+
+_VOICE_SAMPLE_INVALID_CHARS = set('<>:"/\\|?*')
 
 
 def _package_source_dir() -> Path:
@@ -684,6 +696,121 @@ def build_deps_parser() -> argparse.ArgumentParser:
     return ap
 
 
+def build_samples_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        description="Generate VoiceVox samples for every available voice.",
+    )
+    _add_version_flag(ap)
+    ap.add_argument(
+        "root",
+        nargs="?",
+        default="books",
+        help="Library root (samples saved under <root>/samples by default).",
+    )
+    ap.add_argument(
+        "--output-dir",
+        help="Override the output directory for samples (defaults to <root>/samples).",
+    )
+    ap.add_argument(
+        "--text",
+        action="append",
+        help="Sample text to synthesize (repeatable; defaults to built-in templates).",
+    )
+    ap.add_argument(
+        "--engine-url",
+        default="http://127.0.0.1:50021",
+        help="Base URL for the VoiceVox engine (default: http://127.0.0.1:50021).",
+    )
+    ap.add_argument(
+        "--engine-runtime",
+        help="Path to the VoiceVox runtime executable or its directory.",
+    )
+    ap.add_argument(
+        "--engine-threads",
+        type=int,
+        help=(
+            "When nk auto-starts the VoiceVox runtime, override its worker thread count "
+            "(omit or set to 0 to let the engine decide)."
+        ),
+    )
+    ap.add_argument(
+        "--engine-runtime-wait",
+        type=float,
+        default=30.0,
+        help="Seconds to wait for an auto-started VoiceVox engine (default: 30).",
+    )
+    ap.add_argument(
+        "--ffmpeg",
+        default="ffmpeg",
+        help="Path to ffmpeg executable (default: ffmpeg).",
+    )
+    ap.add_argument(
+        "--timeout",
+        type=float,
+        default=30.0,
+        help="HTTP timeout in seconds for VoiceVox requests (default: 30).",
+    )
+    ap.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite existing sample files.",
+    )
+    return ap
+
+
+def _sanitize_voice_sample_name(name: str) -> str:
+    if not isinstance(name, str):
+        name = ""
+    candidate = name.strip()
+    if not candidate:
+        candidate = "voice"
+    chars: list[str] = []
+    for ch in candidate:
+        if ch in {"/", "\\"}:
+            chars.append("-")
+        elif ch in _VOICE_SAMPLE_INVALID_CHARS:
+            chars.append("_")
+        elif ord(ch) < 32:
+            continue
+        else:
+            chars.append(ch)
+    sanitized = "".join(chars).strip(" .-_")
+    if not sanitized:
+        sanitized = "voice"
+    sanitized = re.sub(r"\s+", "-", sanitized)
+    sanitized = re.sub(r"-{2,}", "-", sanitized)
+    return sanitized[:120]
+
+
+def _voice_samples_from_payload(payload: object) -> list[tuple[int, str]]:
+    if not isinstance(payload, list):
+        return []
+    voices: list[tuple[int, str]] = []
+    seen_ids: set[int] = set()
+    for entry in payload:
+        if not isinstance(entry, dict):
+            continue
+        speaker_name = str(entry.get("name") or "").strip()
+        styles = entry.get("styles")
+        if not isinstance(styles, list):
+            continue
+        for style in styles:
+            if not isinstance(style, dict):
+                continue
+            style_id = style.get("id")
+            if not isinstance(style_id, int):
+                continue
+            if style_id in seen_ids:
+                continue
+            seen_ids.add(style_id)
+            style_name = str(style.get("name") or "").strip()
+            name_parts = [part for part in (speaker_name, style_name) if part]
+            display_name = "-".join(name_parts) if name_parts else f"Voice-{style_id}"
+            voices.append((style_id, display_name))
+    voices.sort(key=lambda item: item[0])
+    return voices
+
+
 def _engine_thread_overrides(
     threads: int | None,
 ) -> tuple[dict[str, str] | None, int | None]:
@@ -711,6 +838,94 @@ def _run_convert(args: argparse.Namespace) -> int:
     processed = _apply_dictionary_mapping(processed, tier2, context_rules)
     converted = backend.to_reading_text(processed)
     print(converted)
+    return 0
+
+
+def _run_samples(args: argparse.Namespace) -> int:
+    sample_lines = args.text if args.text else list(_DEFAULT_VOICE_SAMPLE_TEXTS)
+    sample_lines = [line.strip() for line in sample_lines if line and line.strip()]
+    if not sample_lines:
+        raise SystemExit("Sample text is empty. Provide --text to override.")
+    sample_text = "\n".join(sample_lines)
+
+    root = Path(args.root).expanduser()
+    output_dir = (
+        Path(args.output_dir).expanduser()
+        if args.output_dir
+        else root / "samples"
+    )
+    if output_dir.exists() and not output_dir.is_dir():
+        raise SystemExit(f"Output path is not a directory: {output_dir}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    runtime_hint = args.engine_runtime
+    auto_runtime = None
+    if not runtime_hint:
+        auto_runtime = discover_voicevox_runtime(args.engine_url)
+    runtime_path = runtime_hint or auto_runtime
+    engine_url = args.engine_url
+    runtime_env, runtime_thread_flag = _engine_thread_overrides(args.engine_threads)
+
+    try:
+        if runtime_path:
+            engine_url, dedicated_runtime = ensure_dedicated_voicevox_url(engine_url)
+            if dedicated_runtime and engine_url != args.engine_url:
+                print(
+                    f"Existing VoiceVox detected at {args.engine_url}; "
+                    f"launching a dedicated runtime on {engine_url}.",
+                    flush=True,
+                )
+        with managed_voicevox_runtime(
+            runtime_path,
+            engine_url,
+            readiness_timeout=args.engine_runtime_wait,
+            extra_env=runtime_env,
+            cpu_threads=runtime_thread_flag,
+        ):
+            client = VoiceVoxClient(base_url=engine_url, timeout=args.timeout)
+            try:
+                voices = _voice_samples_from_payload(client.list_speakers())
+                if not voices:
+                    raise SystemExit(
+                        f"No VoiceVox speakers found at {engine_url}."
+                    )
+                max_id = max(speaker_id for speaker_id, _ in voices)
+                width = max(3, len(str(max_id)))
+                total = len(voices)
+                print(
+                    f"[nk samples] Generating {total} voice samples in {output_dir}"
+                )
+                for index, (speaker_id, name) in enumerate(voices, start=1):
+                    safe_name = _sanitize_voice_sample_name(name)
+                    filename = f"{speaker_id:0{width}d}-{safe_name}.mp3"
+                    output_path = output_dir / filename
+                    if output_path.exists() and not args.overwrite:
+                        print(
+                            f"[{index}/{total}] {filename} skipped (exists)",
+                            flush=True,
+                        )
+                        continue
+                    client.speaker_id = speaker_id
+                    wav_bytes = client.synthesize_wav(sample_text)
+                    wav_bytes_to_mp3(
+                        wav_bytes,
+                        output_path,
+                        ffmpeg_path=args.ffmpeg,
+                        overwrite=args.overwrite,
+                    )
+                    print(f"[{index}/{total}] {filename}", flush=True)
+            finally:
+                client.close()
+    except (
+        VoiceVoxUnavailableError,
+        VoiceVoxError,
+        VoiceVoxRuntimeError,
+        FFmpegError,
+        FileNotFoundError,
+        ValueError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+
     return 0
 
 
@@ -2009,6 +2224,10 @@ def main(argv: list[str] | None = None) -> int:
         deps_parser = build_deps_parser()
         deps_args = deps_parser.parse_args(argv[1:])
         return _run_deps(deps_args)
+    if argv and argv[0] == "samples":
+        samples_parser = build_samples_parser()
+        samples_args = samples_parser.parse_args(argv[1:])
+        return _run_samples(samples_args)
     if argv and argv[0] == "refine":
         refine_parser = build_refine_parser()
         refine_args = refine_parser.parse_args(argv[1:])

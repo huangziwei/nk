@@ -954,6 +954,31 @@ class VoiceVoxClient:
             return None
         return self._last_engine_defaults.copy()
 
+    def list_speakers(self) -> list[dict[str, object]]:
+        try:
+            resp = self._session.get(
+                f"{self.base_url}/speakers",
+                timeout=self.timeout,
+            )
+        except requests.RequestException as exc:
+            raise VoiceVoxUnavailableError(
+                f"Failed to contact VoiceVox engine at {self.base_url}"
+            ) from exc
+
+        if resp.status_code != 200:
+            raise VoiceVoxError(
+                f"/speakers failed with status {resp.status_code}: {resp.text}"
+            )
+
+        try:
+            payload = resp.json()
+        except json.JSONDecodeError as exc:
+            raise VoiceVoxError("VoiceVox returned invalid JSON for /speakers") from exc
+
+        if isinstance(payload, list):
+            return payload
+        return []
+
     def synthesize_from_query(self, query_payload: dict) -> bytes:
         try:
             synth_resp = self._session.post(
