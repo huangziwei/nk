@@ -28,12 +28,14 @@ from .tts import (
     TTSTarget,
     VoiceVoxClient,
     VoiceVoxError,
+    VoiceVoxRuntimeError,
     VoiceVoxUnavailableError,
     _parse_track_number_from_name,
     _synthesize_target_with_client,
     _target_cache_dir,
     discover_voicevox_runtime,
     managed_voicevox_runtime,
+    wav_bytes_to_mp3,
 )
 from .uploads import UploadJob, UploadManager
 from .voice_defaults import (
@@ -41,6 +43,11 @@ from .voice_defaults import (
     DEFAULT_PITCH_SCALE,
     DEFAULT_SPEAKER_ID,
     DEFAULT_SPEED_SCALE,
+)
+from .voice_samples import (
+    build_sample_text,
+    format_voice_sample_filename,
+    voice_samples_from_payload,
 )
 from .web_assets import NK_APPLE_TOUCH_ICON_PNG, NK_FAVICON_URL
 
@@ -68,6 +75,7 @@ BOOKMARK_STATE_VERSION = 1
 _SORT_MODES = {"author", "recent", "played"}
 RECENTLY_PLAYED_PREFIX = "__nk_recently_played__"
 RECENTLY_PLAYED_LABEL = "Recently Played"
+VOICE_SAMPLES_DIR = "samples"
 
 
 def _normalize_sort_mode(value: str | None) -> str:
@@ -255,6 +263,40 @@ INDEX_HTML = r"""<!DOCTYPE html>
       text-align: center;
       color: var(--muted);
       border: 1px dashed rgba(255,255,255,0.08);
+    }
+    .voice-sample-card {
+      min-height: auto;
+      padding: 0.75rem 0.9rem 0.9rem;
+      gap: 0.6rem;
+    }
+    .voice-sample-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .voice-sample-name {
+      font-weight: 600;
+    }
+    .voice-sample-id {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .voice-sample-audio {
+      width: 100%;
+    }
+    .voice-samples-panel {
+      margin-top: 1rem;
+    }
+    .voice-samples-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .voice-samples-status {
+      font-size: 0.85rem;
+      color: var(--muted);
     }
     .card-menu-button {
       position: absolute;
@@ -587,6 +629,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
     .badge.success {
       background: rgba(34, 197, 94, 0.28);
       color: #bbf7d0;
+    }
+    .badge.played {
+      background: rgba(59, 130, 246, 0.28);
+      color: #bfdbfe;
     }
     .badge.warning {
       background: rgba(251, 191, 36, 0.3);
@@ -1449,6 +1495,17 @@ INDEX_HTML = r"""<!DOCTYPE html>
       </details>
       <div class="cards collection-cards hidden" id="collections-grid"></div>
       <div class="cards" id="books-grid"></div>
+      <details class="voice-controls voice-samples-panel hidden" id="voice-samples-panel">
+        <summary>Voice samples (optional)</summary>
+        <div class="voice-controls-content">
+          <div class="voice-samples-actions">
+            <button id="voice-samples-load" class="secondary" type="button">Load samples</button>
+            <button id="voice-samples-generate" type="button">Generate samples</button>
+            <span class="voice-samples-status" id="voice-samples-status"></span>
+          </div>
+          <div class="cards voice-samples-grid" id="voice-samples-grid"></div>
+        </div>
+      </details>
     </section>
 
     <section class="panel hidden" id="chapters-panel">
@@ -1590,6 +1647,11 @@ INDEX_HTML = r"""<!DOCTYPE html>
   <script>
     const booksGrid = document.getElementById('books-grid');
     const collectionsGrid = document.getElementById('collections-grid');
+    const voiceSamplesPanel = document.getElementById('voice-samples-panel');
+    const voiceSamplesGrid = document.getElementById('voice-samples-grid');
+    const voiceSamplesLoadBtn = document.getElementById('voice-samples-load');
+    const voiceSamplesGenerateBtn = document.getElementById('voice-samples-generate');
+    const voiceSamplesStatus = document.getElementById('voice-samples-status');
     const libraryBreadcrumb = document.getElementById('library-breadcrumb');
     const libraryBackButton = document.getElementById('library-back');
     const chaptersPanel = document.getElementById('chapters-panel');
@@ -1658,6 +1720,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
     if (pendingEpubPanel) {
       pendingEpubPanel.open = false;
     }
+    if (voiceSamplesPanel) {
+      voiceSamplesPanel.open = false;
+    }
     const playerConfigNode = document.getElementById('nk-player-config');
     let readerBaseUrl = null;
     if (playerConfigNode && typeof playerConfigNode.textContent === 'string') {
@@ -1715,6 +1780,13 @@ INDEX_HTML = r"""<!DOCTYPE html>
     const state = {
       books: [],
       collections: [],
+      voiceSamples: [],
+      voiceSamplesLoaded: false,
+      voiceSamplesLoading: false,
+      voiceSamplesGenerating: false,
+      voiceSamplesStatusLoading: false,
+      voiceSamplesCount: null,
+      voiceSamplesError: null,
       chapters: [],
       currentBook: null,
       currentChapterIndex: -1,
@@ -1725,6 +1797,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
       bookmarks: {
         manual: [],
         lastPlayed: null,
+        played: new Set(),
       },
       lastPlayedBook: null,
       localBuilds: new Set(),
@@ -1843,6 +1916,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
     let statusPollHandle = null;
     let lastPlaySyncAt = 0;
     let lastPlayPending = null;
+    let lastPlayedRequestId = 0;
+    let lastPlayedAppliedId = 0;
     let lastOpenedBookId = null;
     let noteModalContext = null;
     const uploadUI = {
@@ -2316,6 +2391,11 @@ INDEX_HTML = r"""<!DOCTYPE html>
         ? payload.manual.map(normalizeBookmarkEntry).filter(Boolean)
         : [];
       const last = payload?.last_played;
+      const played = Array.isArray(payload?.played)
+        ? payload.played
+            .map(entry => (typeof entry === 'string' ? entry.trim() : ''))
+            .filter(Boolean)
+        : [];
       state.bookmarks = {
         manual,
         lastPlayed:
@@ -2324,8 +2404,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
           Number.isFinite(Number(last.time))
             ? { chapter: last.chapter, time: Number(last.time) }
             : null,
+        played: new Set(played),
       };
       updateBookmarkUI();
+      updateChapterStatusUI();
     }
 
     function bookmarksForChapter(chapterId) {
@@ -2556,16 +2638,25 @@ INDEX_HTML = r"""<!DOCTYPE html>
       statusLine.textContent = 'Bookmark updated.';
     }
 
-    async function persistLastPlayed(chapterId, time) {
+    async function persistLastPlayed(chapterId, time, playedChapterId = null) {
       if (!state.currentBook || !chapterId || !Number.isFinite(time)) return;
+      const requestId = ++lastPlayedRequestId;
+      const currentBookId = state.currentBook.id;
+      const payload = { chapter_id: chapterId, time };
+      if (playedChapterId) {
+        payload.played_chapter_id = playedChapterId;
+      }
       const data = await fetchJSON(
         `/api/books/${encodeURIComponent(state.currentBook.id)}/bookmarks/last-played`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chapter_id: chapterId, time }),
+          body: JSON.stringify(payload),
         }
       );
+      if (!state.currentBook || state.currentBook.id !== currentBookId) return;
+      if (requestId < lastPlayedAppliedId) return;
+      lastPlayedAppliedId = requestId;
       setBookmarks(data || {});
     }
 
@@ -2601,9 +2692,22 @@ INDEX_HTML = r"""<!DOCTYPE html>
         });
     }
 
+    function markChapterPlayed(chapterId) {
+      if (!chapterId) return;
+      const played = state.bookmarks.played instanceof Set
+        ? state.bookmarks.played
+        : new Set();
+      if (!played.has(chapterId)) {
+        played.add(chapterId);
+        state.bookmarks.played = played;
+        updateChapterStatusUI();
+      }
+    }
+
     function recordCompletionProgress() {
       const chapter = currentChapter();
       if (!chapter || !state.currentBook) return;
+      markChapterPlayed(chapter.id);
       let targetChapterId = chapter.id;
       let resumeTime = Number.isFinite(player.duration) ? player.duration : player.currentTime || 0;
       const nextIndex = state.currentChapterIndex + 1;
@@ -2615,7 +2719,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
       if (!Number.isFinite(resumeTime) || resumeTime < 0) {
         resumeTime = 0;
       }
-      handlePromise(persistLastPlayed(targetChapterId, resumeTime));
+      handlePromise(persistLastPlayed(targetChapterId, resumeTime, chapter.id));
     }
 
     function updatePlayerDetails(chapter) {
@@ -3540,6 +3644,232 @@ INDEX_HTML = r"""<!DOCTYPE html>
       return card;
     }
 
+    function voiceSampleLabel(sample) {
+      if (sample && typeof sample.name === 'string' && sample.name.trim()) {
+        return sample.name.trim();
+      }
+      if (sample && typeof sample.filename === 'string' && sample.filename) {
+        const stem = sample.filename.replace(/\.mp3$/i, '');
+        return stem.replace(/^\d+-/, '') || stem;
+      }
+      return 'Voice sample';
+    }
+
+    function setVoiceSamplesStatus(message, isError = false) {
+      if (!voiceSamplesStatus) return;
+      voiceSamplesStatus.textContent = message || '';
+      voiceSamplesStatus.style.color = isError ? '#f87171' : 'var(--muted)';
+    }
+
+    function updateVoiceSamplesControls() {
+      const busy = state.voiceSamplesLoading || state.voiceSamplesGenerating || state.voiceSamplesStatusLoading;
+      const knownCount = Number.isFinite(state.voiceSamplesCount)
+        ? state.voiceSamplesCount
+        : (state.voiceSamplesLoaded ? state.voiceSamples.length : 0);
+      if (voiceSamplesLoadBtn) {
+        if (state.voiceSamplesLoading) {
+          voiceSamplesLoadBtn.disabled = true;
+          voiceSamplesLoadBtn.textContent = 'Loading...';
+        } else {
+          voiceSamplesLoadBtn.disabled = busy;
+          voiceSamplesLoadBtn.textContent = state.voiceSamplesLoaded
+            ? 'Reload samples'
+            : 'Load samples';
+        }
+      }
+      if (voiceSamplesGenerateBtn) {
+        if (state.voiceSamplesGenerating) {
+          voiceSamplesGenerateBtn.disabled = true;
+          voiceSamplesGenerateBtn.textContent = 'Generating...';
+        } else {
+          voiceSamplesGenerateBtn.disabled = busy;
+          voiceSamplesGenerateBtn.textContent = knownCount > 0
+            ? 'Regenerate samples'
+            : 'Generate samples';
+        }
+      }
+    }
+
+    function updateVoiceSamplesVisibility() {
+      if (!voiceSamplesPanel) return;
+      const isRoot = !normalizeLibraryPath(state.libraryPrefix);
+      voiceSamplesPanel.classList.toggle('hidden', !isRoot);
+      if (!isRoot) {
+        voiceSamplesPanel.open = false;
+        if (voiceSamplesGrid) {
+          voiceSamplesGrid.innerHTML = '';
+        }
+        state.voiceSamplesLoaded = false;
+        state.voiceSamplesLoading = false;
+        state.voiceSamplesGenerating = false;
+        state.voiceSamplesStatusLoading = false;
+        state.voiceSamplesCount = null;
+        state.voiceSamples = [];
+        setVoiceSamplesStatus('');
+      }
+    }
+
+    async function refreshVoiceSamplesStatus({ silent = false } = {}) {
+      if (state.voiceSamplesStatusLoading) {
+        return state.voiceSamplesCount;
+      }
+      state.voiceSamplesStatusLoading = true;
+      updateVoiceSamplesControls();
+      if (!silent) {
+        setVoiceSamplesStatus('Checking samples...');
+      }
+      try {
+        const data = await fetchJSON('/api/voice-samples/status');
+        const count = Number.isFinite(data?.count) ? data.count : 0;
+        state.voiceSamplesCount = count;
+        if (!silent) {
+          setVoiceSamplesStatus(
+            count > 0 ? `${count} samples available.` : 'No voice samples found.'
+          );
+        }
+      } catch (err) {
+        if (!silent) {
+          setVoiceSamplesStatus('Failed to check voice samples.', true);
+        }
+      } finally {
+        state.voiceSamplesStatusLoading = false;
+        updateVoiceSamplesControls();
+      }
+      return state.voiceSamplesCount;
+    }
+
+    async function loadVoiceSamples({ force = false } = {}) {
+      if (state.voiceSamplesLoading) return;
+      if (state.voiceSamplesLoaded && !force) {
+        renderVoiceSamples();
+        return;
+      }
+      state.voiceSamplesLoading = true;
+      state.voiceSamplesError = null;
+      updateVoiceSamplesControls();
+      setVoiceSamplesStatus('Loading...');
+      try {
+        const data = await fetchJSON('/api/voice-samples');
+        const samples = Array.isArray(data?.samples)
+          ? data.samples
+          : (Array.isArray(data) ? data : []);
+        state.voiceSamples = samples;
+        state.voiceSamplesLoaded = true;
+        state.voiceSamplesCount = Number.isFinite(data?.count) ? data.count : samples.length;
+        if (!samples.length) {
+          setVoiceSamplesStatus('No voice samples found.');
+        } else {
+          setVoiceSamplesStatus(`${samples.length} samples loaded.`);
+        }
+      } catch (err) {
+        state.voiceSamplesError = err;
+        setVoiceSamplesStatus('Failed to load voice samples.', true);
+      } finally {
+        state.voiceSamplesLoading = false;
+        updateVoiceSamplesControls();
+      }
+      renderVoiceSamples();
+    }
+
+    async function generateVoiceSamples() {
+      if (state.voiceSamplesGenerating) return;
+      const count = await refreshVoiceSamplesStatus({ silent: true });
+      const knownCount = Number.isFinite(count) ? count : 0;
+      if (knownCount > 0) {
+        const confirmMsg = 'Regenerate voice samples? This will overwrite existing files.';
+        if (!window.confirm(confirmMsg)) {
+          return;
+        }
+      }
+      state.voiceSamplesGenerating = true;
+      updateVoiceSamplesControls();
+      setVoiceSamplesStatus(
+        knownCount > 0 ? 'Regenerating samples...' : 'Generating samples...'
+      );
+      try {
+        const res = await fetch('/api/voice-samples/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ overwrite: knownCount > 0 }),
+        });
+        if (!res.ok) {
+          const detail = await readErrorResponse(res);
+          throw new Error(detail || `HTTP ${res.status}`);
+        }
+        const payload = await res.json();
+        const nextCount = Number.isFinite(payload?.count)
+          ? payload.count
+          : (Number.isFinite(payload?.generated) ? payload.generated : knownCount);
+        state.voiceSamplesCount = nextCount;
+        state.voiceSamplesLoaded = false;
+        state.voiceSamples = [];
+        await loadVoiceSamples({ force: true });
+        if (Number.isFinite(payload?.generated)) {
+          setVoiceSamplesStatus(`Generated ${payload.generated} samples.`);
+        }
+      } catch (err) {
+        setVoiceSamplesStatus(err.message || 'Failed to generate voice samples.', true);
+      } finally {
+        state.voiceSamplesGenerating = false;
+        updateVoiceSamplesControls();
+      }
+    }
+
+    function renderVoiceSamples() {
+      if (!voiceSamplesPanel || !voiceSamplesGrid) return;
+      const isRoot = !normalizeLibraryPath(state.libraryPrefix);
+      if (!isRoot) {
+        return;
+      }
+      if (!voiceSamplesPanel.open) {
+        voiceSamplesGrid.innerHTML = '';
+        return;
+      }
+      if (!state.voiceSamplesLoaded) {
+        voiceSamplesGrid.innerHTML = '';
+        return;
+      }
+      const samples = Array.isArray(state.voiceSamples) ? state.voiceSamples : [];
+      voiceSamplesGrid.innerHTML = '';
+      if (samples.length === 0) {
+        return;
+      }
+      samples.forEach(sample => {
+        if (!sample || typeof sample !== 'object') {
+          return;
+        }
+        const url = sample.url;
+        if (typeof url !== 'string' || !url) {
+          return;
+        }
+        const card = document.createElement('article');
+        card.className = 'card voice-sample-card';
+        if (Number.isFinite(sample.id)) {
+          card.dataset.voiceId = String(sample.id);
+        }
+        const header = document.createElement('div');
+        header.className = 'voice-sample-header';
+        const name = document.createElement('div');
+        name.className = 'voice-sample-name';
+        name.textContent = voiceSampleLabel(sample);
+        header.appendChild(name);
+        if (Number.isFinite(sample.id)) {
+          const idLabel = document.createElement('div');
+          idLabel.className = 'voice-sample-id';
+          idLabel.textContent = `#${sample.id}`;
+          header.appendChild(idLabel);
+        }
+        card.appendChild(header);
+        const audio = document.createElement('audio');
+        audio.className = 'voice-sample-audio';
+        audio.controls = true;
+        audio.preload = 'none';
+        audio.src = url;
+        card.appendChild(audio);
+        voiceSamplesGrid.appendChild(card);
+      });
+    }
+
     function renderCollections() {
       if (!collectionsGrid) return;
       collectionsGrid.innerHTML = '';
@@ -3805,6 +4135,18 @@ INDEX_HTML = r"""<!DOCTYPE html>
       scrollToLastBook();
     }
 
+    function chapterWasPlayed(chapter) {
+      if (!chapter || !chapter.id) return false;
+      const played = state.bookmarks.played;
+      if (played instanceof Set) {
+        return played.has(chapter.id);
+      }
+      if (Array.isArray(played)) {
+        return played.includes(chapter.id);
+      }
+      return false;
+    }
+
     function chapterStatusInfo(ch) {
       const status = ch.build_status;
       if (status) {
@@ -3834,7 +4176,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
         }
       }
       if (ch.mp3_exists) {
-        return { label: 'Ready', className: 'success' };
+        return {
+          label: chapterWasPlayed(ch) ? 'Played' : 'Ready',
+          className: chapterWasPlayed(ch) ? 'played' : 'success',
+        };
       }
       if (ch.has_cache) {
         return { label: 'Cached', className: 'muted' };
@@ -4210,6 +4555,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
       state.lastPlayedBook = payload.last_played_book || null;
       syncPendingEpubBusy();
       renderLibraryNav();
+      updateVoiceSamplesVisibility();
+      updateVoiceSamplesControls();
+      renderVoiceSamples();
       renderCollections();
       renderPendingEpubs();
       renderBooks();
@@ -4808,8 +5156,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
       updatePlayToggleState();
       updateProgressUI();
       statusLine.textContent = 'Finished';
-      renderChapters(summaryForChapters());
       recordCompletionProgress();
+      renderChapters(summaryForChapters());
       if (state.autoAdvance) {
         const nextIndex = state.currentChapterIndex + 1;
         const nextChapter = state.chapters[nextIndex];
@@ -4841,6 +5189,32 @@ INDEX_HTML = r"""<!DOCTYPE html>
     backButton.onclick = () => {
       closeBookView();
     };
+
+    if (voiceSamplesPanel) {
+      voiceSamplesPanel.addEventListener('toggle', () => {
+        if (!voiceSamplesPanel.open) {
+          if (voiceSamplesGrid) {
+            voiceSamplesGrid.innerHTML = '';
+          }
+          return;
+        }
+        updateVoiceSamplesControls();
+        refreshVoiceSamplesStatus({ silent: false });
+        if (state.voiceSamplesLoaded) {
+          renderVoiceSamples();
+        }
+      });
+    }
+    if (voiceSamplesLoadBtn) {
+      voiceSamplesLoadBtn.onclick = () => {
+        loadVoiceSamples({ force: state.voiceSamplesLoaded });
+      };
+    }
+    if (voiceSamplesGenerateBtn) {
+      voiceSamplesGenerateBtn.onclick = () => {
+        generateVoiceSamples();
+      };
+    }
 
     voiceSaveBtn.onclick = () => {
       try {
@@ -4907,6 +5281,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
     setBookmarks({ manual: [], last_played: null });
 
     renderLibraryNav();
+    updateVoiceSamplesVisibility();
+    updateVoiceSamplesControls();
+    renderVoiceSamples();
     renderCollections();
     renderPendingEpubs();
 
@@ -5000,6 +5377,116 @@ def _cover_url_for_book_dir(root: Path, book_dir: Path) -> str | None:
     except ValueError:
         return None
     return _cover_url(book_id, cover_path)
+
+
+def _parse_voice_sample_filename(filename: str) -> tuple[int | None, str]:
+    if not filename:
+        return None, ""
+    stem = filename[:-4] if filename.lower().endswith(".mp3") else filename
+    if "-" in stem:
+        prefix, remainder = stem.split("-", 1)
+        if prefix.isdigit():
+            return int(prefix), remainder or stem
+    return None, stem
+
+
+def _list_voice_samples(root: Path) -> list[dict[str, object]]:
+    samples_dir = root / VOICE_SAMPLES_DIR
+    if not samples_dir.exists() or not samples_dir.is_dir():
+        return []
+    try:
+        entries = list(samples_dir.iterdir())
+    except OSError:
+        return []
+    payload: list[dict[str, object]] = []
+    for entry in entries:
+        if not entry.is_file():
+            continue
+        if entry.suffix.lower() != ".mp3":
+            continue
+        sample_id, name = _parse_voice_sample_filename(entry.name)
+        payload.append(
+            {
+                "id": sample_id,
+                "name": name,
+                "filename": entry.name,
+                "url": f"/api/voice-samples/{quote(entry.name)}",
+            }
+        )
+    payload.sort(
+        key=lambda item: (
+            item["id"] is None,
+            item["id"] or 0,
+            str(item["name"] or "").casefold(),
+        )
+    )
+    return payload
+
+
+def _generate_voice_samples(
+    config: PlayerConfig,
+    output_dir: Path,
+    lock: threading.Lock,
+    *,
+    overwrite: bool = False,
+    sample_lines: list[str] | None = None,
+) -> dict[str, object]:
+    sample_text = build_sample_text(sample_lines)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    with lock:
+        runtime_hint = config.engine_runtime or discover_voicevox_runtime(
+            config.engine_url
+        )
+        env_override, thread_override = _engine_thread_overrides(config.engine_threads)
+        with managed_voicevox_runtime(
+            runtime_hint,
+            config.engine_url,
+            readiness_timeout=config.engine_wait,
+            extra_env=env_override,
+            cpu_threads=thread_override,
+        ):
+            client = VoiceVoxClient(
+                base_url=config.engine_url,
+                timeout=60.0,
+            )
+            try:
+                voices = voice_samples_from_payload(client.list_speakers())
+                if not voices:
+                    raise ValueError(
+                        f"No VoiceVox speakers found at {config.engine_url}."
+                    )
+                max_id = max(speaker_id for speaker_id, _ in voices)
+                width = max(3, len(str(max_id)))
+                generated = 0
+                skipped = 0
+                for speaker_id, name in voices:
+                    filename = format_voice_sample_filename(
+                        speaker_id,
+                        name,
+                        width=width,
+                    )
+                    output_path = output_dir / filename
+                    if output_path.exists() and not overwrite:
+                        skipped += 1
+                        continue
+                    client.speaker_id = speaker_id
+                    wav_bytes = client.synthesize_wav(sample_text)
+                    wav_bytes_to_mp3(
+                        wav_bytes,
+                        output_path,
+                        ffmpeg_path=config.ffmpeg_path,
+                        overwrite=overwrite,
+                    )
+                    generated += 1
+            finally:
+                client.close()
+    return {
+        "count": len(voices),
+        "generated": generated,
+        "skipped": skipped,
+        "output_dir": str(output_dir),
+    }
 
 
 def _scan_collection(
@@ -5220,7 +5707,12 @@ def _bookmark_file(book_dir: Path) -> Path:
 
 
 def _empty_bookmark_state() -> dict[str, object]:
-    return {"version": BOOKMARK_STATE_VERSION, "manual": [], "last_played": None}
+    return {
+        "version": BOOKMARK_STATE_VERSION,
+        "manual": [],
+        "last_played": None,
+        "played": [],
+    }
 
 
 def _load_bookmark_state(book_dir: Path) -> dict[str, object]:
@@ -5285,10 +5777,23 @@ def _load_bookmark_state(book_dir: Path) -> dict[str, object]:
                 if isinstance(updated_at, (int, float))
                 else None,
             }
+    played_entries: list[str] = []
+    played_payload = raw.get("played")
+    if isinstance(played_payload, list):
+        seen_chapters: set[str] = set()
+        for entry in played_payload:
+            if not isinstance(entry, str):
+                continue
+            chapter = entry.strip()
+            if not chapter or chapter in seen_chapters:
+                continue
+            seen_chapters.add(chapter)
+            played_entries.append(chapter)
     return {
         "version": BOOKMARK_STATE_VERSION,
         "manual": manual_entries,
         "last_played": last_payload,
+        "played": played_entries,
     }
 
 
@@ -5322,9 +5827,15 @@ def _bookmarks_payload(book_dir: Path) -> dict[str, object]:
             "time": float(last_payload["time"]),
             "updated_at": last_payload.get("updated_at"),
         }
+    played_entries = [
+        entry
+        for entry in state.get("played", [])
+        if isinstance(entry, str) and entry
+    ]
     return {
         "manual": manual_entries,
         "last_played": last_payload,
+        "played": played_entries,
     }
 
 
@@ -5405,6 +5916,18 @@ def _update_last_played(book_dir: Path, chapter_id: str, time_value: float) -> N
         "time": float(time_value),
         "updated_at": time.time(),
     }
+    _save_bookmark_state(book_dir, state)
+
+
+def _mark_chapter_played(book_dir: Path, chapter_id: str) -> None:
+    state = _load_bookmark_state(book_dir)
+    played_entries = state.get("played")
+    if not isinstance(played_entries, list):
+        played_entries = []
+    if chapter_id in played_entries:
+        return
+    played_entries.append(chapter_id)
+    state["played"] = played_entries
     _save_bookmark_state(book_dir, state)
 
 
@@ -5840,6 +6363,23 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
             raise HTTPException(status_code=404, detail="Book not found")
         return canonical, candidate
 
+    def _resolve_voice_sample(sample_name: str) -> Path:
+        if not sample_name:
+            raise HTTPException(status_code=404, detail="Sample not found")
+        samples_dir = (root / VOICE_SAMPLES_DIR).resolve()
+        candidate = (samples_dir / sample_name).resolve()
+        try:
+            candidate.relative_to(samples_dir)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="Sample not found") from exc
+        if (
+            not candidate.exists()
+            or not candidate.is_file()
+            or candidate.suffix.lower() != ".mp3"
+        ):
+            raise HTTPException(status_code=404, detail="Sample not found")
+        return candidate
+
     def _book_id_from_target(target: TTSTarget) -> str:
         try:
             return _relative_library_path(root, target.source.parent)
@@ -6187,6 +6727,56 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
             }
         )
 
+    @app.get("/api/voice-samples/status")
+    def api_voice_samples_status() -> JSONResponse:
+        count = len(_list_voice_samples(root))
+        return JSONResponse({"count": count, "has_samples": count > 0})
+
+    @app.get("/api/voice-samples")
+    def api_voice_samples() -> JSONResponse:
+        samples = _list_voice_samples(root)
+        return JSONResponse({"samples": samples, "count": len(samples)})
+
+    @app.post("/api/voice-samples/generate")
+    def api_generate_voice_samples(
+        payload: dict[str, object] | None = Body(None),
+    ) -> JSONResponse:
+        data = payload or {}
+        overwrite = bool(data.get("overwrite"))
+        sample_lines = None
+        if "text" in data:
+            text_value = data.get("text")
+            if isinstance(text_value, list):
+                sample_lines = [str(item) for item in text_value]
+            elif text_value is not None:
+                raise HTTPException(
+                    status_code=400, detail="text must be a list of strings."
+                )
+        try:
+            result = _generate_voice_samples(
+                config,
+                root / VOICE_SAMPLES_DIR,
+                app.state.voicevox_lock,
+                overwrite=overwrite,
+                sample_lines=sample_lines,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (
+            VoiceVoxUnavailableError,
+            VoiceVoxError,
+            VoiceVoxRuntimeError,
+            FFmpegError,
+            FileNotFoundError,
+        ) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return JSONResponse(result)
+
+    @app.get("/api/voice-samples/{sample_name}")
+    def api_voice_sample(sample_name: str) -> FileResponse:
+        sample_path = _resolve_voice_sample(sample_name)
+        return FileResponse(sample_path, media_type="audio/mpeg")
+
     @app.get("/api/books/{book_id:path}/chapters")
     def api_chapters(book_id: str) -> JSONResponse:
         canonical_id, book_path = _resolve_book(book_id)
@@ -6323,9 +6913,20 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         time_value = payload.get("time")
         if not isinstance(time_value, (int, float)) or time_value < 0:
             raise HTTPException(status_code=400, detail="time must be non-negative.")
+        played_chapter_id = payload.get("played_chapter_id")
+        if played_chapter_id is not None:
+            if not isinstance(played_chapter_id, str) or not played_chapter_id.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="played_chapter_id must be a non-empty string.",
+                )
         _ensure_chapter_for_bookmark(book_path, chapter_id)
+        if played_chapter_id:
+            _ensure_chapter_for_bookmark(book_path, played_chapter_id)
         with bookmark_lock:
             _update_last_played(book_path, chapter_id, float(time_value))
+            if played_chapter_id:
+                _mark_chapter_played(book_path, played_chapter_id)
             bookmarks = _bookmarks_payload(book_path)
         return JSONResponse(bookmarks)
 

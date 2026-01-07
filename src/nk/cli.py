@@ -63,6 +63,7 @@ from .refine import OverrideRule, load_override_config, load_refine_config, refi
 from .tts import (
     FFmpegError,
     TTSTarget,
+    VoiceVoxClient,
     VoiceVoxError,
     VoiceVoxRuntimeError,
     VoiceVoxUnavailableError,
@@ -70,10 +71,16 @@ from .tts import (
     ensure_dedicated_voicevox_url,
     managed_voicevox_runtime,
     resolve_text_targets,
-    synthesize_texts_to_mp3,
     set_debug_logging,
+    synthesize_texts_to_mp3,
+    wav_bytes_to_mp3,
     VoiceProfile,
     _voice_profile_from_defaults,
+)
+from .voice_samples import (
+    build_sample_text,
+    format_voice_sample_filename,
+    voice_samples_from_payload,
 )
 from .voice_defaults import (
     DEFAULT_INTONATION_SCALE,
@@ -85,6 +92,18 @@ from .voice_defaults import (
 _READER_RELOAD_ENV = "NK_READER_RELOAD_ROOT"
 _PLAYER_RELOAD_ENV = "NK_PLAYER_RELOAD_CONFIG"
 _OPEN_AUTO = "__NK_OPEN_AUTO__"
+_SUBCOMMAND_HELP = """Subcommands:
+  nk tts ...      Synthesize MP3s from chapterized text
+  nk read ...     Launch the reader web UI
+  nk play ...     Launch the audio player
+  nk dav ...      Serve a WebDAV endpoint for books
+  nk convert ...  Convert arbitrary text to kana
+  nk cast ...     Annotate manifests with speaker/voice suggestions
+  nk deps ...     Check or install runtime dependencies
+  nk samples ...  Generate VoiceVox voice samples
+  nk refine ...   Apply pitch overrides to chapterized text
+"""
+
 
 
 def _package_source_dir() -> Path:
@@ -264,6 +283,8 @@ def _add_version_flag(parser: argparse.ArgumentParser) -> None:
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="EPUB → TXT with ruby propagation and base removal. Use `nk tts` for speech.",
+        epilog=_SUBCOMMAND_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     _add_version_flag(ap)
     ap.add_argument(
@@ -693,6 +714,68 @@ def build_cast_parser() -> argparse.ArgumentParser:
     )
     return ap
 
+def build_samples_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        description="Generate VoiceVox samples for every available voice.",
+    )
+    _add_version_flag(ap)
+    ap.add_argument(
+        "root",
+        nargs="?",
+        default="books",
+        help="Library root (samples saved under <root>/samples by default).",
+    )
+    ap.add_argument(
+        "--output-dir",
+        help="Override the output directory for samples (defaults to <root>/samples).",
+    )
+    ap.add_argument(
+        "--text",
+        action="append",
+        help="Sample text to synthesize (repeatable; defaults to built-in templates).",
+    )
+    ap.add_argument(
+        "--engine-url",
+        default="http://127.0.0.1:50021",
+        help="Base URL for the VoiceVox engine (default: http://127.0.0.1:50021).",
+    )
+    ap.add_argument(
+        "--engine-runtime",
+        help="Path to the VoiceVox runtime executable or its directory.",
+    )
+    ap.add_argument(
+        "--engine-threads",
+        type=int,
+        help=(
+            "When nk auto-starts the VoiceVox runtime, override its worker thread count "
+            "(omit or set to 0 to let the engine decide)."
+        ),
+    )
+    ap.add_argument(
+        "--engine-runtime-wait",
+        type=float,
+        default=30.0,
+        help="Seconds to wait for an auto-started VoiceVox engine (default: 30).",
+    )
+    ap.add_argument(
+        "--ffmpeg",
+        default="ffmpeg",
+        help="Path to ffmpeg executable (default: ffmpeg).",
+    )
+    ap.add_argument(
+        "--timeout",
+        type=float,
+        default=30.0,
+        help="HTTP timeout in seconds for VoiceVox requests (default: 30).",
+    )
+    ap.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite existing sample files.",
+    )
+    return ap
+
+
 def _engine_thread_overrides(
     threads: int | None,
 ) -> tuple[dict[str, str] | None, int | None]:
@@ -720,6 +803,96 @@ def _run_convert(args: argparse.Namespace) -> int:
     processed = _apply_dictionary_mapping(processed, tier2, context_rules)
     converted = backend.to_reading_text(processed)
     print(converted)
+    return 0
+
+
+def _run_samples(args: argparse.Namespace) -> int:
+    try:
+        sample_text = build_sample_text(args.text)
+    except ValueError as exc:
+        raise SystemExit(f"{exc} Provide --text to override.") from exc
+
+    root = Path(args.root).expanduser()
+    output_dir = (
+        Path(args.output_dir).expanduser()
+        if args.output_dir
+        else root / "samples"
+    )
+    if output_dir.exists() and not output_dir.is_dir():
+        raise SystemExit(f"Output path is not a directory: {output_dir}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    runtime_hint = args.engine_runtime
+    auto_runtime = None
+    if not runtime_hint:
+        auto_runtime = discover_voicevox_runtime(args.engine_url)
+    runtime_path = runtime_hint or auto_runtime
+    engine_url = args.engine_url
+    runtime_env, runtime_thread_flag = _engine_thread_overrides(args.engine_threads)
+
+    try:
+        if runtime_path:
+            engine_url, dedicated_runtime = ensure_dedicated_voicevox_url(engine_url)
+            if dedicated_runtime and engine_url != args.engine_url:
+                print(
+                    f"Existing VoiceVox detected at {args.engine_url}; "
+                    f"launching a dedicated runtime on {engine_url}.",
+                    flush=True,
+                )
+        with managed_voicevox_runtime(
+            runtime_path,
+            engine_url,
+            readiness_timeout=args.engine_runtime_wait,
+            extra_env=runtime_env,
+            cpu_threads=runtime_thread_flag,
+        ):
+            client = VoiceVoxClient(base_url=engine_url, timeout=args.timeout)
+            try:
+                voices = voice_samples_from_payload(client.list_speakers())
+                if not voices:
+                    raise SystemExit(
+                        f"No VoiceVox speakers found at {engine_url}."
+                    )
+                max_id = max(speaker_id for speaker_id, _ in voices)
+                width = max(3, len(str(max_id)))
+                total = len(voices)
+                print(
+                    f"[nk samples] Generating {total} voice samples in {output_dir}"
+                )
+                for index, (speaker_id, name) in enumerate(voices, start=1):
+                    filename = format_voice_sample_filename(
+                        speaker_id,
+                        name,
+                        width=width,
+                    )
+                    output_path = output_dir / filename
+                    if output_path.exists() and not args.overwrite:
+                        print(
+                            f"[{index}/{total}] {filename} skipped (exists)",
+                            flush=True,
+                        )
+                        continue
+                    client.speaker_id = speaker_id
+                    wav_bytes = client.synthesize_wav(sample_text)
+                    wav_bytes_to_mp3(
+                        wav_bytes,
+                        output_path,
+                        ffmpeg_path=args.ffmpeg,
+                        overwrite=args.overwrite,
+                    )
+                    print(f"[{index}/{total}] {filename}", flush=True)
+            finally:
+                client.close()
+    except (
+        VoiceVoxUnavailableError,
+        VoiceVoxError,
+        VoiceVoxRuntimeError,
+        FFmpegError,
+        FileNotFoundError,
+        ValueError,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
+
     return 0
 
 
@@ -2042,6 +2215,10 @@ def main(argv: list[str] | None = None) -> int:
         deps_parser = build_deps_parser()
         deps_args = deps_parser.parse_args(argv[1:])
         return _run_deps(deps_args)
+    if argv and argv[0] == "samples":
+        samples_parser = build_samples_parser()
+        samples_args = samples_parser.parse_args(argv[1:])
+        return _run_samples(samples_args)
     if argv and argv[0] == "refine":
         refine_parser = build_refine_parser()
         refine_args = refine_parser.parse_args(argv[1:])

@@ -235,6 +235,9 @@ nk tts book.txt|directory [--speaker N]
                           [--keep-cache]
                           [--overwrite]
 
+# Voice samples (one MP3 per VoiceVox speaker)
+nk samples [library_root] [--text "..."] [--output-dir DIR] [--overwrite]
+
 # Player service (browse + stream)
 nk play output/ [--host HOST] [--port PORT] [--speaker N]
                [--speed SCALE] [--pitch SCALE] [--intonation SCALE] [...]
