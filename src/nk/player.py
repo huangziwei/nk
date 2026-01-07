@@ -28,12 +28,14 @@ from .tts import (
     TTSTarget,
     VoiceVoxClient,
     VoiceVoxError,
+    VoiceVoxRuntimeError,
     VoiceVoxUnavailableError,
     _parse_track_number_from_name,
     _synthesize_target_with_client,
     _target_cache_dir,
     discover_voicevox_runtime,
     managed_voicevox_runtime,
+    wav_bytes_to_mp3,
 )
 from .uploads import UploadJob, UploadManager
 from .voice_defaults import (
@@ -41,6 +43,11 @@ from .voice_defaults import (
     DEFAULT_PITCH_SCALE,
     DEFAULT_SPEAKER_ID,
     DEFAULT_SPEED_SCALE,
+)
+from .voice_samples import (
+    build_sample_text,
+    format_voice_sample_filename,
+    voice_samples_from_payload,
 )
 from .web_assets import NK_APPLE_TOUCH_ICON_PNG, NK_FAVICON_URL
 
@@ -1492,7 +1499,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
         <summary>Voice samples (optional)</summary>
         <div class="voice-controls-content">
           <div class="voice-samples-actions">
-            <button id="voice-samples-load" class="secondary" type="button">Load voice samples</button>
+            <button id="voice-samples-load" class="secondary" type="button">Load samples</button>
+            <button id="voice-samples-generate" type="button">Generate samples</button>
             <span class="voice-samples-status" id="voice-samples-status"></span>
           </div>
           <div class="cards voice-samples-grid" id="voice-samples-grid"></div>
@@ -1642,6 +1650,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
     const voiceSamplesPanel = document.getElementById('voice-samples-panel');
     const voiceSamplesGrid = document.getElementById('voice-samples-grid');
     const voiceSamplesLoadBtn = document.getElementById('voice-samples-load');
+    const voiceSamplesGenerateBtn = document.getElementById('voice-samples-generate');
     const voiceSamplesStatus = document.getElementById('voice-samples-status');
     const libraryBreadcrumb = document.getElementById('library-breadcrumb');
     const libraryBackButton = document.getElementById('library-back');
@@ -1774,6 +1783,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
       voiceSamples: [],
       voiceSamplesLoaded: false,
       voiceSamplesLoading: false,
+      voiceSamplesGenerating: false,
+      voiceSamplesStatusLoading: false,
+      voiceSamplesCount: null,
       voiceSamplesError: null,
       chapters: [],
       currentBook: null,
@@ -3650,16 +3662,32 @@ INDEX_HTML = r"""<!DOCTYPE html>
     }
 
     function updateVoiceSamplesControls() {
-      if (!voiceSamplesLoadBtn) return;
-      if (state.voiceSamplesLoading) {
-        voiceSamplesLoadBtn.disabled = true;
-        voiceSamplesLoadBtn.textContent = 'Loading...';
-        return;
+      const busy = state.voiceSamplesLoading || state.voiceSamplesGenerating || state.voiceSamplesStatusLoading;
+      const knownCount = Number.isFinite(state.voiceSamplesCount)
+        ? state.voiceSamplesCount
+        : (state.voiceSamplesLoaded ? state.voiceSamples.length : 0);
+      if (voiceSamplesLoadBtn) {
+        if (state.voiceSamplesLoading) {
+          voiceSamplesLoadBtn.disabled = true;
+          voiceSamplesLoadBtn.textContent = 'Loading...';
+        } else {
+          voiceSamplesLoadBtn.disabled = busy;
+          voiceSamplesLoadBtn.textContent = state.voiceSamplesLoaded
+            ? 'Reload samples'
+            : 'Load samples';
+        }
       }
-      voiceSamplesLoadBtn.disabled = false;
-      voiceSamplesLoadBtn.textContent = state.voiceSamplesLoaded
-        ? 'Reload voice samples'
-        : 'Load voice samples';
+      if (voiceSamplesGenerateBtn) {
+        if (state.voiceSamplesGenerating) {
+          voiceSamplesGenerateBtn.disabled = true;
+          voiceSamplesGenerateBtn.textContent = 'Generating...';
+        } else {
+          voiceSamplesGenerateBtn.disabled = busy;
+          voiceSamplesGenerateBtn.textContent = knownCount > 0
+            ? 'Regenerate samples'
+            : 'Generate samples';
+        }
+      }
     }
 
     function updateVoiceSamplesVisibility() {
@@ -3671,8 +3699,43 @@ INDEX_HTML = r"""<!DOCTYPE html>
         if (voiceSamplesGrid) {
           voiceSamplesGrid.innerHTML = '';
         }
+        state.voiceSamplesLoaded = false;
+        state.voiceSamplesLoading = false;
+        state.voiceSamplesGenerating = false;
+        state.voiceSamplesStatusLoading = false;
+        state.voiceSamplesCount = null;
+        state.voiceSamples = [];
         setVoiceSamplesStatus('');
       }
+    }
+
+    async function refreshVoiceSamplesStatus({ silent = false } = {}) {
+      if (state.voiceSamplesStatusLoading) {
+        return state.voiceSamplesCount;
+      }
+      state.voiceSamplesStatusLoading = true;
+      updateVoiceSamplesControls();
+      if (!silent) {
+        setVoiceSamplesStatus('Checking samples...');
+      }
+      try {
+        const data = await fetchJSON('/api/voice-samples/status');
+        const count = Number.isFinite(data?.count) ? data.count : 0;
+        state.voiceSamplesCount = count;
+        if (!silent) {
+          setVoiceSamplesStatus(
+            count > 0 ? `${count} samples available.` : 'No voice samples found.'
+          );
+        }
+      } catch (err) {
+        if (!silent) {
+          setVoiceSamplesStatus('Failed to check voice samples.', true);
+        }
+      } finally {
+        state.voiceSamplesStatusLoading = false;
+        updateVoiceSamplesControls();
+      }
+      return state.voiceSamplesCount;
     }
 
     async function loadVoiceSamples({ force = false } = {}) {
@@ -3692,6 +3755,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
           : (Array.isArray(data) ? data : []);
         state.voiceSamples = samples;
         state.voiceSamplesLoaded = true;
+        state.voiceSamplesCount = Number.isFinite(data?.count) ? data.count : samples.length;
         if (!samples.length) {
           setVoiceSamplesStatus('No voice samples found.');
         } else {
@@ -3707,6 +3771,50 @@ INDEX_HTML = r"""<!DOCTYPE html>
       renderVoiceSamples();
     }
 
+    async function generateVoiceSamples() {
+      if (state.voiceSamplesGenerating) return;
+      const count = await refreshVoiceSamplesStatus({ silent: true });
+      const knownCount = Number.isFinite(count) ? count : 0;
+      if (knownCount > 0) {
+        const confirmMsg = 'Regenerate voice samples? This will overwrite existing files.';
+        if (!window.confirm(confirmMsg)) {
+          return;
+        }
+      }
+      state.voiceSamplesGenerating = true;
+      updateVoiceSamplesControls();
+      setVoiceSamplesStatus(
+        knownCount > 0 ? 'Regenerating samples...' : 'Generating samples...'
+      );
+      try {
+        const res = await fetch('/api/voice-samples/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ overwrite: knownCount > 0 }),
+        });
+        if (!res.ok) {
+          const detail = await readErrorResponse(res);
+          throw new Error(detail || `HTTP ${res.status}`);
+        }
+        const payload = await res.json();
+        const nextCount = Number.isFinite(payload?.count)
+          ? payload.count
+          : (Number.isFinite(payload?.generated) ? payload.generated : knownCount);
+        state.voiceSamplesCount = nextCount;
+        state.voiceSamplesLoaded = false;
+        state.voiceSamples = [];
+        await loadVoiceSamples({ force: true });
+        if (Number.isFinite(payload?.generated)) {
+          setVoiceSamplesStatus(`Generated ${payload.generated} samples.`);
+        }
+      } catch (err) {
+        setVoiceSamplesStatus(err.message || 'Failed to generate voice samples.', true);
+      } finally {
+        state.voiceSamplesGenerating = false;
+        updateVoiceSamplesControls();
+      }
+    }
+
     function renderVoiceSamples() {
       if (!voiceSamplesPanel || !voiceSamplesGrid) return;
       const isRoot = !normalizeLibraryPath(state.libraryPrefix);
@@ -3714,6 +3822,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
         return;
       }
       if (!voiceSamplesPanel.open) {
+        voiceSamplesGrid.innerHTML = '';
+        return;
+      }
+      if (!state.voiceSamplesLoaded) {
         voiceSamplesGrid.innerHTML = '';
         return;
       }
@@ -5087,9 +5199,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
           return;
         }
         updateVoiceSamplesControls();
-        if (!state.voiceSamplesLoaded && !state.voiceSamplesLoading) {
-          loadVoiceSamples();
-        } else {
+        refreshVoiceSamplesStatus({ silent: false });
+        if (state.voiceSamplesLoaded) {
           renderVoiceSamples();
         }
       });
@@ -5097,6 +5208,11 @@ INDEX_HTML = r"""<!DOCTYPE html>
     if (voiceSamplesLoadBtn) {
       voiceSamplesLoadBtn.onclick = () => {
         loadVoiceSamples({ force: state.voiceSamplesLoaded });
+      };
+    }
+    if (voiceSamplesGenerateBtn) {
+      voiceSamplesGenerateBtn.onclick = () => {
+        generateVoiceSamples();
       };
     }
 
@@ -5305,6 +5421,72 @@ def _list_voice_samples(root: Path) -> list[dict[str, object]]:
         )
     )
     return payload
+
+
+def _generate_voice_samples(
+    config: PlayerConfig,
+    output_dir: Path,
+    lock: threading.Lock,
+    *,
+    overwrite: bool = False,
+    sample_lines: list[str] | None = None,
+) -> dict[str, object]:
+    sample_text = build_sample_text(sample_lines)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    with lock:
+        runtime_hint = config.engine_runtime or discover_voicevox_runtime(
+            config.engine_url
+        )
+        env_override, thread_override = _engine_thread_overrides(config.engine_threads)
+        with managed_voicevox_runtime(
+            runtime_hint,
+            config.engine_url,
+            readiness_timeout=config.engine_wait,
+            extra_env=env_override,
+            cpu_threads=thread_override,
+        ):
+            client = VoiceVoxClient(
+                base_url=config.engine_url,
+                timeout=60.0,
+            )
+            try:
+                voices = voice_samples_from_payload(client.list_speakers())
+                if not voices:
+                    raise ValueError(
+                        f"No VoiceVox speakers found at {config.engine_url}."
+                    )
+                max_id = max(speaker_id for speaker_id, _ in voices)
+                width = max(3, len(str(max_id)))
+                generated = 0
+                skipped = 0
+                for speaker_id, name in voices:
+                    filename = format_voice_sample_filename(
+                        speaker_id,
+                        name,
+                        width=width,
+                    )
+                    output_path = output_dir / filename
+                    if output_path.exists() and not overwrite:
+                        skipped += 1
+                        continue
+                    client.speaker_id = speaker_id
+                    wav_bytes = client.synthesize_wav(sample_text)
+                    wav_bytes_to_mp3(
+                        wav_bytes,
+                        output_path,
+                        ffmpeg_path=config.ffmpeg_path,
+                        overwrite=overwrite,
+                    )
+                    generated += 1
+            finally:
+                client.close()
+    return {
+        "count": len(voices),
+        "generated": generated,
+        "skipped": skipped,
+        "output_dir": str(output_dir),
+    }
 
 
 def _scan_collection(
@@ -6545,10 +6727,50 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
             }
         )
 
+    @app.get("/api/voice-samples/status")
+    def api_voice_samples_status() -> JSONResponse:
+        count = len(_list_voice_samples(root))
+        return JSONResponse({"count": count, "has_samples": count > 0})
+
     @app.get("/api/voice-samples")
     def api_voice_samples() -> JSONResponse:
         samples = _list_voice_samples(root)
         return JSONResponse({"samples": samples, "count": len(samples)})
+
+    @app.post("/api/voice-samples/generate")
+    def api_generate_voice_samples(
+        payload: dict[str, object] | None = Body(None),
+    ) -> JSONResponse:
+        data = payload or {}
+        overwrite = bool(data.get("overwrite"))
+        sample_lines = None
+        if "text" in data:
+            text_value = data.get("text")
+            if isinstance(text_value, list):
+                sample_lines = [str(item) for item in text_value]
+            elif text_value is not None:
+                raise HTTPException(
+                    status_code=400, detail="text must be a list of strings."
+                )
+        try:
+            result = _generate_voice_samples(
+                config,
+                root / VOICE_SAMPLES_DIR,
+                app.state.voicevox_lock,
+                overwrite=overwrite,
+                sample_lines=sample_lines,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (
+            VoiceVoxUnavailableError,
+            VoiceVoxError,
+            VoiceVoxRuntimeError,
+            FFmpegError,
+            FileNotFoundError,
+        ) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return JSONResponse(result)
 
     @app.get("/api/voice-samples/{sample_name}")
     def api_voice_sample(sample_name: str) -> FileResponse:

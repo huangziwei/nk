@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import socket
 import sys
@@ -74,6 +73,11 @@ from .tts import (
     synthesize_texts_to_mp3,
     wav_bytes_to_mp3,
 )
+from .voice_samples import (
+    build_sample_text,
+    format_voice_sample_filename,
+    voice_samples_from_payload,
+)
 from .voice_defaults import (
     DEFAULT_INTONATION_SCALE,
     DEFAULT_PITCH_SCALE,
@@ -95,13 +99,6 @@ _SUBCOMMAND_HELP = """Subcommands:
   nk refine ...   Apply pitch overrides to chapterized text
 """
 
-_DEFAULT_VOICE_SAMPLE_TEXTS = [
-    "こんにちは。こちらはVOICEVOXの音声サンプルです。",
-    "読み上げの速度と音程を確認しています。",
-    "お好みの声を選んでください。",
-]
-
-_VOICE_SAMPLE_INVALID_CHARS = set('<>:"/\\|?*')
 
 
 def _package_source_dir() -> Path:
@@ -758,59 +755,6 @@ def build_samples_parser() -> argparse.ArgumentParser:
     return ap
 
 
-def _sanitize_voice_sample_name(name: str) -> str:
-    if not isinstance(name, str):
-        name = ""
-    candidate = name.strip()
-    if not candidate:
-        candidate = "voice"
-    chars: list[str] = []
-    for ch in candidate:
-        if ch in {"/", "\\"}:
-            chars.append("-")
-        elif ch in _VOICE_SAMPLE_INVALID_CHARS:
-            chars.append("_")
-        elif ord(ch) < 32:
-            continue
-        else:
-            chars.append(ch)
-    sanitized = "".join(chars).strip(" .-_")
-    if not sanitized:
-        sanitized = "voice"
-    sanitized = re.sub(r"\s+", "-", sanitized)
-    sanitized = re.sub(r"-{2,}", "-", sanitized)
-    return sanitized[:120]
-
-
-def _voice_samples_from_payload(payload: object) -> list[tuple[int, str]]:
-    if not isinstance(payload, list):
-        return []
-    voices: list[tuple[int, str]] = []
-    seen_ids: set[int] = set()
-    for entry in payload:
-        if not isinstance(entry, dict):
-            continue
-        speaker_name = str(entry.get("name") or "").strip()
-        styles = entry.get("styles")
-        if not isinstance(styles, list):
-            continue
-        for style in styles:
-            if not isinstance(style, dict):
-                continue
-            style_id = style.get("id")
-            if not isinstance(style_id, int):
-                continue
-            if style_id in seen_ids:
-                continue
-            seen_ids.add(style_id)
-            style_name = str(style.get("name") or "").strip()
-            name_parts = [part for part in (speaker_name, style_name) if part]
-            display_name = "-".join(name_parts) if name_parts else f"Voice-{style_id}"
-            voices.append((style_id, display_name))
-    voices.sort(key=lambda item: item[0])
-    return voices
-
-
 def _engine_thread_overrides(
     threads: int | None,
 ) -> tuple[dict[str, str] | None, int | None]:
@@ -842,11 +786,10 @@ def _run_convert(args: argparse.Namespace) -> int:
 
 
 def _run_samples(args: argparse.Namespace) -> int:
-    sample_lines = args.text if args.text else list(_DEFAULT_VOICE_SAMPLE_TEXTS)
-    sample_lines = [line.strip() for line in sample_lines if line and line.strip()]
-    if not sample_lines:
-        raise SystemExit("Sample text is empty. Provide --text to override.")
-    sample_text = "\n".join(sample_lines)
+    try:
+        sample_text = build_sample_text(args.text)
+    except ValueError as exc:
+        raise SystemExit(f"{exc} Provide --text to override.") from exc
 
     root = Path(args.root).expanduser()
     output_dir = (
@@ -884,7 +827,7 @@ def _run_samples(args: argparse.Namespace) -> int:
         ):
             client = VoiceVoxClient(base_url=engine_url, timeout=args.timeout)
             try:
-                voices = _voice_samples_from_payload(client.list_speakers())
+                voices = voice_samples_from_payload(client.list_speakers())
                 if not voices:
                     raise SystemExit(
                         f"No VoiceVox speakers found at {engine_url}."
@@ -896,8 +839,11 @@ def _run_samples(args: argparse.Namespace) -> int:
                     f"[nk samples] Generating {total} voice samples in {output_dir}"
                 )
                 for index, (speaker_id, name) in enumerate(voices, start=1):
-                    safe_name = _sanitize_voice_sample_name(name)
-                    filename = f"{speaker_id:0{width}d}-{safe_name}.mp3"
+                    filename = format_voice_sample_filename(
+                        speaker_id,
+                        name,
+                        width=width,
+                    )
                     output_path = output_dir / filename
                     if output_path.exists() and not args.overwrite:
                         print(
