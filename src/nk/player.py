@@ -81,6 +81,9 @@ RECENTLY_PLAYED_LABEL = "Recently Played"
 VOICE_SAMPLES_DIR = "samples"
 VOICE_SAMPLES_ROSTER_FILENAME = "voices.json"
 VOICE_SAMPLES_INDEX_FILENAME = "index.json"
+VOICE_SAMPLE_DEFAULT_SPEED = 1.0
+VOICE_SAMPLE_DEFAULT_PITCH = 0.0
+VOICE_SAMPLE_DEFAULT_INTONATION = 1.0
 
 
 def _normalize_sort_mode(value: str | None) -> str:
@@ -292,7 +295,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
       min-height: auto;
       padding: 0.75rem 0.9rem 0.9rem;
       gap: 0.6rem;
-      max-width: 520px;
+      width: 260px;
+      max-width: 260px;
+      flex: 0 0 260px;
     }
     .voice-sample-header {
       display: flex;
@@ -306,12 +311,6 @@ INDEX_HTML = r"""<!DOCTYPE html>
     .voice-sample-id {
       font-size: 0.8rem;
       color: var(--muted);
-    }
-    .voice-sample-audio {
-      width: 100%;
-    }
-    .voice-sample-audio.hidden {
-      display: none;
     }
     .voice-sample-controls {
       display: flex;
@@ -391,9 +390,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      justify-content: space-between;
+      justify-content: flex-start;
       flex-wrap: wrap;
     }
+    .voice-sample-play,
     .voice-sample-delete {
       padding: 0.35rem 0.8rem;
       font-size: 0.8rem;
@@ -453,7 +453,11 @@ INDEX_HTML = r"""<!DOCTYPE html>
       transform: rotate(180deg);
     }
     .voice-sample-group-grid {
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      align-items: stretch;
+      gap: 0.8rem;
       margin-top: 0.6rem;
     }
     .voice-samples-actions {
@@ -1636,6 +1640,11 @@ INDEX_HTML = r"""<!DOCTYPE html>
         flex-direction: column;
         align-items: flex-start;
       }
+      .voice-sample-card {
+        width: 100%;
+        max-width: 100%;
+        flex: 1 1 100%;
+      }
     }
   </style>
 </head>
@@ -1895,6 +1904,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
     const CHAPTER_TITLE_MAX_LENGTH = 50;
     let isScrubbing = false;
     let playbackRateIndex = PLAYBACK_RATES.indexOf(1);
+    let voiceSamplePlayer = null;
     const voiceSpeakerInput = document.getElementById('voice-speaker');
     const voiceSpeedInput = document.getElementById('voice-speed');
     const voicePitchInput = document.getElementById('voice-pitch');
@@ -1971,6 +1981,11 @@ INDEX_HTML = r"""<!DOCTYPE html>
       pitch: -0.08,
       intonation: 1.25,
     };
+    const VOICE_SAMPLE_DEFAULTS = {
+      speed: 1,
+      pitch: 0,
+      intonation: 1,
+    };
     const VIEW_LIBRARY = 'library';
     const VIEW_SAMPLES = 'voice-samples';
     if (![VIEW_LIBRARY, VIEW_SAMPLES].includes(initialView)) {
@@ -1984,7 +1999,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
       voiceRoster: [],
       voiceRosterLoaded: false,
       voiceRosterLoading: false,
-      voiceSampleDefaults: { ...DEFAULT_VOICE },
+      voiceSampleDefaults: { ...VOICE_SAMPLE_DEFAULTS },
       voiceSampleText: '',
       voiceSampleError: null,
       voiceSampleCache: {},
@@ -3942,7 +3957,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
         const defaults = data?.defaults && typeof data.defaults === 'object'
           ? data.defaults
           : {};
-        state.voiceSampleDefaults = { ...DEFAULT_VOICE, ...defaults };
+        state.voiceSampleDefaults = { ...VOICE_SAMPLE_DEFAULTS, ...defaults };
         if (typeof data?.sample_text === 'string') {
           state.voiceSampleText = data.sample_text;
         }
@@ -4115,14 +4130,16 @@ INDEX_HTML = r"""<!DOCTYPE html>
 
         const actions = document.createElement('div');
         actions.className = 'voice-sample-saved-actions';
-        const audio = document.createElement('audio');
-        audio.className = 'voice-sample-audio';
-        audio.controls = true;
-        audio.preload = 'none';
-        if (typeof sample.url === 'string' && sample.url) {
-          audio.src = sample.url;
-        }
-        actions.appendChild(audio);
+        const playBtn = document.createElement('button');
+        playBtn.type = 'button';
+        playBtn.className = 'secondary voice-sample-play';
+        playBtn.textContent = 'Play';
+        playBtn.addEventListener('click', () => {
+          if (typeof sample.url === 'string' && sample.url) {
+            playCachedSample(sample.url);
+          }
+        });
+        actions.appendChild(playBtn);
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
         deleteBtn.className = 'secondary voice-sample-delete';
@@ -4159,15 +4176,6 @@ INDEX_HTML = r"""<!DOCTYPE html>
       }
     }
 
-    function playSavedSample(voiceId, sampleId) {
-      if (!voiceSamplesGrid) return;
-      const selector = `.voice-sample-card[data-voice-id="${voiceId}"] .voice-sample-saved-item[data-sample-id="${sampleId}"] audio`;
-      const audio = voiceSamplesGrid.querySelector(selector);
-      if (audio && typeof audio.play === 'function') {
-        audio.play().catch(() => {});
-      }
-    }
-
     function parseSampleScale(input, fallback, label) {
       if (!input) return fallback;
       const raw = input.value.trim();
@@ -4177,6 +4185,23 @@ INDEX_HTML = r"""<!DOCTYPE html>
         throw new Error(`${label} must be numeric.`);
       }
       return num;
+    }
+
+    function playCachedSample(url) {
+      if (!url || typeof url !== 'string') return;
+      if (!voiceSamplePlayer) {
+        voiceSamplePlayer = new Audio();
+        voiceSamplePlayer.preload = 'none';
+      } else {
+        voiceSamplePlayer.pause();
+        try {
+          voiceSamplePlayer.currentTime = 0;
+        } catch {
+          // ignore reset errors
+        }
+      }
+      voiceSamplePlayer.src = url;
+      voiceSamplePlayer.play().catch(() => {});
     }
 
     function setVoiceSampleRowStatus(node, message, isError = false) {
@@ -4205,7 +4230,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
         setVoiceSampleRowStatus(statusNode, 'Sample text is required.', true);
         return;
       }
-      const defaults = state.voiceSampleDefaults || DEFAULT_VOICE;
+      const defaults = state.voiceSampleDefaults || VOICE_SAMPLE_DEFAULTS;
       let speed;
       let pitch;
       let intonation;
@@ -4245,8 +4270,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
         if (sample) {
           rememberVoiceSample(sample);
           updateSavedSamplesForVoice(String(voiceId));
-          if (sample.id) {
-            playSavedSample(String(voiceId), sample.id);
+          if (sample.url) {
+            playCachedSample(sample.url);
           }
         }
         setVoiceSampleRowStatus(
@@ -4276,7 +4301,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
           ? voice.display_name.trim()
           : 'Voice');
       if (voiceId === null) return null;
-      const defaults = state.voiceSampleDefaults || DEFAULT_VOICE;
+      const defaults = state.voiceSampleDefaults || VOICE_SAMPLE_DEFAULTS;
 
       const card = document.createElement('article');
       card.className = 'card voice-sample-card';
@@ -6199,15 +6224,9 @@ def _write_voice_roster_cache(
 
 def _voice_sample_defaults(config: PlayerConfig) -> dict[str, float]:
     return {
-        "speed": float(config.speed_scale)
-        if config.speed_scale is not None
-        else float(DEFAULT_SPEED_SCALE),
-        "pitch": float(config.pitch_scale)
-        if config.pitch_scale is not None
-        else float(DEFAULT_PITCH_SCALE),
-        "intonation": float(config.intonation_scale)
-        if config.intonation_scale is not None
-        else float(DEFAULT_INTONATION_SCALE),
+        "speed": VOICE_SAMPLE_DEFAULT_SPEED,
+        "pitch": VOICE_SAMPLE_DEFAULT_PITCH,
+        "intonation": VOICE_SAMPLE_DEFAULT_INTONATION,
     }
 
 
