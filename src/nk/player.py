@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import shutil
 import threading
@@ -47,6 +48,8 @@ from .voice_defaults import (
 from .voice_samples import (
     build_sample_text,
     format_voice_sample_filename,
+    sanitize_voice_sample_name,
+    voice_roster_from_payload,
     voice_samples_from_payload,
 )
 from .web_assets import NK_APPLE_TOUCH_ICON_PNG, NK_FAVICON_URL
@@ -76,6 +79,11 @@ _SORT_MODES = {"author", "recent", "played"}
 RECENTLY_PLAYED_PREFIX = "__nk_recently_played__"
 RECENTLY_PLAYED_LABEL = "Recently Played"
 VOICE_SAMPLES_DIR = "samples"
+VOICE_SAMPLES_ROSTER_FILENAME = "voices.json"
+VOICE_SAMPLES_INDEX_FILENAME = "index.json"
+VOICE_SAMPLE_DEFAULT_SPEED = 1.0
+VOICE_SAMPLE_DEFAULT_PITCH = 0.0
+VOICE_SAMPLE_DEFAULT_INTONATION = 1.0
 
 
 def _normalize_sort_mode(value: str | None) -> str:
@@ -136,6 +144,25 @@ INDEX_HTML = r"""<!DOCTYPE html>
     header {
       padding: 1.3rem 1.6rem 1rem;
       background: linear-gradient(135deg, rgba(59,130,246,0.18), transparent);
+    }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .header-title {
+      display: flex;
+      flex-direction: column;
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .header-actions button {
+      white-space: nowrap;
     }
     header h1 {
       margin: 0;
@@ -268,6 +295,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
       min-height: auto;
       padding: 0.75rem 0.9rem 0.9rem;
       gap: 0.6rem;
+      width: 260px;
+      max-width: 260px;
+      flex: 0 0 260px;
     }
     .voice-sample-header {
       display: flex;
@@ -282,11 +312,153 @@ INDEX_HTML = r"""<!DOCTYPE html>
       font-size: 0.8rem;
       color: var(--muted);
     }
-    .voice-sample-audio {
+    .voice-sample-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .voice-sample-text textarea {
+      min-height: 4.5rem;
+    }
+    .voice-sample-params {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 0.5rem;
+    }
+    .voice-sample-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .voice-sample-status {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .voice-sample-saved {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .voice-sample-saved-title {
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .voice-sample-saved-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .voice-sample-saved-item {
+      background: rgba(8, 10, 18, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .voice-sample-saved-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .voice-sample-text-preview {
+      font-size: 0.82rem;
+      color: var(--muted);
+      white-space: pre-wrap;
+    }
+    .voice-sample-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .voice-sample-chip {
+      font-size: 0.72rem;
+      color: #cbd5f5;
+      background: rgba(148, 163, 184, 0.2);
+      padding: 0.2rem 0.4rem;
+      border-radius: 999px;
+    }
+    .voice-sample-saved-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
+    .voice-sample-play,
+    .voice-sample-delete {
+      padding: 0.35rem 0.8rem;
+      font-size: 0.8rem;
+    }
+    .voice-sample-empty {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .voice-samples-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
       width: 100%;
     }
-    .voice-samples-panel {
-      margin-top: 1rem;
+    .voice-samples-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+    .voice-samples-header h2 {
+      margin: 0;
+    }
+    .voice-samples-intro {
+      margin: 0.35rem 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .voice-sample-group {
+      border-radius: calc(var(--radius) - 6px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(12, 16, 26, 0.75);
+      padding: 0.35rem 0.6rem 0.8rem;
+    }
+    .voice-sample-group summary {
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text);
+      padding: 0.35rem 0.2rem;
+    }
+    .voice-sample-group summary::marker {
+      display: none;
+    }
+    .voice-sample-group summary::after {
+      content: "▾";
+      font-size: 0.8rem;
+      color: var(--muted);
+      transition: transform 0.2s ease;
+    }
+    .voice-sample-group[open] summary::after {
+      transform: rotate(180deg);
+    }
+    .voice-sample-group-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      align-items: stretch;
+      gap: 0.8rem;
+      margin-top: 0.6rem;
     }
     .voice-samples-actions {
       display: flex;
@@ -742,6 +914,15 @@ INDEX_HTML = r"""<!DOCTYPE html>
       color: var(--text);
       padding: 0.4rem 0.6rem;
       font-size: 1rem;
+    }
+    .voice-field textarea {
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(10, 12, 22, 0.8);
+      color: var(--text);
+      padding: 0.4rem 0.6rem;
+      font-size: 0.95rem;
+      resize: vertical;
     }
     .voice-actions {
       display: flex;
@@ -1459,13 +1640,25 @@ INDEX_HTML = r"""<!DOCTYPE html>
         flex-direction: column;
         align-items: flex-start;
       }
+      .voice-sample-card {
+        width: 100%;
+        max-width: 100%;
+        flex: 1 1 100%;
+      }
     }
   </style>
 </head>
 <body>
   <header>
-    <h1><a href="/" id="home-link">nk Player</a></h1>
-    <p>Stream your EPUB chapter by chapter.</p>
+    <div class="header-row">
+      <div class="header-title">
+        <h1><a href="/" id="home-link">nk Player</a></h1>
+        <p>Stream your EPUB chapter by chapter.</p>
+      </div>
+      <div class="header-actions">
+        <button id="voice-samples-link" class="secondary" type="button">Voice samples</button>
+      </div>
+    </div>
   </header>
   <main>
     <section class="panel" id="books-panel">
@@ -1495,17 +1688,22 @@ INDEX_HTML = r"""<!DOCTYPE html>
       </details>
       <div class="cards collection-cards hidden" id="collections-grid"></div>
       <div class="cards" id="books-grid"></div>
-      <details class="voice-controls voice-samples-panel hidden" id="voice-samples-panel">
-        <summary>Voice samples (optional)</summary>
-        <div class="voice-controls-content">
-          <div class="voice-samples-actions">
-            <button id="voice-samples-load" class="secondary" type="button">Load samples</button>
-            <button id="voice-samples-generate" type="button">Generate samples</button>
-            <span class="voice-samples-status" id="voice-samples-status"></span>
-          </div>
-          <div class="cards voice-samples-grid" id="voice-samples-grid"></div>
+    </section>
+
+    <section class="panel hidden" id="voice-samples-page">
+      <div class="voice-samples-header">
+        <div>
+          <h2>Voice samples</h2>
+          <p class="voice-samples-intro">Generate sample clips on demand with custom text and tuning.</p>
         </div>
-      </details>
+      </div>
+      <div class="voice-controls-content">
+        <div class="voice-samples-actions">
+          <button id="voice-samples-refresh" class="secondary" type="button">Load voices</button>
+          <span class="voice-samples-status" id="voice-samples-status"></span>
+        </div>
+        <div class="voice-samples-list" id="voice-samples-grid"></div>
+      </div>
     </section>
 
     <section class="panel hidden" id="chapters-panel">
@@ -1645,13 +1843,14 @@ INDEX_HTML = r"""<!DOCTYPE html>
 
   <script type="application/json" id="nk-player-config">__NK_PLAYER_CONFIG__</script>
   <script>
+    const booksPanel = document.getElementById('books-panel');
     const booksGrid = document.getElementById('books-grid');
     const collectionsGrid = document.getElementById('collections-grid');
-    const voiceSamplesPanel = document.getElementById('voice-samples-panel');
+    const voiceSamplesPage = document.getElementById('voice-samples-page');
     const voiceSamplesGrid = document.getElementById('voice-samples-grid');
-    const voiceSamplesLoadBtn = document.getElementById('voice-samples-load');
-    const voiceSamplesGenerateBtn = document.getElementById('voice-samples-generate');
+    const voiceSamplesRefreshBtn = document.getElementById('voice-samples-refresh');
     const voiceSamplesStatus = document.getElementById('voice-samples-status');
+    const voiceSamplesLink = document.getElementById('voice-samples-link');
     const libraryBreadcrumb = document.getElementById('library-breadcrumb');
     const libraryBackButton = document.getElementById('library-back');
     const chaptersPanel = document.getElementById('chapters-panel');
@@ -1705,6 +1904,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
     const CHAPTER_TITLE_MAX_LENGTH = 50;
     let isScrubbing = false;
     let playbackRateIndex = PLAYBACK_RATES.indexOf(1);
+    let voiceSamplePlayer = null;
     const voiceSpeakerInput = document.getElementById('voice-speaker');
     const voiceSpeedInput = document.getElementById('voice-speed');
     const voicePitchInput = document.getElementById('voice-pitch');
@@ -1720,20 +1920,25 @@ INDEX_HTML = r"""<!DOCTYPE html>
     if (pendingEpubPanel) {
       pendingEpubPanel.open = false;
     }
-    if (voiceSamplesPanel) {
-      voiceSamplesPanel.open = false;
-    }
     const playerConfigNode = document.getElementById('nk-player-config');
     let readerBaseUrl = null;
+    let initialView = 'library';
     if (playerConfigNode && typeof playerConfigNode.textContent === 'string') {
       try {
         const payload = JSON.parse(playerConfigNode.textContent);
         if (payload && typeof payload.reader_url === 'string' && payload.reader_url.trim()) {
           readerBaseUrl = payload.reader_url.trim();
         }
+        if (payload && typeof payload.view === 'string' && payload.view.trim()) {
+          initialView = payload.view.trim();
+        }
       } catch (err) {
         console.warn('Failed to parse nk player config:', err);
       }
+    }
+    const trimmedPath = window.location.pathname.replace(/\/+$/, '');
+    if (initialView === 'library' && trimmedPath.endsWith('/voice-samples')) {
+      initialView = 'voice-samples';
     }
 
     function isIpLikeHost(hostname) {
@@ -1776,17 +1981,31 @@ INDEX_HTML = r"""<!DOCTYPE html>
       pitch: -0.08,
       intonation: 1.25,
     };
+    const VOICE_SAMPLE_DEFAULTS = {
+      speed: 1,
+      pitch: 0,
+      intonation: 1,
+    };
+    const VIEW_LIBRARY = 'library';
+    const VIEW_SAMPLES = 'voice-samples';
+    if (![VIEW_LIBRARY, VIEW_SAMPLES].includes(initialView)) {
+      initialView = VIEW_LIBRARY;
+    }
 
     const state = {
       books: [],
       collections: [],
-      voiceSamples: [],
-      voiceSamplesLoaded: false,
-      voiceSamplesLoading: false,
-      voiceSamplesGenerating: false,
-      voiceSamplesStatusLoading: false,
-      voiceSamplesCount: null,
-      voiceSamplesError: null,
+      activeView: initialView,
+      voiceRoster: [],
+      voiceRosterLoaded: false,
+      voiceRosterLoading: false,
+      voiceSampleDefaults: { ...VOICE_SAMPLE_DEFAULTS },
+      voiceSampleText: '',
+      voiceSampleError: null,
+      voiceSampleCache: {},
+      voiceSampleCacheLoaded: false,
+      voiceSampleCacheLoading: false,
+      voiceSampleCacheCount: 0,
       chapters: [],
       currentBook: null,
       currentChapterIndex: -1,
@@ -1970,6 +2189,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
     }
     if (homeLink) {
       homeLink.addEventListener('click', event => {
+        if (isVoiceSamplesView()) {
+          return;
+        }
         event.preventDefault();
         if (state.currentBook) {
           closeBookView({ skipHistory: true });
@@ -3644,229 +3866,599 @@ INDEX_HTML = r"""<!DOCTYPE html>
       return card;
     }
 
-    function voiceSampleLabel(sample) {
-      if (sample && typeof sample.name === 'string' && sample.name.trim()) {
-        return sample.name.trim();
-      }
-      if (sample && typeof sample.filename === 'string' && sample.filename) {
-        const stem = sample.filename.replace(/\.mp3$/i, '');
-        return stem.replace(/^\d+-/, '') || stem;
-      }
-      return 'Voice sample';
-    }
-
     function setVoiceSamplesStatus(message, isError = false) {
       if (!voiceSamplesStatus) return;
       voiceSamplesStatus.textContent = message || '';
       voiceSamplesStatus.style.color = isError ? '#f87171' : 'var(--muted)';
     }
 
+    function isVoiceSamplesView() {
+      return state.activeView === VIEW_SAMPLES;
+    }
+
     function updateVoiceSamplesControls() {
-      const busy = state.voiceSamplesLoading || state.voiceSamplesGenerating || state.voiceSamplesStatusLoading;
-      const knownCount = Number.isFinite(state.voiceSamplesCount)
-        ? state.voiceSamplesCount
-        : (state.voiceSamplesLoaded ? state.voiceSamples.length : 0);
-      if (voiceSamplesLoadBtn) {
-        if (state.voiceSamplesLoading) {
-          voiceSamplesLoadBtn.disabled = true;
-          voiceSamplesLoadBtn.textContent = 'Loading...';
-        } else {
-          voiceSamplesLoadBtn.disabled = busy;
-          voiceSamplesLoadBtn.textContent = state.voiceSamplesLoaded
-            ? 'Reload samples'
-            : 'Load samples';
-        }
+      if (!voiceSamplesRefreshBtn) return;
+      if (state.voiceRosterLoading) {
+        voiceSamplesRefreshBtn.disabled = true;
+        voiceSamplesRefreshBtn.textContent = 'Loading...';
+        return;
       }
-      if (voiceSamplesGenerateBtn) {
-        if (state.voiceSamplesGenerating) {
-          voiceSamplesGenerateBtn.disabled = true;
-          voiceSamplesGenerateBtn.textContent = 'Generating...';
-        } else {
-          voiceSamplesGenerateBtn.disabled = busy;
-          voiceSamplesGenerateBtn.textContent = knownCount > 0
-            ? 'Regenerate samples'
-            : 'Generate samples';
+      voiceSamplesRefreshBtn.disabled = false;
+      voiceSamplesRefreshBtn.textContent = state.voiceRosterLoaded
+        ? 'Refresh voices'
+        : 'Load voices';
+    }
+
+    function clearVoiceSamplesGrid() {
+      if (!voiceSamplesGrid) return;
+      const audioNodes = Array.from(
+        voiceSamplesGrid.querySelectorAll('audio[data-blob-url]')
+      );
+      audioNodes.forEach(node => {
+        const url = node.dataset.blobUrl;
+        if (url) {
+          URL.revokeObjectURL(url);
         }
-      }
+      });
+      voiceSamplesGrid.innerHTML = '';
     }
 
     function updateVoiceSamplesVisibility() {
-      if (!voiceSamplesPanel) return;
-      const isRoot = !normalizeLibraryPath(state.libraryPrefix);
-      voiceSamplesPanel.classList.toggle('hidden', !isRoot);
-      if (!isRoot) {
-        voiceSamplesPanel.open = false;
-        if (voiceSamplesGrid) {
-          voiceSamplesGrid.innerHTML = '';
-        }
-        state.voiceSamplesLoaded = false;
-        state.voiceSamplesLoading = false;
-        state.voiceSamplesGenerating = false;
-        state.voiceSamplesStatusLoading = false;
-        state.voiceSamplesCount = null;
-        state.voiceSamples = [];
+      if (!voiceSamplesPage) return;
+      const isSamplesView = isVoiceSamplesView();
+      voiceSamplesPage.classList.toggle('hidden', !isSamplesView);
+      if (!isSamplesView) {
+        clearVoiceSamplesGrid();
         setVoiceSamplesStatus('');
       }
     }
 
-    async function refreshVoiceSamplesStatus({ silent = false } = {}) {
-      if (state.voiceSamplesStatusLoading) {
-        return state.voiceSamplesCount;
-      }
-      state.voiceSamplesStatusLoading = true;
-      updateVoiceSamplesControls();
-      if (!silent) {
-        setVoiceSamplesStatus('Checking samples...');
-      }
-      try {
-        const data = await fetchJSON('/api/voice-samples/status');
-        const count = Number.isFinite(data?.count) ? data.count : 0;
-        state.voiceSamplesCount = count;
-        if (!silent) {
-          setVoiceSamplesStatus(
-            count > 0 ? `${count} samples available.` : 'No voice samples found.'
-          );
-        }
-      } catch (err) {
-        if (!silent) {
-          setVoiceSamplesStatus('Failed to check voice samples.', true);
-        }
-      } finally {
-        state.voiceSamplesStatusLoading = false;
-        updateVoiceSamplesControls();
-      }
-      return state.voiceSamplesCount;
+    function updateVoiceSamplesLink() {
+      if (!voiceSamplesLink) return;
+      const isSamplesView = isVoiceSamplesView();
+      voiceSamplesLink.textContent = isSamplesView ? 'Back to library' : 'Voice samples';
+      voiceSamplesLink.setAttribute(
+        'aria-label',
+        isSamplesView ? 'Back to library' : 'Open voice samples'
+      );
     }
 
-    async function loadVoiceSamples({ force = false } = {}) {
-      if (state.voiceSamplesLoading) return;
-      if (state.voiceSamplesLoaded && !force) {
+    function applyViewMode() {
+      const isSamplesView = isVoiceSamplesView();
+      if (booksPanel) {
+        booksPanel.classList.toggle('hidden', isSamplesView);
+      }
+      if (chaptersPanel && isSamplesView) {
+        chaptersPanel.classList.add('hidden');
+      }
+      if (playerDock && isSamplesView) {
+        playerDock.classList.add('hidden');
+      }
+      updateVoiceSamplesVisibility();
+      updateVoiceSamplesLink();
+    }
+
+    async function loadVoiceRoster({ force = false } = {}) {
+      if (state.voiceRosterLoading) return;
+      if (state.voiceRosterLoaded && !force) {
         renderVoiceSamples();
         return;
       }
-      state.voiceSamplesLoading = true;
-      state.voiceSamplesError = null;
+      state.voiceRosterLoading = true;
+      state.voiceSampleError = null;
       updateVoiceSamplesControls();
-      setVoiceSamplesStatus('Loading...');
+      setVoiceSamplesStatus('Loading voices...');
       try {
-        const data = await fetchJSON('/api/voice-samples');
-        const samples = Array.isArray(data?.samples)
-          ? data.samples
-          : (Array.isArray(data) ? data : []);
-        state.voiceSamples = samples;
-        state.voiceSamplesLoaded = true;
-        state.voiceSamplesCount = Number.isFinite(data?.count) ? data.count : samples.length;
-        if (!samples.length) {
-          setVoiceSamplesStatus('No voice samples found.');
+        const query = force ? '?refresh=1' : '';
+        const data = await fetchJSON(`/api/voice-samples/voices${query}`);
+        const roster = Array.isArray(data?.characters) ? data.characters : [];
+        state.voiceRoster = roster;
+        state.voiceRosterLoaded = true;
+        const defaults = data?.defaults && typeof data.defaults === 'object'
+          ? data.defaults
+          : {};
+        state.voiceSampleDefaults = { ...VOICE_SAMPLE_DEFAULTS, ...defaults };
+        if (typeof data?.sample_text === 'string') {
+          state.voiceSampleText = data.sample_text;
+        }
+        if (!roster.length) {
+          setVoiceSamplesStatus('No voices found.');
+        } else if (data?.cached) {
+          setVoiceSamplesStatus(`${roster.length} characters loaded (cached).`);
         } else {
-          setVoiceSamplesStatus(`${samples.length} samples loaded.`);
+          setVoiceSamplesStatus(`${roster.length} characters loaded.`);
         }
       } catch (err) {
-        state.voiceSamplesError = err;
-        setVoiceSamplesStatus('Failed to load voice samples.', true);
+        state.voiceSampleError = err;
+        setVoiceSamplesStatus('Failed to load voice list.', true);
       } finally {
-        state.voiceSamplesLoading = false;
+        state.voiceRosterLoading = false;
         updateVoiceSamplesControls();
       }
       renderVoiceSamples();
+      loadVoiceSampleCache({ force });
     }
 
-    async function generateVoiceSamples() {
-      if (state.voiceSamplesGenerating) return;
-      const count = await refreshVoiceSamplesStatus({ silent: true });
-      const knownCount = Number.isFinite(count) ? count : 0;
-      if (knownCount > 0) {
-        const confirmMsg = 'Regenerate voice samples? This will overwrite existing files.';
-        if (!window.confirm(confirmMsg)) {
-          return;
+    function groupSamplesByVoice(samples) {
+      const grouped = {};
+      samples.forEach(sample => {
+        if (!sample || typeof sample !== 'object') return;
+        if (!Number.isFinite(sample.voice_id)) return;
+        const key = String(sample.voice_id);
+        if (!grouped[key]) {
+          grouped[key] = [];
+        }
+        grouped[key].push(sample);
+      });
+      Object.values(grouped).forEach(list => {
+        list.sort((a, b) => {
+          const aTime = Number.isFinite(a.created_at) ? a.created_at : 0;
+          const bTime = Number.isFinite(b.created_at) ? b.created_at : 0;
+          return bTime - aTime;
+        });
+      });
+      return grouped;
+    }
+
+    async function loadVoiceSampleCache({ force = false } = {}) {
+      if (state.voiceSampleCacheLoading) return;
+      if (state.voiceSampleCacheLoaded && !force) {
+        updateAllSavedSamples();
+        return;
+      }
+      state.voiceSampleCacheLoading = true;
+      try {
+        const data = await fetchJSON('/api/voice-samples/cache');
+        const samples = Array.isArray(data?.samples) ? data.samples : [];
+        state.voiceSampleCache = groupSamplesByVoice(samples);
+        state.voiceSampleCacheLoaded = true;
+        state.voiceSampleCacheCount = Number.isFinite(data?.count) ? data.count : samples.length;
+      } catch (err) {
+        state.voiceSampleCache = {};
+        state.voiceSampleCacheLoaded = false;
+        state.voiceSampleCacheCount = 0;
+      } finally {
+        state.voiceSampleCacheLoading = false;
+      }
+      updateAllSavedSamples();
+    }
+
+    function rememberVoiceSample(sample) {
+      if (!sample || typeof sample !== 'object') return;
+      if (!Number.isFinite(sample.voice_id)) return;
+      const key = String(sample.voice_id);
+      const list = Array.isArray(state.voiceSampleCache[key]) ? state.voiceSampleCache[key] : [];
+      const existingIndex = list.findIndex(entry => entry && entry.id === sample.id);
+      if (existingIndex >= 0) {
+        list[existingIndex] = sample;
+      } else {
+        list.unshift(sample);
+      }
+      list.sort((a, b) => {
+        const aTime = Number.isFinite(a.created_at) ? a.created_at : 0;
+        const bTime = Number.isFinite(b.created_at) ? b.created_at : 0;
+        return bTime - aTime;
+      });
+      state.voiceSampleCache[key] = list;
+      state.voiceSampleCacheLoaded = true;
+    }
+
+    function removeVoiceSample(sample) {
+      if (!sample || typeof sample !== 'object') return;
+      if (!Number.isFinite(sample.voice_id)) return;
+      const key = String(sample.voice_id);
+      const list = Array.isArray(state.voiceSampleCache[key]) ? state.voiceSampleCache[key] : [];
+      const filtered = list.filter(entry => entry && entry.id !== sample.id);
+      state.voiceSampleCache[key] = filtered;
+    }
+
+    function updateAllSavedSamples() {
+      if (!voiceSamplesGrid) return;
+      const cards = Array.from(voiceSamplesGrid.querySelectorAll('.voice-sample-card'));
+      cards.forEach(card => {
+        const voiceId = card.dataset.voiceId;
+        if (!voiceId) return;
+        updateSavedSamplesForVoice(voiceId);
+      });
+    }
+
+    function updateSavedSamplesForVoice(voiceId) {
+      if (!voiceSamplesGrid) return;
+      const card = voiceSamplesGrid.querySelector(`.voice-sample-card[data-voice-id="${voiceId}"]`);
+      if (!card) return;
+      const listNode = card.querySelector('.voice-sample-saved-list');
+      if (!listNode) return;
+      const samples = Array.isArray(state.voiceSampleCache[String(voiceId)])
+        ? state.voiceSampleCache[String(voiceId)]
+        : [];
+      renderSavedSamplesList(listNode, samples);
+    }
+
+    function renderSavedSamplesList(listNode, samples) {
+      if (!listNode) return;
+      listNode.innerHTML = '';
+      const hasSamples = Array.isArray(samples) && samples.length > 0;
+      const wrapper = listNode.closest('.voice-sample-saved');
+      const title = wrapper ? wrapper.querySelector('.voice-sample-saved-title') : null;
+      if (title) {
+        title.textContent = hasSamples
+          ? `Saved samples (${samples.length})`
+          : 'Saved samples';
+      }
+      if (!hasSamples) {
+        const empty = document.createElement('div');
+        empty.className = 'voice-sample-empty';
+        empty.textContent = 'No saved samples yet.';
+        listNode.appendChild(empty);
+        return;
+      }
+      samples.forEach(sample => {
+        if (!sample || typeof sample !== 'object') return;
+        const item = document.createElement('div');
+        item.className = 'voice-sample-saved-item';
+        if (sample.id) {
+          item.dataset.sampleId = String(sample.id);
+        }
+        const meta = document.createElement('div');
+        meta.className = 'voice-sample-saved-meta';
+        const text = document.createElement('div');
+        text.className = 'voice-sample-text-preview';
+        const preview = typeof sample.text === 'string'
+          ? sample.text.split(String.fromCharCode(10)).filter(line => line.trim())[0] || ''
+          : '';
+        text.textContent = preview ? preview : 'Sample text';
+        meta.appendChild(text);
+        const chips = document.createElement('div');
+        chips.className = 'voice-sample-chips';
+        const addChip = (label, value) => {
+          const chip = document.createElement('span');
+          chip.className = 'voice-sample-chip';
+          chip.textContent = `${label} ${value}`;
+          chips.appendChild(chip);
+        };
+        if (Number.isFinite(sample.speed)) {
+          addChip('spd', Number(sample.speed).toFixed(2));
+        }
+        if (Number.isFinite(sample.pitch)) {
+          addChip('pit', Number(sample.pitch).toFixed(2));
+        }
+        if (Number.isFinite(sample.intonation)) {
+          addChip('int', Number(sample.intonation).toFixed(2));
+        }
+        meta.appendChild(chips);
+        item.appendChild(meta);
+
+        const actions = document.createElement('div');
+        actions.className = 'voice-sample-saved-actions';
+        const playBtn = document.createElement('button');
+        playBtn.type = 'button';
+        playBtn.className = 'secondary voice-sample-play';
+        playBtn.textContent = 'Play';
+        playBtn.addEventListener('click', () => {
+          if (typeof sample.url === 'string' && sample.url) {
+            playCachedSample(sample.url);
+          }
+        });
+        actions.appendChild(playBtn);
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'secondary voice-sample-delete';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', () => {
+          handlePromise(deleteVoiceSample(sample));
+        });
+        actions.appendChild(deleteBtn);
+        item.appendChild(actions);
+        listNode.appendChild(item);
+      });
+    }
+
+    function encodeSamplePath(pathValue) {
+      if (!pathValue) return '';
+      return pathValue.split('/').map(part => encodeURIComponent(part)).join('/');
+    }
+
+    async function deleteVoiceSample(sample) {
+      if (!sample || typeof sample !== 'object') return;
+      if (!sample.path || typeof sample.path !== 'string') return;
+      if (!window.confirm('Delete this saved sample?')) return;
+      const target = encodeSamplePath(sample.path);
+      const res = await fetch(`/api/voice-samples/cached/${target}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const detail = await readErrorResponse(res);
+        throw new Error(detail || `HTTP ${res.status}`);
+      }
+      removeVoiceSample(sample);
+      if (Number.isFinite(sample.voice_id)) {
+        updateSavedSamplesForVoice(String(sample.voice_id));
+      } else {
+        updateAllSavedSamples();
+      }
+    }
+
+    function parseSampleScale(input, fallback, label) {
+      if (!input) return fallback;
+      const raw = input.value.trim();
+      if (!raw) return fallback;
+      const num = Number(raw);
+      if (!Number.isFinite(num)) {
+        throw new Error(`${label} must be numeric.`);
+      }
+      return num;
+    }
+
+    function playCachedSample(url) {
+      if (!url || typeof url !== 'string') return;
+      if (!voiceSamplePlayer) {
+        voiceSamplePlayer = new Audio();
+        voiceSamplePlayer.preload = 'none';
+      } else {
+        voiceSamplePlayer.pause();
+        try {
+          voiceSamplePlayer.currentTime = 0;
+        } catch {
+          // ignore reset errors
         }
       }
-      state.voiceSamplesGenerating = true;
-      updateVoiceSamplesControls();
-      setVoiceSamplesStatus(
-        knownCount > 0 ? 'Regenerating samples...' : 'Generating samples...'
-      );
+      voiceSamplePlayer.src = url;
+      voiceSamplePlayer.play().catch(() => {});
+    }
+
+    function setVoiceSampleRowStatus(node, message, isError = false) {
+      if (!node) return;
+      node.textContent = message || '';
+      node.style.color = isError ? '#f87171' : 'var(--muted)';
+    }
+
+    async function generateVoiceSample({
+      voiceId,
+      characterName,
+      voiceName,
+      textInput,
+      speedInput,
+      pitchInput,
+      intonationInput,
+      statusNode,
+      buttonNode,
+    }) {
+      if (!Number.isFinite(voiceId)) {
+        setVoiceSampleRowStatus(statusNode, 'Invalid voice id.', true);
+        return;
+      }
+      const rawText = textInput ? textInput.value : '';
+      if (!rawText.trim()) {
+        setVoiceSampleRowStatus(statusNode, 'Sample text is required.', true);
+        return;
+      }
+      const defaults = state.voiceSampleDefaults || VOICE_SAMPLE_DEFAULTS;
+      let speed;
+      let pitch;
+      let intonation;
       try {
-        const res = await fetch('/api/voice-samples/generate', {
+        speed = parseSampleScale(speedInput, defaults.speed, 'Speed');
+        pitch = parseSampleScale(pitchInput, defaults.pitch, 'Pitch');
+        intonation = parseSampleScale(intonationInput, defaults.intonation, 'Intonation');
+      } catch (err) {
+        setVoiceSampleRowStatus(statusNode, err.message || 'Invalid parameters.', true);
+        return;
+      }
+      if (buttonNode) {
+        buttonNode.disabled = true;
+        buttonNode.textContent = 'Generating...';
+      }
+      setVoiceSampleRowStatus(statusNode, 'Generating...');
+      try {
+        const res = await fetch('/api/voice-samples/cache', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ overwrite: knownCount > 0 }),
+          body: JSON.stringify({
+            speaker: voiceId,
+            character: characterName,
+            voice_name: voiceName,
+            text: rawText,
+            speed,
+            pitch,
+            intonation,
+          }),
         });
         if (!res.ok) {
           const detail = await readErrorResponse(res);
           throw new Error(detail || `HTTP ${res.status}`);
         }
         const payload = await res.json();
-        const nextCount = Number.isFinite(payload?.count)
-          ? payload.count
-          : (Number.isFinite(payload?.generated) ? payload.generated : knownCount);
-        state.voiceSamplesCount = nextCount;
-        state.voiceSamplesLoaded = false;
-        state.voiceSamples = [];
-        await loadVoiceSamples({ force: true });
-        if (Number.isFinite(payload?.generated)) {
-          setVoiceSamplesStatus(`Generated ${payload.generated} samples.`);
+        const sample = payload?.sample;
+        if (sample) {
+          rememberVoiceSample(sample);
+          updateSavedSamplesForVoice(String(voiceId));
+          if (sample.url) {
+            playCachedSample(sample.url);
+          }
         }
+        setVoiceSampleRowStatus(
+          statusNode,
+          payload?.cached ? 'Loaded cached sample.' : 'Saved sample.'
+        );
       } catch (err) {
-        setVoiceSamplesStatus(err.message || 'Failed to generate voice samples.', true);
+        setVoiceSampleRowStatus(
+          statusNode,
+          err.message || 'Failed to generate sample.',
+          true
+        );
       } finally {
-        state.voiceSamplesGenerating = false;
-        updateVoiceSamplesControls();
+        if (buttonNode) {
+          buttonNode.disabled = false;
+          buttonNode.textContent = 'Generate sample';
+        }
       }
     }
 
+    function createVoiceSampleCard(voice, characterName) {
+      if (!voice || typeof voice !== 'object') return null;
+      const voiceId = Number.isFinite(voice.id) ? voice.id : null;
+      const voiceName = typeof voice.name === 'string' && voice.name.trim()
+        ? voice.name.trim()
+        : (typeof voice.display_name === 'string' && voice.display_name.trim()
+          ? voice.display_name.trim()
+          : 'Voice');
+      if (voiceId === null) return null;
+      const defaults = state.voiceSampleDefaults || VOICE_SAMPLE_DEFAULTS;
+
+      const card = document.createElement('article');
+      card.className = 'card voice-sample-card';
+      card.dataset.voiceId = String(voiceId);
+
+      const header = document.createElement('div');
+      header.className = 'voice-sample-header';
+      const name = document.createElement('div');
+      name.className = 'voice-sample-name';
+      name.textContent = voiceName;
+      header.appendChild(name);
+      const idLabel = document.createElement('div');
+      idLabel.className = 'voice-sample-id';
+      idLabel.textContent = `#${voiceId}`;
+      header.appendChild(idLabel);
+      card.appendChild(header);
+
+      const controls = document.createElement('div');
+      controls.className = 'voice-sample-controls';
+
+      const textLabel = document.createElement('label');
+      textLabel.className = 'voice-field voice-sample-text';
+      textLabel.append('Sample text');
+      const textarea = document.createElement('textarea');
+      textarea.rows = 4;
+      textarea.value = state.voiceSampleText || '';
+      textLabel.appendChild(textarea);
+      controls.appendChild(textLabel);
+
+      const params = document.createElement('div');
+      params.className = 'voice-sample-params';
+
+      const speedLabel = document.createElement('label');
+      speedLabel.className = 'voice-field';
+      speedLabel.append('Speed');
+      const speedInput = document.createElement('input');
+      speedInput.type = 'number';
+      speedInput.step = '0.01';
+      speedInput.value = Number.isFinite(defaults.speed) ? String(defaults.speed) : '';
+      speedLabel.appendChild(speedInput);
+      params.appendChild(speedLabel);
+
+      const pitchLabel = document.createElement('label');
+      pitchLabel.className = 'voice-field';
+      pitchLabel.append('Pitch');
+      const pitchInput = document.createElement('input');
+      pitchInput.type = 'number';
+      pitchInput.step = '0.01';
+      pitchInput.value = Number.isFinite(defaults.pitch) ? String(defaults.pitch) : '';
+      pitchLabel.appendChild(pitchInput);
+      params.appendChild(pitchLabel);
+
+      const intonationLabel = document.createElement('label');
+      intonationLabel.className = 'voice-field';
+      intonationLabel.append('Intonation');
+      const intonationInput = document.createElement('input');
+      intonationInput.type = 'number';
+      intonationInput.step = '0.01';
+      intonationInput.value = Number.isFinite(defaults.intonation)
+        ? String(defaults.intonation)
+        : '';
+      intonationLabel.appendChild(intonationInput);
+      params.appendChild(intonationLabel);
+
+      controls.appendChild(params);
+      card.appendChild(controls);
+
+      const actions = document.createElement('div');
+      actions.className = 'voice-sample-actions';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = 'Generate sample';
+      const status = document.createElement('span');
+      status.className = 'voice-sample-status';
+      actions.appendChild(button);
+      actions.appendChild(status);
+      card.appendChild(actions);
+
+      const savedWrap = document.createElement('div');
+      savedWrap.className = 'voice-sample-saved';
+      const savedTitle = document.createElement('div');
+      savedTitle.className = 'voice-sample-saved-title';
+      savedTitle.textContent = 'Saved samples';
+      const savedList = document.createElement('div');
+      savedList.className = 'voice-sample-saved-list';
+      savedWrap.appendChild(savedTitle);
+      savedWrap.appendChild(savedList);
+      card.appendChild(savedWrap);
+      renderSavedSamplesList(
+        savedList,
+        Array.isArray(state.voiceSampleCache[String(voiceId)])
+          ? state.voiceSampleCache[String(voiceId)]
+          : []
+      );
+
+      button.addEventListener('click', () => {
+        generateVoiceSample({
+          voiceId,
+          characterName,
+          voiceName,
+          textInput: textarea,
+          speedInput,
+          pitchInput,
+          intonationInput,
+          statusNode: status,
+          buttonNode: button,
+        });
+      });
+
+      return card;
+    }
+
     function renderVoiceSamples() {
-      if (!voiceSamplesPanel || !voiceSamplesGrid) return;
-      const isRoot = !normalizeLibraryPath(state.libraryPrefix);
-      if (!isRoot) {
+      if (!voiceSamplesPage || !voiceSamplesGrid) return;
+      if (!isVoiceSamplesView()) {
+        clearVoiceSamplesGrid();
         return;
       }
-      if (!voiceSamplesPanel.open) {
-        voiceSamplesGrid.innerHTML = '';
+      if (!state.voiceRosterLoaded) {
+        clearVoiceSamplesGrid();
         return;
       }
-      if (!state.voiceSamplesLoaded) {
-        voiceSamplesGrid.innerHTML = '';
+      const roster = Array.isArray(state.voiceRoster) ? state.voiceRoster : [];
+      clearVoiceSamplesGrid();
+      if (roster.length === 0) {
         return;
       }
-      const samples = Array.isArray(state.voiceSamples) ? state.voiceSamples : [];
-      voiceSamplesGrid.innerHTML = '';
-      if (samples.length === 0) {
-        return;
-      }
-      samples.forEach(sample => {
-        if (!sample || typeof sample !== 'object') {
+      roster.forEach(entry => {
+        if (!entry || typeof entry !== 'object') {
           return;
         }
-        const url = sample.url;
-        if (typeof url !== 'string' || !url) {
+        const name = typeof entry.name === 'string' && entry.name.trim()
+          ? entry.name.trim()
+          : 'Voice';
+        const voices = Array.isArray(entry.voices) ? entry.voices : [];
+        if (!voices.length) {
           return;
         }
-        const card = document.createElement('article');
-        card.className = 'card voice-sample-card';
-        if (Number.isFinite(sample.id)) {
-          card.dataset.voiceId = String(sample.id);
+        const group = document.createElement('details');
+        group.className = 'voice-sample-group';
+        group.open = true;
+        const summary = document.createElement('summary');
+        summary.textContent = name;
+        group.appendChild(summary);
+        const grid = document.createElement('div');
+        grid.className = 'cards voice-sample-group-grid';
+        voices.forEach(voice => {
+          const card = createVoiceSampleCard(voice, name);
+          if (card) {
+            grid.appendChild(card);
+          }
+        });
+        if (!grid.childElementCount) {
+          return;
         }
-        const header = document.createElement('div');
-        header.className = 'voice-sample-header';
-        const name = document.createElement('div');
-        name.className = 'voice-sample-name';
-        name.textContent = voiceSampleLabel(sample);
-        header.appendChild(name);
-        if (Number.isFinite(sample.id)) {
-          const idLabel = document.createElement('div');
-          idLabel.className = 'voice-sample-id';
-          idLabel.textContent = `#${sample.id}`;
-          header.appendChild(idLabel);
-        }
-        card.appendChild(header);
-        const audio = document.createElement('audio');
-        audio.className = 'voice-sample-audio';
-        audio.controls = true;
-        audio.preload = 'none';
-        audio.src = url;
-        card.appendChild(audio);
-        voiceSamplesGrid.appendChild(card);
+        group.appendChild(grid);
+        voiceSamplesGrid.appendChild(group);
       });
     }
 
@@ -5190,29 +5782,19 @@ INDEX_HTML = r"""<!DOCTYPE html>
       closeBookView();
     };
 
-    if (voiceSamplesPanel) {
-      voiceSamplesPanel.addEventListener('toggle', () => {
-        if (!voiceSamplesPanel.open) {
-          if (voiceSamplesGrid) {
-            voiceSamplesGrid.innerHTML = '';
-          }
-          return;
-        }
-        updateVoiceSamplesControls();
-        refreshVoiceSamplesStatus({ silent: false });
-        if (state.voiceSamplesLoaded) {
-          renderVoiceSamples();
-        }
-      });
-    }
-    if (voiceSamplesLoadBtn) {
-      voiceSamplesLoadBtn.onclick = () => {
-        loadVoiceSamples({ force: state.voiceSamplesLoaded });
+    if (voiceSamplesRefreshBtn) {
+      voiceSamplesRefreshBtn.onclick = () => {
+        loadVoiceRoster({ force: state.voiceRosterLoaded });
       };
     }
-    if (voiceSamplesGenerateBtn) {
-      voiceSamplesGenerateBtn.onclick = () => {
-        generateVoiceSamples();
+    if (voiceSamplesLink) {
+      voiceSamplesLink.onclick = () => {
+        const search = window.location.search || '';
+        const hash = window.location.hash || '';
+        const target = isVoiceSamplesView()
+          ? `/${search}${hash}`
+          : `/voice-samples${search}${hash}`;
+        window.location.href = target;
       };
     }
 
@@ -5280,31 +5862,36 @@ INDEX_HTML = r"""<!DOCTYPE html>
 
     setBookmarks({ manual: [], last_played: null });
 
-    renderLibraryNav();
-    updateVoiceSamplesVisibility();
+    applyViewMode();
     updateVoiceSamplesControls();
     renderVoiceSamples();
-    renderCollections();
-    renderPendingEpubs();
 
-    const initialLoadOptions = initialBookId
-      ? { skipHistory: true }
-      : { replaceHistory: true };
-    loadBooks(initialLibraryPrefix || undefined, initialLoadOptions)
-      .then(() => {
-        if (!initialBookId) {
-          return null;
-        }
-        return openBookById(initialBookId, { replaceHistory: true }).then(opened => {
-          if (!opened) {
-            updateLocationFromState({ replace: true });
+    if (isVoiceSamplesView()) {
+      loadVoiceRoster();
+    } else {
+      renderLibraryNav();
+      renderCollections();
+      renderPendingEpubs();
+
+      const initialLoadOptions = initialBookId
+        ? { skipHistory: true }
+        : { replaceHistory: true };
+      loadBooks(initialLibraryPrefix || undefined, initialLoadOptions)
+        .then(() => {
+          if (!initialBookId) {
+            return null;
           }
-          return opened;
+          return openBookById(initialBookId, { replaceHistory: true }).then(opened => {
+            if (!opened) {
+              updateLocationFromState({ replace: true });
+            }
+            return opened;
+          });
+        })
+        .catch(err => {
+          booksGrid.innerHTML = `<div style="color:var(--danger)">Failed to load books: ${err.message}</div>`;
         });
-      })
-      .catch(err => {
-        booksGrid.innerHTML = `<div style="color:var(--danger)">Failed to load books: ${err.message}</div>`;
-      });
+    }
   </script>
 </body>
 </html>
@@ -5421,6 +6008,291 @@ def _list_voice_samples(root: Path) -> list[dict[str, object]]:
         )
     )
     return payload
+
+
+def _voice_roster_cache_path(root: Path) -> Path:
+    return root / VOICE_SAMPLES_DIR / VOICE_SAMPLES_ROSTER_FILENAME
+
+
+def _voice_sample_index_path(character_dir: Path) -> Path:
+    return character_dir / VOICE_SAMPLES_INDEX_FILENAME
+
+
+def _read_voice_sample_index(
+    index_path: Path,
+) -> tuple[str | None, list[dict[str, object]]]:
+    try:
+        raw = index_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None, []
+    except OSError:
+        return None, []
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return None, []
+    if not isinstance(payload, dict):
+        return None, []
+    samples = payload.get("samples")
+    if not isinstance(samples, list):
+        return None, []
+    character = payload.get("character")
+    if not isinstance(character, str) or not character.strip():
+        character = None
+    return character, [entry for entry in samples if isinstance(entry, dict)]
+
+
+def _write_voice_sample_index(
+    index_path: Path,
+    *,
+    character: str | None,
+    samples: list[dict[str, object]],
+) -> None:
+    payload = {
+        "character": character,
+        "updated_at": time.time(),
+        "samples": samples,
+    }
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _voice_sample_character_slug(character: str | None, speaker_id: int) -> str:
+    if isinstance(character, str) and character.strip():
+        slug = sanitize_voice_sample_name(character)
+    else:
+        slug = ""
+    if not slug:
+        slug = f"voice-{speaker_id}"
+    return slug
+
+
+def _voice_sample_signature(
+    speaker_id: int,
+    text: str,
+    speed: float,
+    pitch: float,
+    intonation: float,
+) -> str:
+    payload = {
+        "speaker": speaker_id,
+        "text": text,
+        "speed": speed,
+        "pitch": pitch,
+        "intonation": intonation,
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+
+
+def _format_cached_sample_filename(
+    speaker_id: int,
+    speed: float,
+    pitch: float,
+    intonation: float,
+    digest: str,
+    *,
+    width: int = 3,
+) -> str:
+    speed_label = f"{speed:.2f}"
+    pitch_label = f"{pitch:.2f}"
+    intonation_label = f"{intonation:.2f}"
+    return (
+        f"{speaker_id:0{width}d}-spd{speed_label}"
+        f"-pit{pitch_label}-int{intonation_label}-{digest}.wav"
+    )
+
+
+def _resolve_cached_voice_sample(root: Path, sample_path: str) -> Path:
+    if not sample_path:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    samples_dir = (root / VOICE_SAMPLES_DIR).resolve()
+    candidate = (samples_dir / sample_path).resolve()
+    try:
+        candidate.relative_to(samples_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Sample not found") from exc
+    if (
+        not candidate.exists()
+        or not candidate.is_file()
+        or candidate.suffix.lower() != ".wav"
+    ):
+        raise HTTPException(status_code=404, detail="Sample not found")
+    return candidate
+
+
+def _list_cached_voice_samples(root: Path) -> list[dict[str, object]]:
+    samples_dir = root / VOICE_SAMPLES_DIR
+    if not samples_dir.exists() or not samples_dir.is_dir():
+        return []
+    payload: list[dict[str, object]] = []
+    try:
+        entries = list(samples_dir.iterdir())
+    except OSError:
+        return []
+    for entry in entries:
+        if not entry.is_dir():
+            continue
+        index_path = _voice_sample_index_path(entry)
+        character_name, samples = _read_voice_sample_index(index_path)
+        if not samples:
+            continue
+        for sample in samples:
+            filename = sample.get("filename")
+            if not isinstance(filename, str) or not filename:
+                continue
+            file_path = entry / filename
+            if not file_path.exists() or file_path.suffix.lower() != ".wav":
+                continue
+            sample_path = f"{entry.name}/{filename}"
+            payload.append(
+                {
+                    "id": sample.get("id"),
+                    "voice_id": sample.get("voice_id"),
+                    "voice_name": sample.get("voice_name"),
+                    "text": sample.get("text"),
+                    "speed": sample.get("speed"),
+                    "pitch": sample.get("pitch"),
+                    "intonation": sample.get("intonation"),
+                    "created_at": sample.get("created_at"),
+                    "character": sample.get("character") or character_name,
+                    "path": sample_path,
+                    "filename": filename,
+                    "url": f"/api/voice-samples/cached/{quote(entry.name)}/{quote(filename)}",
+                }
+            )
+    payload.sort(
+        key=lambda item: (
+            item.get("created_at") is None,
+            -(item.get("created_at") or 0),
+            str(item.get("character") or "").casefold(),
+            int(item.get("voice_id"))
+            if isinstance(item.get("voice_id"), int)
+            else 0,
+        )
+    )
+    return payload
+
+
+def _read_voice_roster_cache(
+    cache_path: Path,
+    *,
+    engine_url: str | None = None,
+) -> list[dict[str, object]] | None:
+    try:
+        raw = cache_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if engine_url:
+        cached_engine = payload.get("engine_url")
+        if isinstance(cached_engine, str) and cached_engine != engine_url:
+            return None
+    roster = payload.get("characters")
+    if not isinstance(roster, list):
+        return None
+    return roster
+
+
+def _write_voice_roster_cache(
+    cache_path: Path,
+    *,
+    engine_url: str,
+    roster: list[dict[str, object]],
+) -> None:
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "engine_url": engine_url,
+        "updated_at": time.time(),
+        "characters": roster,
+    }
+    cache_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _voice_sample_defaults(config: PlayerConfig) -> dict[str, float]:
+    return {
+        "speed": VOICE_SAMPLE_DEFAULT_SPEED,
+        "pitch": VOICE_SAMPLE_DEFAULT_PITCH,
+        "intonation": VOICE_SAMPLE_DEFAULT_INTONATION,
+    }
+
+
+def _list_voice_roster(
+    config: PlayerConfig,
+    lock: threading.Lock,
+) -> list[dict[str, object]]:
+    with lock:
+        runtime_hint = config.engine_runtime or discover_voicevox_runtime(
+            config.engine_url
+        )
+        env_override, thread_override = _engine_thread_overrides(config.engine_threads)
+        with managed_voicevox_runtime(
+            runtime_hint,
+            config.engine_url,
+            readiness_timeout=config.engine_wait,
+            extra_env=env_override,
+            cpu_threads=thread_override,
+        ):
+            client = VoiceVoxClient(
+                base_url=config.engine_url,
+                timeout=60.0,
+            )
+            try:
+                payload = client.list_speakers()
+                return voice_roster_from_payload(payload)
+            finally:
+                client.close()
+
+
+def _synthesize_voice_sample(
+    config: PlayerConfig,
+    lock: threading.Lock,
+    *,
+    speaker_id: int,
+    text: str,
+    speed: float,
+    pitch: float,
+    intonation: float,
+) -> bytes:
+    def _modify_query(payload: dict[str, object]) -> None:
+        payload["speedScale"] = float(speed)
+        payload["pitchScale"] = float(pitch)
+        payload["intonationScale"] = float(intonation)
+
+    with lock:
+        runtime_hint = config.engine_runtime or discover_voicevox_runtime(
+            config.engine_url
+        )
+        env_override, thread_override = _engine_thread_overrides(config.engine_threads)
+        with managed_voicevox_runtime(
+            runtime_hint,
+            config.engine_url,
+            readiness_timeout=config.engine_wait,
+            extra_env=env_override,
+            cpu_threads=thread_override,
+        ):
+            client = VoiceVoxClient(
+                base_url=config.engine_url,
+                speaker_id=speaker_id,
+                timeout=60.0,
+            )
+            try:
+                return client.synthesize_wav(text, modify_query=_modify_query)
+            finally:
+                client.close()
 
 
 def _generate_voice_samples(
@@ -6531,14 +7403,23 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
                 error=message,
             )
 
-    @app.get("/", response_class=HTMLResponse)
-    def index() -> HTMLResponse:
+    def _render_player(view: str | None = None) -> HTMLResponse:
         payload = {"reader_url": getattr(app.state, "reader_url", None)}
+        if view:
+            payload["view"] = view
         config_blob = json.dumps(payload, ensure_ascii=False)
         html = INDEX_HTML.replace("__NK_PLAYER_CONFIG__", config_blob).replace(
             "__NK_FAVICON__", NK_FAVICON_URL
         )
         return HTMLResponse(html)
+
+    @app.get("/", response_class=HTMLResponse)
+    def index() -> HTMLResponse:
+        return _render_player()
+
+    @app.get("/voice-samples", response_class=HTMLResponse)
+    def voice_samples_page() -> HTMLResponse:
+        return _render_player("voice-samples")
 
     @app.get("/apple-touch-icon.png")
     def apple_touch_icon() -> Response:
@@ -6731,6 +7612,287 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
     def api_voice_samples_status() -> JSONResponse:
         count = len(_list_voice_samples(root))
         return JSONResponse({"count": count, "has_samples": count > 0})
+
+    @app.get("/api/voice-samples/cache")
+    def api_voice_samples_cache() -> JSONResponse:
+        samples = _list_cached_voice_samples(root)
+        return JSONResponse({"samples": samples, "count": len(samples)})
+
+    @app.post("/api/voice-samples/cache")
+    def api_generate_cached_voice_sample(
+        payload: dict[str, object] | None = Body(None),
+    ) -> JSONResponse:
+        data = payload or {}
+        if not isinstance(data, dict):
+            raise HTTPException(status_code=400, detail="Invalid payload.")
+        speaker_value = data.get("speaker", data.get("voice_id"))
+        if isinstance(speaker_value, bool) or not isinstance(speaker_value, int):
+            raise HTTPException(status_code=400, detail="speaker must be an integer.")
+        if speaker_value <= 0:
+            raise HTTPException(
+                status_code=400, detail="speaker must be a positive integer."
+            )
+        character = data.get("character")
+        if not isinstance(character, str) or not character.strip():
+            character = None
+        voice_name = data.get("voice_name")
+        if not isinstance(voice_name, str) or not voice_name.strip():
+            voice_name = None
+        defaults = _voice_sample_defaults(config)
+
+        def _parse_scale(key: str) -> float:
+            if key not in data or data[key] is None:
+                return float(defaults[key])
+            value = data[key]
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise HTTPException(
+                    status_code=400, detail=f"{key} must be numeric."
+                )
+            return float(value)
+
+        speed = _parse_scale("speed")
+        pitch = _parse_scale("pitch")
+        intonation = _parse_scale("intonation")
+
+        sample_lines = None
+        if "text" in data:
+            text_value = data.get("text")
+            if text_value is None:
+                sample_lines = None
+            elif isinstance(text_value, list):
+                sample_lines = [str(item) for item in text_value]
+            elif isinstance(text_value, str):
+                sample_lines = text_value.splitlines()
+            else:
+                raise HTTPException(
+                    status_code=400, detail="text must be a string or list of strings."
+                )
+        try:
+            sample_text = build_sample_text(sample_lines)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        character_slug = _voice_sample_character_slug(character, int(speaker_value))
+        character_dir = root / VOICE_SAMPLES_DIR / character_slug
+        index_path = _voice_sample_index_path(character_dir)
+        existing_character, samples = _read_voice_sample_index(index_path)
+        signature = _voice_sample_signature(
+            int(speaker_value),
+            sample_text,
+            speed,
+            pitch,
+            intonation,
+        )
+        filename = _format_cached_sample_filename(
+            int(speaker_value),
+            speed,
+            pitch,
+            intonation,
+            signature,
+        )
+        output_path = character_dir / filename
+        cached = False
+        if output_path.exists():
+            cached = True
+        else:
+            try:
+                wav_bytes = _synthesize_voice_sample(
+                    config,
+                    app.state.voicevox_lock,
+                    speaker_id=int(speaker_value),
+                    text=sample_text,
+                    speed=speed,
+                    pitch=pitch,
+                    intonation=intonation,
+                )
+            except (
+                VoiceVoxUnavailableError,
+                VoiceVoxError,
+                VoiceVoxRuntimeError,
+                FileNotFoundError,
+            ) as exc:
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+            character_dir.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(wav_bytes)
+
+        existing_entry = None
+        for sample in samples:
+            if sample.get("id") == signature or sample.get("filename") == filename:
+                existing_entry = sample
+                break
+        created_at = existing_entry.get("created_at") if isinstance(
+            existing_entry, dict
+        ) else None
+        if not isinstance(created_at, (int, float)):
+            created_at = time.time()
+        entry = {
+            "id": signature,
+            "voice_id": int(speaker_value),
+            "voice_name": voice_name or (existing_entry or {}).get("voice_name"),
+            "text": sample_text,
+            "speed": speed,
+            "pitch": pitch,
+            "intonation": intonation,
+            "created_at": created_at,
+            "character": character or existing_character or (existing_entry or {}).get("character"),
+            "filename": filename,
+        }
+        updated_samples = [entry]
+        for sample in samples:
+            if sample.get("id") == signature:
+                continue
+            if sample.get("filename") == filename:
+                continue
+            updated_samples.append(sample)
+        _write_voice_sample_index(
+            index_path,
+            character=character or existing_character,
+            samples=updated_samples,
+        )
+        entry_payload = {
+            **entry,
+            "path": f"{character_slug}/{filename}",
+            "url": f"/api/voice-samples/cached/{quote(character_slug)}/{quote(filename)}",
+        }
+        return JSONResponse({"sample": entry_payload, "cached": cached})
+
+    @app.get("/api/voice-samples/voices")
+    def api_voice_samples_voices(
+        refresh: bool = Query(False, description="Refresh cached voice roster."),
+    ) -> JSONResponse:
+        cache_path = _voice_roster_cache_path(root)
+        roster = None if refresh else _read_voice_roster_cache(cache_path)
+        used_cache = roster is not None
+        if roster is None:
+            try:
+                roster = _list_voice_roster(config, app.state.voicevox_lock)
+                _write_voice_roster_cache(
+                    cache_path,
+                    engine_url=config.engine_url,
+                    roster=roster,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            except (
+                VoiceVoxUnavailableError,
+                VoiceVoxError,
+                VoiceVoxRuntimeError,
+                FileNotFoundError,
+            ) as exc:
+                cached_fallback = _read_voice_roster_cache(cache_path)
+                if cached_fallback is None:
+                    raise HTTPException(status_code=502, detail=str(exc)) from exc
+                roster = cached_fallback
+                used_cache = True
+        try:
+            sample_text = build_sample_text()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return JSONResponse(
+            {
+                "characters": roster,
+                "defaults": _voice_sample_defaults(config),
+                "sample_text": sample_text,
+                "cached": used_cache,
+            }
+        )
+
+    @app.post("/api/voice-samples/preview")
+    def api_voice_samples_preview(
+        payload: dict[str, object] | None = Body(None),
+    ) -> Response:
+        data = payload or {}
+        if not isinstance(data, dict):
+            raise HTTPException(status_code=400, detail="Invalid payload.")
+        speaker_value = data.get("speaker", data.get("voice_id"))
+        if isinstance(speaker_value, bool) or not isinstance(speaker_value, int):
+            raise HTTPException(status_code=400, detail="speaker must be an integer.")
+        if speaker_value <= 0:
+            raise HTTPException(
+                status_code=400, detail="speaker must be a positive integer."
+            )
+        defaults = _voice_sample_defaults(config)
+
+        def _parse_scale(key: str) -> float:
+            if key not in data or data[key] is None:
+                return float(defaults[key])
+            value = data[key]
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise HTTPException(
+                    status_code=400, detail=f"{key} must be numeric."
+                )
+            return float(value)
+
+        speed = _parse_scale("speed")
+        pitch = _parse_scale("pitch")
+        intonation = _parse_scale("intonation")
+
+        sample_lines = None
+        if "text" in data:
+            text_value = data.get("text")
+            if text_value is None:
+                sample_lines = None
+            elif isinstance(text_value, list):
+                sample_lines = [str(item) for item in text_value]
+            elif isinstance(text_value, str):
+                sample_lines = text_value.splitlines()
+            else:
+                raise HTTPException(
+                    status_code=400, detail="text must be a string or list of strings."
+                )
+        try:
+            sample_text = build_sample_text(sample_lines)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        try:
+            wav_bytes = _synthesize_voice_sample(
+                config,
+                app.state.voicevox_lock,
+                speaker_id=int(speaker_value),
+                text=sample_text,
+                speed=speed,
+                pitch=pitch,
+                intonation=intonation,
+            )
+        except (
+            VoiceVoxUnavailableError,
+            VoiceVoxError,
+            VoiceVoxRuntimeError,
+            FileNotFoundError,
+        ) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return Response(
+            content=wav_bytes,
+            media_type="audio/wav",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/api/voice-samples/cached/{sample_path:path}")
+    def api_cached_voice_sample(sample_path: str) -> FileResponse:
+        sample_file = _resolve_cached_voice_sample(root, sample_path)
+        return FileResponse(sample_file, media_type="audio/wav")
+
+    @app.delete("/api/voice-samples/cached/{sample_path:path}")
+    def api_delete_cached_voice_sample(sample_path: str) -> JSONResponse:
+        sample_file = _resolve_cached_voice_sample(root, sample_path)
+        character_dir = sample_file.parent
+        index_path = _voice_sample_index_path(character_dir)
+        character_name, samples = _read_voice_sample_index(index_path)
+        filename = sample_file.name
+        filtered = [sample for sample in samples if sample.get("filename") != filename]
+        if len(filtered) != len(samples):
+            _write_voice_sample_index(
+                index_path,
+                character=character_name,
+                samples=filtered,
+            )
+        try:
+            sample_file.unlink()
+        except OSError as exc:
+            raise HTTPException(
+                status_code=500, detail=f"Failed to delete sample: {exc}"
+            ) from exc
+        return JSONResponse({"deleted": True, "path": sample_path})
 
     @app.get("/api/voice-samples")
     def api_voice_samples() -> JSONResponse:
