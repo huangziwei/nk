@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import shutil
 import threading
@@ -47,6 +48,7 @@ from .voice_defaults import (
 from .voice_samples import (
     build_sample_text,
     format_voice_sample_filename,
+    sanitize_voice_sample_name,
     voice_roster_from_payload,
     voice_samples_from_payload,
 )
@@ -77,6 +79,8 @@ _SORT_MODES = {"author", "recent", "played"}
 RECENTLY_PLAYED_PREFIX = "__nk_recently_played__"
 RECENTLY_PLAYED_LABEL = "Recently Played"
 VOICE_SAMPLES_DIR = "samples"
+VOICE_SAMPLES_ROSTER_FILENAME = "voices.json"
+VOICE_SAMPLES_INDEX_FILENAME = "index.json"
 
 
 def _normalize_sort_mode(value: str | None) -> str:
@@ -329,6 +333,72 @@ INDEX_HTML = r"""<!DOCTYPE html>
       flex-wrap: wrap;
     }
     .voice-sample-status {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .voice-sample-saved {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .voice-sample-saved-title {
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .voice-sample-saved-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .voice-sample-saved-item {
+      background: rgba(8, 10, 18, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .voice-sample-saved-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .voice-sample-text-preview {
+      font-size: 0.82rem;
+      color: var(--muted);
+      white-space: pre-wrap;
+    }
+    .voice-sample-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .voice-sample-chip {
+      font-size: 0.72rem;
+      color: #cbd5f5;
+      background: rgba(148, 163, 184, 0.2);
+      padding: 0.2rem 0.4rem;
+      border-radius: 999px;
+    }
+    .voice-sample-saved-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .voice-sample-delete {
+      padding: 0.35rem 0.8rem;
+      font-size: 0.8rem;
+    }
+    .voice-sample-empty {
       font-size: 0.8rem;
       color: var(--muted);
     }
@@ -1917,6 +1987,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
       voiceSampleDefaults: { ...DEFAULT_VOICE },
       voiceSampleText: '',
       voiceSampleError: null,
+      voiceSampleCache: {},
+      voiceSampleCacheLoaded: false,
+      voiceSampleCacheLoading: false,
+      voiceSampleCacheCount: 0,
       chapters: [],
       currentBook: null,
       currentChapterIndex: -1,
@@ -3860,7 +3934,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
       updateVoiceSamplesControls();
       setVoiceSamplesStatus('Loading voices...');
       try {
-        const data = await fetchJSON('/api/voice-samples/voices');
+        const query = force ? '?refresh=1' : '';
+        const data = await fetchJSON(`/api/voice-samples/voices${query}`);
         const roster = Array.isArray(data?.characters) ? data.characters : [];
         state.voiceRoster = roster;
         state.voiceRosterLoaded = true;
@@ -3873,6 +3948,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
         }
         if (!roster.length) {
           setVoiceSamplesStatus('No voices found.');
+        } else if (data?.cached) {
+          setVoiceSamplesStatus(`${roster.length} characters loaded (cached).`);
         } else {
           setVoiceSamplesStatus(`${roster.length} characters loaded.`);
         }
@@ -3884,6 +3961,211 @@ INDEX_HTML = r"""<!DOCTYPE html>
         updateVoiceSamplesControls();
       }
       renderVoiceSamples();
+      loadVoiceSampleCache({ force });
+    }
+
+    function groupSamplesByVoice(samples) {
+      const grouped = {};
+      samples.forEach(sample => {
+        if (!sample || typeof sample !== 'object') return;
+        if (!Number.isFinite(sample.voice_id)) return;
+        const key = String(sample.voice_id);
+        if (!grouped[key]) {
+          grouped[key] = [];
+        }
+        grouped[key].push(sample);
+      });
+      Object.values(grouped).forEach(list => {
+        list.sort((a, b) => {
+          const aTime = Number.isFinite(a.created_at) ? a.created_at : 0;
+          const bTime = Number.isFinite(b.created_at) ? b.created_at : 0;
+          return bTime - aTime;
+        });
+      });
+      return grouped;
+    }
+
+    async function loadVoiceSampleCache({ force = false } = {}) {
+      if (state.voiceSampleCacheLoading) return;
+      if (state.voiceSampleCacheLoaded && !force) {
+        updateAllSavedSamples();
+        return;
+      }
+      state.voiceSampleCacheLoading = true;
+      try {
+        const data = await fetchJSON('/api/voice-samples/cache');
+        const samples = Array.isArray(data?.samples) ? data.samples : [];
+        state.voiceSampleCache = groupSamplesByVoice(samples);
+        state.voiceSampleCacheLoaded = true;
+        state.voiceSampleCacheCount = Number.isFinite(data?.count) ? data.count : samples.length;
+      } catch (err) {
+        state.voiceSampleCache = {};
+        state.voiceSampleCacheLoaded = false;
+        state.voiceSampleCacheCount = 0;
+      } finally {
+        state.voiceSampleCacheLoading = false;
+      }
+      updateAllSavedSamples();
+    }
+
+    function rememberVoiceSample(sample) {
+      if (!sample || typeof sample !== 'object') return;
+      if (!Number.isFinite(sample.voice_id)) return;
+      const key = String(sample.voice_id);
+      const list = Array.isArray(state.voiceSampleCache[key]) ? state.voiceSampleCache[key] : [];
+      const existingIndex = list.findIndex(entry => entry && entry.id === sample.id);
+      if (existingIndex >= 0) {
+        list[existingIndex] = sample;
+      } else {
+        list.unshift(sample);
+      }
+      list.sort((a, b) => {
+        const aTime = Number.isFinite(a.created_at) ? a.created_at : 0;
+        const bTime = Number.isFinite(b.created_at) ? b.created_at : 0;
+        return bTime - aTime;
+      });
+      state.voiceSampleCache[key] = list;
+      state.voiceSampleCacheLoaded = true;
+    }
+
+    function removeVoiceSample(sample) {
+      if (!sample || typeof sample !== 'object') return;
+      if (!Number.isFinite(sample.voice_id)) return;
+      const key = String(sample.voice_id);
+      const list = Array.isArray(state.voiceSampleCache[key]) ? state.voiceSampleCache[key] : [];
+      const filtered = list.filter(entry => entry && entry.id !== sample.id);
+      state.voiceSampleCache[key] = filtered;
+    }
+
+    function updateAllSavedSamples() {
+      if (!voiceSamplesGrid) return;
+      const cards = Array.from(voiceSamplesGrid.querySelectorAll('.voice-sample-card'));
+      cards.forEach(card => {
+        const voiceId = card.dataset.voiceId;
+        if (!voiceId) return;
+        updateSavedSamplesForVoice(voiceId);
+      });
+    }
+
+    function updateSavedSamplesForVoice(voiceId) {
+      if (!voiceSamplesGrid) return;
+      const card = voiceSamplesGrid.querySelector(`.voice-sample-card[data-voice-id="${voiceId}"]`);
+      if (!card) return;
+      const listNode = card.querySelector('.voice-sample-saved-list');
+      if (!listNode) return;
+      const samples = Array.isArray(state.voiceSampleCache[String(voiceId)])
+        ? state.voiceSampleCache[String(voiceId)]
+        : [];
+      renderSavedSamplesList(listNode, samples);
+    }
+
+    function renderSavedSamplesList(listNode, samples) {
+      if (!listNode) return;
+      listNode.innerHTML = '';
+      const hasSamples = Array.isArray(samples) && samples.length > 0;
+      const wrapper = listNode.closest('.voice-sample-saved');
+      const title = wrapper ? wrapper.querySelector('.voice-sample-saved-title') : null;
+      if (title) {
+        title.textContent = hasSamples
+          ? `Saved samples (${samples.length})`
+          : 'Saved samples';
+      }
+      if (!hasSamples) {
+        const empty = document.createElement('div');
+        empty.className = 'voice-sample-empty';
+        empty.textContent = 'No saved samples yet.';
+        listNode.appendChild(empty);
+        return;
+      }
+      samples.forEach(sample => {
+        if (!sample || typeof sample !== 'object') return;
+        const item = document.createElement('div');
+        item.className = 'voice-sample-saved-item';
+        if (sample.id) {
+          item.dataset.sampleId = String(sample.id);
+        }
+        const meta = document.createElement('div');
+        meta.className = 'voice-sample-saved-meta';
+        const text = document.createElement('div');
+        text.className = 'voice-sample-text-preview';
+        const preview = typeof sample.text === 'string'
+          ? sample.text.split(String.fromCharCode(10)).filter(line => line.trim())[0] || ''
+          : '';
+        text.textContent = preview ? preview : 'Sample text';
+        meta.appendChild(text);
+        const chips = document.createElement('div');
+        chips.className = 'voice-sample-chips';
+        const addChip = (label, value) => {
+          const chip = document.createElement('span');
+          chip.className = 'voice-sample-chip';
+          chip.textContent = `${label} ${value}`;
+          chips.appendChild(chip);
+        };
+        if (Number.isFinite(sample.speed)) {
+          addChip('spd', Number(sample.speed).toFixed(2));
+        }
+        if (Number.isFinite(sample.pitch)) {
+          addChip('pit', Number(sample.pitch).toFixed(2));
+        }
+        if (Number.isFinite(sample.intonation)) {
+          addChip('int', Number(sample.intonation).toFixed(2));
+        }
+        meta.appendChild(chips);
+        item.appendChild(meta);
+
+        const actions = document.createElement('div');
+        actions.className = 'voice-sample-saved-actions';
+        const audio = document.createElement('audio');
+        audio.className = 'voice-sample-audio';
+        audio.controls = true;
+        audio.preload = 'none';
+        if (typeof sample.url === 'string' && sample.url) {
+          audio.src = sample.url;
+        }
+        actions.appendChild(audio);
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'secondary voice-sample-delete';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', () => {
+          handlePromise(deleteVoiceSample(sample));
+        });
+        actions.appendChild(deleteBtn);
+        item.appendChild(actions);
+        listNode.appendChild(item);
+      });
+    }
+
+    function encodeSamplePath(pathValue) {
+      if (!pathValue) return '';
+      return pathValue.split('/').map(part => encodeURIComponent(part)).join('/');
+    }
+
+    async function deleteVoiceSample(sample) {
+      if (!sample || typeof sample !== 'object') return;
+      if (!sample.path || typeof sample.path !== 'string') return;
+      if (!window.confirm('Delete this saved sample?')) return;
+      const target = encodeSamplePath(sample.path);
+      const res = await fetch(`/api/voice-samples/cached/${target}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const detail = await readErrorResponse(res);
+        throw new Error(detail || `HTTP ${res.status}`);
+      }
+      removeVoiceSample(sample);
+      if (Number.isFinite(sample.voice_id)) {
+        updateSavedSamplesForVoice(String(sample.voice_id));
+      } else {
+        updateAllSavedSamples();
+      }
+    }
+
+    function playSavedSample(voiceId, sampleId) {
+      if (!voiceSamplesGrid) return;
+      const selector = `.voice-sample-card[data-voice-id="${voiceId}"] .voice-sample-saved-item[data-sample-id="${sampleId}"] audio`;
+      const audio = voiceSamplesGrid.querySelector(selector);
+      if (audio && typeof audio.play === 'function') {
+        audio.play().catch(() => {});
+      }
     }
 
     function parseSampleScale(input, fallback, label) {
@@ -3905,11 +4187,12 @@ INDEX_HTML = r"""<!DOCTYPE html>
 
     async function generateVoiceSample({
       voiceId,
+      characterName,
+      voiceName,
       textInput,
       speedInput,
       pitchInput,
       intonationInput,
-      audioNode,
       statusNode,
       buttonNode,
     }) {
@@ -3940,11 +4223,13 @@ INDEX_HTML = r"""<!DOCTYPE html>
       }
       setVoiceSampleRowStatus(statusNode, 'Generating...');
       try {
-        const res = await fetch('/api/voice-samples/preview', {
+        const res = await fetch('/api/voice-samples/cache', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             speaker: voiceId,
+            character: characterName,
+            voice_name: voiceName,
             text: rawText,
             speed,
             pitch,
@@ -3955,20 +4240,19 @@ INDEX_HTML = r"""<!DOCTYPE html>
           const detail = await readErrorResponse(res);
           throw new Error(detail || `HTTP ${res.status}`);
         }
-        const blob = await res.blob();
-        if (audioNode) {
-          const oldUrl = audioNode.dataset.blobUrl;
-          if (oldUrl) {
-            URL.revokeObjectURL(oldUrl);
+        const payload = await res.json();
+        const sample = payload?.sample;
+        if (sample) {
+          rememberVoiceSample(sample);
+          updateSavedSamplesForVoice(String(voiceId));
+          if (sample.id) {
+            playSavedSample(String(voiceId), sample.id);
           }
-          const url = URL.createObjectURL(blob);
-          audioNode.dataset.blobUrl = url;
-          audioNode.src = url;
-          audioNode.classList.remove('hidden');
-          audioNode.load();
-          audioNode.play().catch(() => {});
         }
-        setVoiceSampleRowStatus(statusNode, 'Ready.');
+        setVoiceSampleRowStatus(
+          statusNode,
+          payload?.cached ? 'Loaded cached sample.' : 'Saved sample.'
+        );
       } catch (err) {
         setVoiceSampleRowStatus(
           statusNode,
@@ -3983,7 +4267,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
       }
     }
 
-    function createVoiceSampleCard(voice) {
+    function createVoiceSampleCard(voice, characterName) {
       if (!voice || typeof voice !== 'object') return null;
       const voiceId = Number.isFinite(voice.id) ? voice.id : null;
       const voiceName = typeof voice.name === 'string' && voice.name.trim()
@@ -4071,20 +4355,32 @@ INDEX_HTML = r"""<!DOCTYPE html>
       actions.appendChild(status);
       card.appendChild(actions);
 
-      const audio = document.createElement('audio');
-      audio.className = 'voice-sample-audio hidden';
-      audio.controls = true;
-      audio.preload = 'none';
-      card.appendChild(audio);
+      const savedWrap = document.createElement('div');
+      savedWrap.className = 'voice-sample-saved';
+      const savedTitle = document.createElement('div');
+      savedTitle.className = 'voice-sample-saved-title';
+      savedTitle.textContent = 'Saved samples';
+      const savedList = document.createElement('div');
+      savedList.className = 'voice-sample-saved-list';
+      savedWrap.appendChild(savedTitle);
+      savedWrap.appendChild(savedList);
+      card.appendChild(savedWrap);
+      renderSavedSamplesList(
+        savedList,
+        Array.isArray(state.voiceSampleCache[String(voiceId)])
+          ? state.voiceSampleCache[String(voiceId)]
+          : []
+      );
 
       button.addEventListener('click', () => {
         generateVoiceSample({
           voiceId,
+          characterName,
+          voiceName,
           textInput: textarea,
           speedInput,
           pitchInput,
           intonationInput,
-          audioNode: audio,
           statusNode: status,
           buttonNode: button,
         });
@@ -4128,7 +4424,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
         const grid = document.createElement('div');
         grid.className = 'cards voice-sample-group-grid';
         voices.forEach(voice => {
-          const card = createVoiceSampleCard(voice);
+          const card = createVoiceSampleCard(voice, name);
           if (card) {
             grid.appendChild(card);
           }
@@ -5689,6 +5985,218 @@ def _list_voice_samples(root: Path) -> list[dict[str, object]]:
     return payload
 
 
+def _voice_roster_cache_path(root: Path) -> Path:
+    return root / VOICE_SAMPLES_DIR / VOICE_SAMPLES_ROSTER_FILENAME
+
+
+def _voice_sample_index_path(character_dir: Path) -> Path:
+    return character_dir / VOICE_SAMPLES_INDEX_FILENAME
+
+
+def _read_voice_sample_index(
+    index_path: Path,
+) -> tuple[str | None, list[dict[str, object]]]:
+    try:
+        raw = index_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None, []
+    except OSError:
+        return None, []
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return None, []
+    if not isinstance(payload, dict):
+        return None, []
+    samples = payload.get("samples")
+    if not isinstance(samples, list):
+        return None, []
+    character = payload.get("character")
+    if not isinstance(character, str) or not character.strip():
+        character = None
+    return character, [entry for entry in samples if isinstance(entry, dict)]
+
+
+def _write_voice_sample_index(
+    index_path: Path,
+    *,
+    character: str | None,
+    samples: list[dict[str, object]],
+) -> None:
+    payload = {
+        "character": character,
+        "updated_at": time.time(),
+        "samples": samples,
+    }
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _voice_sample_character_slug(character: str | None, speaker_id: int) -> str:
+    if isinstance(character, str) and character.strip():
+        slug = sanitize_voice_sample_name(character)
+    else:
+        slug = ""
+    if not slug:
+        slug = f"voice-{speaker_id}"
+    return slug
+
+
+def _voice_sample_signature(
+    speaker_id: int,
+    text: str,
+    speed: float,
+    pitch: float,
+    intonation: float,
+) -> str:
+    payload = {
+        "speaker": speaker_id,
+        "text": text,
+        "speed": speed,
+        "pitch": pitch,
+        "intonation": intonation,
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+
+
+def _format_cached_sample_filename(
+    speaker_id: int,
+    speed: float,
+    pitch: float,
+    intonation: float,
+    digest: str,
+    *,
+    width: int = 3,
+) -> str:
+    speed_label = f"{speed:.2f}"
+    pitch_label = f"{pitch:.2f}"
+    intonation_label = f"{intonation:.2f}"
+    return (
+        f"{speaker_id:0{width}d}-spd{speed_label}"
+        f"-pit{pitch_label}-int{intonation_label}-{digest}.wav"
+    )
+
+
+def _resolve_cached_voice_sample(root: Path, sample_path: str) -> Path:
+    if not sample_path:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    samples_dir = (root / VOICE_SAMPLES_DIR).resolve()
+    candidate = (samples_dir / sample_path).resolve()
+    try:
+        candidate.relative_to(samples_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Sample not found") from exc
+    if (
+        not candidate.exists()
+        or not candidate.is_file()
+        or candidate.suffix.lower() != ".wav"
+    ):
+        raise HTTPException(status_code=404, detail="Sample not found")
+    return candidate
+
+
+def _list_cached_voice_samples(root: Path) -> list[dict[str, object]]:
+    samples_dir = root / VOICE_SAMPLES_DIR
+    if not samples_dir.exists() or not samples_dir.is_dir():
+        return []
+    payload: list[dict[str, object]] = []
+    try:
+        entries = list(samples_dir.iterdir())
+    except OSError:
+        return []
+    for entry in entries:
+        if not entry.is_dir():
+            continue
+        index_path = _voice_sample_index_path(entry)
+        character_name, samples = _read_voice_sample_index(index_path)
+        if not samples:
+            continue
+        for sample in samples:
+            filename = sample.get("filename")
+            if not isinstance(filename, str) or not filename:
+                continue
+            file_path = entry / filename
+            if not file_path.exists() or file_path.suffix.lower() != ".wav":
+                continue
+            sample_path = f"{entry.name}/{filename}"
+            payload.append(
+                {
+                    "id": sample.get("id"),
+                    "voice_id": sample.get("voice_id"),
+                    "voice_name": sample.get("voice_name"),
+                    "text": sample.get("text"),
+                    "speed": sample.get("speed"),
+                    "pitch": sample.get("pitch"),
+                    "intonation": sample.get("intonation"),
+                    "created_at": sample.get("created_at"),
+                    "character": sample.get("character") or character_name,
+                    "path": sample_path,
+                    "filename": filename,
+                    "url": f"/api/voice-samples/cached/{quote(entry.name)}/{quote(filename)}",
+                }
+            )
+    payload.sort(
+        key=lambda item: (
+            item.get("created_at") is None,
+            -(item.get("created_at") or 0),
+            str(item.get("character") or "").casefold(),
+            int(item.get("voice_id"))
+            if isinstance(item.get("voice_id"), int)
+            else 0,
+        )
+    )
+    return payload
+
+
+def _read_voice_roster_cache(
+    cache_path: Path,
+    *,
+    engine_url: str | None = None,
+) -> list[dict[str, object]] | None:
+    try:
+        raw = cache_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if engine_url:
+        cached_engine = payload.get("engine_url")
+        if isinstance(cached_engine, str) and cached_engine != engine_url:
+            return None
+    roster = payload.get("characters")
+    if not isinstance(roster, list):
+        return None
+    return roster
+
+
+def _write_voice_roster_cache(
+    cache_path: Path,
+    *,
+    engine_url: str,
+    roster: list[dict[str, object]],
+) -> None:
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "engine_url": engine_url,
+        "updated_at": time.time(),
+        "characters": roster,
+    }
+    cache_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
 def _voice_sample_defaults(config: PlayerConfig) -> dict[str, float]:
     return {
         "speed": float(config.speed_scale)
@@ -7086,25 +7594,187 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         count = len(_list_voice_samples(root))
         return JSONResponse({"count": count, "has_samples": count > 0})
 
-    @app.get("/api/voice-samples/voices")
-    def api_voice_samples_voices() -> JSONResponse:
+    @app.get("/api/voice-samples/cache")
+    def api_voice_samples_cache() -> JSONResponse:
+        samples = _list_cached_voice_samples(root)
+        return JSONResponse({"samples": samples, "count": len(samples)})
+
+    @app.post("/api/voice-samples/cache")
+    def api_generate_cached_voice_sample(
+        payload: dict[str, object] | None = Body(None),
+    ) -> JSONResponse:
+        data = payload or {}
+        if not isinstance(data, dict):
+            raise HTTPException(status_code=400, detail="Invalid payload.")
+        speaker_value = data.get("speaker", data.get("voice_id"))
+        if isinstance(speaker_value, bool) or not isinstance(speaker_value, int):
+            raise HTTPException(status_code=400, detail="speaker must be an integer.")
+        if speaker_value <= 0:
+            raise HTTPException(
+                status_code=400, detail="speaker must be a positive integer."
+            )
+        character = data.get("character")
+        if not isinstance(character, str) or not character.strip():
+            character = None
+        voice_name = data.get("voice_name")
+        if not isinstance(voice_name, str) or not voice_name.strip():
+            voice_name = None
+        defaults = _voice_sample_defaults(config)
+
+        def _parse_scale(key: str) -> float:
+            if key not in data or data[key] is None:
+                return float(defaults[key])
+            value = data[key]
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise HTTPException(
+                    status_code=400, detail=f"{key} must be numeric."
+                )
+            return float(value)
+
+        speed = _parse_scale("speed")
+        pitch = _parse_scale("pitch")
+        intonation = _parse_scale("intonation")
+
+        sample_lines = None
+        if "text" in data:
+            text_value = data.get("text")
+            if text_value is None:
+                sample_lines = None
+            elif isinstance(text_value, list):
+                sample_lines = [str(item) for item in text_value]
+            elif isinstance(text_value, str):
+                sample_lines = text_value.splitlines()
+            else:
+                raise HTTPException(
+                    status_code=400, detail="text must be a string or list of strings."
+                )
         try:
-            roster = _list_voice_roster(config, app.state.voicevox_lock)
+            sample_text = build_sample_text(sample_lines)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        character_slug = _voice_sample_character_slug(character, int(speaker_value))
+        character_dir = root / VOICE_SAMPLES_DIR / character_slug
+        index_path = _voice_sample_index_path(character_dir)
+        existing_character, samples = _read_voice_sample_index(index_path)
+        signature = _voice_sample_signature(
+            int(speaker_value),
+            sample_text,
+            speed,
+            pitch,
+            intonation,
+        )
+        filename = _format_cached_sample_filename(
+            int(speaker_value),
+            speed,
+            pitch,
+            intonation,
+            signature,
+        )
+        output_path = character_dir / filename
+        cached = False
+        if output_path.exists():
+            cached = True
+        else:
+            try:
+                wav_bytes = _synthesize_voice_sample(
+                    config,
+                    app.state.voicevox_lock,
+                    speaker_id=int(speaker_value),
+                    text=sample_text,
+                    speed=speed,
+                    pitch=pitch,
+                    intonation=intonation,
+                )
+            except (
+                VoiceVoxUnavailableError,
+                VoiceVoxError,
+                VoiceVoxRuntimeError,
+                FileNotFoundError,
+            ) as exc:
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+            character_dir.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(wav_bytes)
+
+        existing_entry = None
+        for sample in samples:
+            if sample.get("id") == signature or sample.get("filename") == filename:
+                existing_entry = sample
+                break
+        created_at = existing_entry.get("created_at") if isinstance(
+            existing_entry, dict
+        ) else None
+        if not isinstance(created_at, (int, float)):
+            created_at = time.time()
+        entry = {
+            "id": signature,
+            "voice_id": int(speaker_value),
+            "voice_name": voice_name or (existing_entry or {}).get("voice_name"),
+            "text": sample_text,
+            "speed": speed,
+            "pitch": pitch,
+            "intonation": intonation,
+            "created_at": created_at,
+            "character": character or existing_character or (existing_entry or {}).get("character"),
+            "filename": filename,
+        }
+        updated_samples = [entry]
+        for sample in samples:
+            if sample.get("id") == signature:
+                continue
+            if sample.get("filename") == filename:
+                continue
+            updated_samples.append(sample)
+        _write_voice_sample_index(
+            index_path,
+            character=character or existing_character,
+            samples=updated_samples,
+        )
+        entry_payload = {
+            **entry,
+            "path": f"{character_slug}/{filename}",
+            "url": f"/api/voice-samples/cached/{quote(character_slug)}/{quote(filename)}",
+        }
+        return JSONResponse({"sample": entry_payload, "cached": cached})
+
+    @app.get("/api/voice-samples/voices")
+    def api_voice_samples_voices(
+        refresh: bool = Query(False, description="Refresh cached voice roster."),
+    ) -> JSONResponse:
+        cache_path = _voice_roster_cache_path(root)
+        roster = None if refresh else _read_voice_roster_cache(cache_path)
+        used_cache = roster is not None
+        if roster is None:
+            try:
+                roster = _list_voice_roster(config, app.state.voicevox_lock)
+                _write_voice_roster_cache(
+                    cache_path,
+                    engine_url=config.engine_url,
+                    roster=roster,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            except (
+                VoiceVoxUnavailableError,
+                VoiceVoxError,
+                VoiceVoxRuntimeError,
+                FileNotFoundError,
+            ) as exc:
+                cached_fallback = _read_voice_roster_cache(cache_path)
+                if cached_fallback is None:
+                    raise HTTPException(status_code=502, detail=str(exc)) from exc
+                roster = cached_fallback
+                used_cache = True
+        try:
             sample_text = build_sample_text()
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except (
-            VoiceVoxUnavailableError,
-            VoiceVoxError,
-            VoiceVoxRuntimeError,
-            FileNotFoundError,
-        ) as exc:
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
         return JSONResponse(
             {
                 "characters": roster,
                 "defaults": _voice_sample_defaults(config),
                 "sample_text": sample_text,
+                "cached": used_cache,
             }
         )
 
@@ -7177,6 +7847,33 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
             media_type="audio/wav",
             headers={"Cache-Control": "no-store"},
         )
+
+    @app.get("/api/voice-samples/cached/{sample_path:path}")
+    def api_cached_voice_sample(sample_path: str) -> FileResponse:
+        sample_file = _resolve_cached_voice_sample(root, sample_path)
+        return FileResponse(sample_file, media_type="audio/wav")
+
+    @app.delete("/api/voice-samples/cached/{sample_path:path}")
+    def api_delete_cached_voice_sample(sample_path: str) -> JSONResponse:
+        sample_file = _resolve_cached_voice_sample(root, sample_path)
+        character_dir = sample_file.parent
+        index_path = _voice_sample_index_path(character_dir)
+        character_name, samples = _read_voice_sample_index(index_path)
+        filename = sample_file.name
+        filtered = [sample for sample in samples if sample.get("filename") != filename]
+        if len(filtered) != len(samples):
+            _write_voice_sample_index(
+                index_path,
+                character=character_name,
+                samples=filtered,
+            )
+        try:
+            sample_file.unlink()
+        except OSError as exc:
+            raise HTTPException(
+                status_code=500, detail=f"Failed to delete sample: {exc}"
+            ) from exc
+        return JSONResponse({"deleted": True, "path": sample_path})
 
     @app.get("/api/voice-samples")
     def api_voice_samples() -> JSONResponse:
