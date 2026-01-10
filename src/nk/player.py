@@ -47,6 +47,7 @@ from .voice_defaults import (
 from .voice_samples import (
     build_sample_text,
     format_voice_sample_filename,
+    voice_roster_from_payload,
     voice_samples_from_payload,
 )
 from .web_assets import NK_APPLE_TOUCH_ICON_PNG, NK_FAVICON_URL
@@ -268,6 +269,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
       min-height: auto;
       padding: 0.75rem 0.9rem 0.9rem;
       gap: 0.6rem;
+      max-width: 520px;
     }
     .voice-sample-header {
       display: flex;
@@ -284,6 +286,71 @@ INDEX_HTML = r"""<!DOCTYPE html>
     }
     .voice-sample-audio {
       width: 100%;
+    }
+    .voice-sample-audio.hidden {
+      display: none;
+    }
+    .voice-sample-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .voice-sample-text textarea {
+      min-height: 4.5rem;
+    }
+    .voice-sample-params {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 0.5rem;
+    }
+    .voice-sample-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .voice-sample-status {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .voice-samples-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+      width: 100%;
+    }
+    .voice-sample-group {
+      border-radius: calc(var(--radius) - 6px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(12, 16, 26, 0.75);
+      padding: 0.35rem 0.6rem 0.8rem;
+    }
+    .voice-sample-group summary {
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text);
+      padding: 0.35rem 0.2rem;
+    }
+    .voice-sample-group summary::marker {
+      display: none;
+    }
+    .voice-sample-group summary::after {
+      content: "▾";
+      font-size: 0.8rem;
+      color: var(--muted);
+      transition: transform 0.2s ease;
+    }
+    .voice-sample-group[open] summary::after {
+      transform: rotate(180deg);
+    }
+    .voice-sample-group-grid {
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      margin-top: 0.6rem;
     }
     .voice-samples-panel {
       margin-top: 1rem;
@@ -742,6 +809,15 @@ INDEX_HTML = r"""<!DOCTYPE html>
       color: var(--text);
       padding: 0.4rem 0.6rem;
       font-size: 1rem;
+    }
+    .voice-field textarea {
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(10, 12, 22, 0.8);
+      color: var(--text);
+      padding: 0.4rem 0.6rem;
+      font-size: 0.95rem;
+      resize: vertical;
     }
     .voice-actions {
       display: flex;
@@ -1499,11 +1575,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
         <summary>Voice samples (optional)</summary>
         <div class="voice-controls-content">
           <div class="voice-samples-actions">
-            <button id="voice-samples-load" class="secondary" type="button">Load samples</button>
-            <button id="voice-samples-generate" type="button">Generate samples</button>
+            <button id="voice-samples-refresh" class="secondary" type="button">Load voices</button>
             <span class="voice-samples-status" id="voice-samples-status"></span>
           </div>
-          <div class="cards voice-samples-grid" id="voice-samples-grid"></div>
+          <div class="voice-samples-list" id="voice-samples-grid"></div>
         </div>
       </details>
     </section>
@@ -1649,8 +1724,7 @@ INDEX_HTML = r"""<!DOCTYPE html>
     const collectionsGrid = document.getElementById('collections-grid');
     const voiceSamplesPanel = document.getElementById('voice-samples-panel');
     const voiceSamplesGrid = document.getElementById('voice-samples-grid');
-    const voiceSamplesLoadBtn = document.getElementById('voice-samples-load');
-    const voiceSamplesGenerateBtn = document.getElementById('voice-samples-generate');
+    const voiceSamplesRefreshBtn = document.getElementById('voice-samples-refresh');
     const voiceSamplesStatus = document.getElementById('voice-samples-status');
     const libraryBreadcrumb = document.getElementById('library-breadcrumb');
     const libraryBackButton = document.getElementById('library-back');
@@ -1780,13 +1854,12 @@ INDEX_HTML = r"""<!DOCTYPE html>
     const state = {
       books: [],
       collections: [],
-      voiceSamples: [],
-      voiceSamplesLoaded: false,
-      voiceSamplesLoading: false,
-      voiceSamplesGenerating: false,
-      voiceSamplesStatusLoading: false,
-      voiceSamplesCount: null,
-      voiceSamplesError: null,
+      voiceRoster: [],
+      voiceRosterLoaded: false,
+      voiceRosterLoading: false,
+      voiceSampleDefaults: { ...DEFAULT_VOICE },
+      voiceSampleText: '',
+      voiceSampleError: null,
       chapters: [],
       currentBook: null,
       currentChapterIndex: -1,
@@ -3644,17 +3717,6 @@ INDEX_HTML = r"""<!DOCTYPE html>
       return card;
     }
 
-    function voiceSampleLabel(sample) {
-      if (sample && typeof sample.name === 'string' && sample.name.trim()) {
-        return sample.name.trim();
-      }
-      if (sample && typeof sample.filename === 'string' && sample.filename) {
-        const stem = sample.filename.replace(/\.mp3$/i, '');
-        return stem.replace(/^\d+-/, '') || stem;
-      }
-      return 'Voice sample';
-    }
-
     function setVoiceSamplesStatus(message, isError = false) {
       if (!voiceSamplesStatus) return;
       voiceSamplesStatus.textContent = message || '';
@@ -3662,32 +3724,30 @@ INDEX_HTML = r"""<!DOCTYPE html>
     }
 
     function updateVoiceSamplesControls() {
-      const busy = state.voiceSamplesLoading || state.voiceSamplesGenerating || state.voiceSamplesStatusLoading;
-      const knownCount = Number.isFinite(state.voiceSamplesCount)
-        ? state.voiceSamplesCount
-        : (state.voiceSamplesLoaded ? state.voiceSamples.length : 0);
-      if (voiceSamplesLoadBtn) {
-        if (state.voiceSamplesLoading) {
-          voiceSamplesLoadBtn.disabled = true;
-          voiceSamplesLoadBtn.textContent = 'Loading...';
-        } else {
-          voiceSamplesLoadBtn.disabled = busy;
-          voiceSamplesLoadBtn.textContent = state.voiceSamplesLoaded
-            ? 'Reload samples'
-            : 'Load samples';
-        }
+      if (!voiceSamplesRefreshBtn) return;
+      if (state.voiceRosterLoading) {
+        voiceSamplesRefreshBtn.disabled = true;
+        voiceSamplesRefreshBtn.textContent = 'Loading...';
+        return;
       }
-      if (voiceSamplesGenerateBtn) {
-        if (state.voiceSamplesGenerating) {
-          voiceSamplesGenerateBtn.disabled = true;
-          voiceSamplesGenerateBtn.textContent = 'Generating...';
-        } else {
-          voiceSamplesGenerateBtn.disabled = busy;
-          voiceSamplesGenerateBtn.textContent = knownCount > 0
-            ? 'Regenerate samples'
-            : 'Generate samples';
+      voiceSamplesRefreshBtn.disabled = false;
+      voiceSamplesRefreshBtn.textContent = state.voiceRosterLoaded
+        ? 'Refresh voices'
+        : 'Load voices';
+    }
+
+    function clearVoiceSamplesGrid() {
+      if (!voiceSamplesGrid) return;
+      const audioNodes = Array.from(
+        voiceSamplesGrid.querySelectorAll('audio[data-blob-url]')
+      );
+      audioNodes.forEach(node => {
+        const url = node.dataset.blobUrl;
+        if (url) {
+          URL.revokeObjectURL(url);
         }
-      }
+      });
+      voiceSamplesGrid.innerHTML = '';
     }
 
     function updateVoiceSamplesVisibility() {
@@ -3696,123 +3756,259 @@ INDEX_HTML = r"""<!DOCTYPE html>
       voiceSamplesPanel.classList.toggle('hidden', !isRoot);
       if (!isRoot) {
         voiceSamplesPanel.open = false;
-        if (voiceSamplesGrid) {
-          voiceSamplesGrid.innerHTML = '';
-        }
-        state.voiceSamplesLoaded = false;
-        state.voiceSamplesLoading = false;
-        state.voiceSamplesGenerating = false;
-        state.voiceSamplesStatusLoading = false;
-        state.voiceSamplesCount = null;
-        state.voiceSamples = [];
+        clearVoiceSamplesGrid();
+        state.voiceRosterLoaded = false;
+        state.voiceRosterLoading = false;
+        state.voiceRoster = [];
+        state.voiceSampleText = '';
+        state.voiceSampleDefaults = { ...DEFAULT_VOICE };
+        state.voiceSampleError = null;
         setVoiceSamplesStatus('');
       }
     }
 
-    async function refreshVoiceSamplesStatus({ silent = false } = {}) {
-      if (state.voiceSamplesStatusLoading) {
-        return state.voiceSamplesCount;
-      }
-      state.voiceSamplesStatusLoading = true;
-      updateVoiceSamplesControls();
-      if (!silent) {
-        setVoiceSamplesStatus('Checking samples...');
-      }
-      try {
-        const data = await fetchJSON('/api/voice-samples/status');
-        const count = Number.isFinite(data?.count) ? data.count : 0;
-        state.voiceSamplesCount = count;
-        if (!silent) {
-          setVoiceSamplesStatus(
-            count > 0 ? `${count} samples available.` : 'No voice samples found.'
-          );
-        }
-      } catch (err) {
-        if (!silent) {
-          setVoiceSamplesStatus('Failed to check voice samples.', true);
-        }
-      } finally {
-        state.voiceSamplesStatusLoading = false;
-        updateVoiceSamplesControls();
-      }
-      return state.voiceSamplesCount;
-    }
-
-    async function loadVoiceSamples({ force = false } = {}) {
-      if (state.voiceSamplesLoading) return;
-      if (state.voiceSamplesLoaded && !force) {
+    async function loadVoiceRoster({ force = false } = {}) {
+      if (state.voiceRosterLoading) return;
+      if (state.voiceRosterLoaded && !force) {
         renderVoiceSamples();
         return;
       }
-      state.voiceSamplesLoading = true;
-      state.voiceSamplesError = null;
+      state.voiceRosterLoading = true;
+      state.voiceSampleError = null;
       updateVoiceSamplesControls();
-      setVoiceSamplesStatus('Loading...');
+      setVoiceSamplesStatus('Loading voices...');
       try {
-        const data = await fetchJSON('/api/voice-samples');
-        const samples = Array.isArray(data?.samples)
-          ? data.samples
-          : (Array.isArray(data) ? data : []);
-        state.voiceSamples = samples;
-        state.voiceSamplesLoaded = true;
-        state.voiceSamplesCount = Number.isFinite(data?.count) ? data.count : samples.length;
-        if (!samples.length) {
-          setVoiceSamplesStatus('No voice samples found.');
+        const data = await fetchJSON('/api/voice-samples/voices');
+        const roster = Array.isArray(data?.characters) ? data.characters : [];
+        state.voiceRoster = roster;
+        state.voiceRosterLoaded = true;
+        const defaults = data?.defaults && typeof data.defaults === 'object'
+          ? data.defaults
+          : {};
+        state.voiceSampleDefaults = { ...DEFAULT_VOICE, ...defaults };
+        if (typeof data?.sample_text === 'string') {
+          state.voiceSampleText = data.sample_text;
+        }
+        if (!roster.length) {
+          setVoiceSamplesStatus('No voices found.');
         } else {
-          setVoiceSamplesStatus(`${samples.length} samples loaded.`);
+          setVoiceSamplesStatus(`${roster.length} characters loaded.`);
         }
       } catch (err) {
-        state.voiceSamplesError = err;
-        setVoiceSamplesStatus('Failed to load voice samples.', true);
+        state.voiceSampleError = err;
+        setVoiceSamplesStatus('Failed to load voice list.', true);
       } finally {
-        state.voiceSamplesLoading = false;
+        state.voiceRosterLoading = false;
         updateVoiceSamplesControls();
       }
       renderVoiceSamples();
     }
 
-    async function generateVoiceSamples() {
-      if (state.voiceSamplesGenerating) return;
-      const count = await refreshVoiceSamplesStatus({ silent: true });
-      const knownCount = Number.isFinite(count) ? count : 0;
-      if (knownCount > 0) {
-        const confirmMsg = 'Regenerate voice samples? This will overwrite existing files.';
-        if (!window.confirm(confirmMsg)) {
-          return;
-        }
+    function parseSampleScale(input, fallback, label) {
+      if (!input) return fallback;
+      const raw = input.value.trim();
+      if (!raw) return fallback;
+      const num = Number(raw);
+      if (!Number.isFinite(num)) {
+        throw new Error(`${label} must be numeric.`);
       }
-      state.voiceSamplesGenerating = true;
-      updateVoiceSamplesControls();
-      setVoiceSamplesStatus(
-        knownCount > 0 ? 'Regenerating samples...' : 'Generating samples...'
-      );
+      return num;
+    }
+
+    function setVoiceSampleRowStatus(node, message, isError = false) {
+      if (!node) return;
+      node.textContent = message || '';
+      node.style.color = isError ? '#f87171' : 'var(--muted)';
+    }
+
+    async function generateVoiceSample({
+      voiceId,
+      textInput,
+      speedInput,
+      pitchInput,
+      intonationInput,
+      audioNode,
+      statusNode,
+      buttonNode,
+    }) {
+      if (!Number.isFinite(voiceId)) {
+        setVoiceSampleRowStatus(statusNode, 'Invalid voice id.', true);
+        return;
+      }
+      const rawText = textInput ? textInput.value : '';
+      if (!rawText.trim()) {
+        setVoiceSampleRowStatus(statusNode, 'Sample text is required.', true);
+        return;
+      }
+      const defaults = state.voiceSampleDefaults || DEFAULT_VOICE;
+      let speed;
+      let pitch;
+      let intonation;
       try {
-        const res = await fetch('/api/voice-samples/generate', {
+        speed = parseSampleScale(speedInput, defaults.speed, 'Speed');
+        pitch = parseSampleScale(pitchInput, defaults.pitch, 'Pitch');
+        intonation = parseSampleScale(intonationInput, defaults.intonation, 'Intonation');
+      } catch (err) {
+        setVoiceSampleRowStatus(statusNode, err.message || 'Invalid parameters.', true);
+        return;
+      }
+      if (buttonNode) {
+        buttonNode.disabled = true;
+        buttonNode.textContent = 'Generating...';
+      }
+      setVoiceSampleRowStatus(statusNode, 'Generating...');
+      try {
+        const res = await fetch('/api/voice-samples/preview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ overwrite: knownCount > 0 }),
+          body: JSON.stringify({
+            speaker: voiceId,
+            text: rawText,
+            speed,
+            pitch,
+            intonation,
+          }),
         });
         if (!res.ok) {
           const detail = await readErrorResponse(res);
           throw new Error(detail || `HTTP ${res.status}`);
         }
-        const payload = await res.json();
-        const nextCount = Number.isFinite(payload?.count)
-          ? payload.count
-          : (Number.isFinite(payload?.generated) ? payload.generated : knownCount);
-        state.voiceSamplesCount = nextCount;
-        state.voiceSamplesLoaded = false;
-        state.voiceSamples = [];
-        await loadVoiceSamples({ force: true });
-        if (Number.isFinite(payload?.generated)) {
-          setVoiceSamplesStatus(`Generated ${payload.generated} samples.`);
+        const blob = await res.blob();
+        if (audioNode) {
+          const oldUrl = audioNode.dataset.blobUrl;
+          if (oldUrl) {
+            URL.revokeObjectURL(oldUrl);
+          }
+          const url = URL.createObjectURL(blob);
+          audioNode.dataset.blobUrl = url;
+          audioNode.src = url;
+          audioNode.classList.remove('hidden');
+          audioNode.load();
+          audioNode.play().catch(() => {});
         }
+        setVoiceSampleRowStatus(statusNode, 'Ready.');
       } catch (err) {
-        setVoiceSamplesStatus(err.message || 'Failed to generate voice samples.', true);
+        setVoiceSampleRowStatus(
+          statusNode,
+          err.message || 'Failed to generate sample.',
+          true
+        );
       } finally {
-        state.voiceSamplesGenerating = false;
-        updateVoiceSamplesControls();
+        if (buttonNode) {
+          buttonNode.disabled = false;
+          buttonNode.textContent = 'Generate sample';
+        }
       }
+    }
+
+    function createVoiceSampleCard(voice) {
+      if (!voice || typeof voice !== 'object') return null;
+      const voiceId = Number.isFinite(voice.id) ? voice.id : null;
+      const voiceName = typeof voice.name === 'string' && voice.name.trim()
+        ? voice.name.trim()
+        : (typeof voice.display_name === 'string' && voice.display_name.trim()
+          ? voice.display_name.trim()
+          : 'Voice');
+      if (voiceId === null) return null;
+      const defaults = state.voiceSampleDefaults || DEFAULT_VOICE;
+
+      const card = document.createElement('article');
+      card.className = 'card voice-sample-card';
+      card.dataset.voiceId = String(voiceId);
+
+      const header = document.createElement('div');
+      header.className = 'voice-sample-header';
+      const name = document.createElement('div');
+      name.className = 'voice-sample-name';
+      name.textContent = voiceName;
+      header.appendChild(name);
+      const idLabel = document.createElement('div');
+      idLabel.className = 'voice-sample-id';
+      idLabel.textContent = `#${voiceId}`;
+      header.appendChild(idLabel);
+      card.appendChild(header);
+
+      const controls = document.createElement('div');
+      controls.className = 'voice-sample-controls';
+
+      const textLabel = document.createElement('label');
+      textLabel.className = 'voice-field voice-sample-text';
+      textLabel.append('Sample text');
+      const textarea = document.createElement('textarea');
+      textarea.rows = 4;
+      textarea.value = state.voiceSampleText || '';
+      textLabel.appendChild(textarea);
+      controls.appendChild(textLabel);
+
+      const params = document.createElement('div');
+      params.className = 'voice-sample-params';
+
+      const speedLabel = document.createElement('label');
+      speedLabel.className = 'voice-field';
+      speedLabel.append('Speed');
+      const speedInput = document.createElement('input');
+      speedInput.type = 'number';
+      speedInput.step = '0.01';
+      speedInput.value = Number.isFinite(defaults.speed) ? String(defaults.speed) : '';
+      speedLabel.appendChild(speedInput);
+      params.appendChild(speedLabel);
+
+      const pitchLabel = document.createElement('label');
+      pitchLabel.className = 'voice-field';
+      pitchLabel.append('Pitch');
+      const pitchInput = document.createElement('input');
+      pitchInput.type = 'number';
+      pitchInput.step = '0.01';
+      pitchInput.value = Number.isFinite(defaults.pitch) ? String(defaults.pitch) : '';
+      pitchLabel.appendChild(pitchInput);
+      params.appendChild(pitchLabel);
+
+      const intonationLabel = document.createElement('label');
+      intonationLabel.className = 'voice-field';
+      intonationLabel.append('Intonation');
+      const intonationInput = document.createElement('input');
+      intonationInput.type = 'number';
+      intonationInput.step = '0.01';
+      intonationInput.value = Number.isFinite(defaults.intonation)
+        ? String(defaults.intonation)
+        : '';
+      intonationLabel.appendChild(intonationInput);
+      params.appendChild(intonationLabel);
+
+      controls.appendChild(params);
+      card.appendChild(controls);
+
+      const actions = document.createElement('div');
+      actions.className = 'voice-sample-actions';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = 'Generate sample';
+      const status = document.createElement('span');
+      status.className = 'voice-sample-status';
+      actions.appendChild(button);
+      actions.appendChild(status);
+      card.appendChild(actions);
+
+      const audio = document.createElement('audio');
+      audio.className = 'voice-sample-audio hidden';
+      audio.controls = true;
+      audio.preload = 'none';
+      card.appendChild(audio);
+
+      button.addEventListener('click', () => {
+        generateVoiceSample({
+          voiceId,
+          textInput: textarea,
+          speedInput,
+          pitchInput,
+          intonationInput,
+          audioNode: audio,
+          statusNode: status,
+          buttonNode: button,
+        });
+      });
+
+      return card;
     }
 
     function renderVoiceSamples() {
@@ -3822,51 +4018,48 @@ INDEX_HTML = r"""<!DOCTYPE html>
         return;
       }
       if (!voiceSamplesPanel.open) {
-        voiceSamplesGrid.innerHTML = '';
+        clearVoiceSamplesGrid();
         return;
       }
-      if (!state.voiceSamplesLoaded) {
-        voiceSamplesGrid.innerHTML = '';
+      if (!state.voiceRosterLoaded) {
+        clearVoiceSamplesGrid();
         return;
       }
-      const samples = Array.isArray(state.voiceSamples) ? state.voiceSamples : [];
-      voiceSamplesGrid.innerHTML = '';
-      if (samples.length === 0) {
+      const roster = Array.isArray(state.voiceRoster) ? state.voiceRoster : [];
+      clearVoiceSamplesGrid();
+      if (roster.length === 0) {
         return;
       }
-      samples.forEach(sample => {
-        if (!sample || typeof sample !== 'object') {
+      roster.forEach(entry => {
+        if (!entry || typeof entry !== 'object') {
           return;
         }
-        const url = sample.url;
-        if (typeof url !== 'string' || !url) {
+        const name = typeof entry.name === 'string' && entry.name.trim()
+          ? entry.name.trim()
+          : 'Voice';
+        const voices = Array.isArray(entry.voices) ? entry.voices : [];
+        if (!voices.length) {
           return;
         }
-        const card = document.createElement('article');
-        card.className = 'card voice-sample-card';
-        if (Number.isFinite(sample.id)) {
-          card.dataset.voiceId = String(sample.id);
+        const group = document.createElement('details');
+        group.className = 'voice-sample-group';
+        group.open = true;
+        const summary = document.createElement('summary');
+        summary.textContent = name;
+        group.appendChild(summary);
+        const grid = document.createElement('div');
+        grid.className = 'cards voice-sample-group-grid';
+        voices.forEach(voice => {
+          const card = createVoiceSampleCard(voice);
+          if (card) {
+            grid.appendChild(card);
+          }
+        });
+        if (!grid.childElementCount) {
+          return;
         }
-        const header = document.createElement('div');
-        header.className = 'voice-sample-header';
-        const name = document.createElement('div');
-        name.className = 'voice-sample-name';
-        name.textContent = voiceSampleLabel(sample);
-        header.appendChild(name);
-        if (Number.isFinite(sample.id)) {
-          const idLabel = document.createElement('div');
-          idLabel.className = 'voice-sample-id';
-          idLabel.textContent = `#${sample.id}`;
-          header.appendChild(idLabel);
-        }
-        card.appendChild(header);
-        const audio = document.createElement('audio');
-        audio.className = 'voice-sample-audio';
-        audio.controls = true;
-        audio.preload = 'none';
-        audio.src = url;
-        card.appendChild(audio);
-        voiceSamplesGrid.appendChild(card);
+        group.appendChild(grid);
+        voiceSamplesGrid.appendChild(group);
       });
     }
 
@@ -5193,26 +5386,20 @@ INDEX_HTML = r"""<!DOCTYPE html>
     if (voiceSamplesPanel) {
       voiceSamplesPanel.addEventListener('toggle', () => {
         if (!voiceSamplesPanel.open) {
-          if (voiceSamplesGrid) {
-            voiceSamplesGrid.innerHTML = '';
-          }
+          clearVoiceSamplesGrid();
           return;
         }
         updateVoiceSamplesControls();
-        refreshVoiceSamplesStatus({ silent: false });
-        if (state.voiceSamplesLoaded) {
+        if (state.voiceRosterLoaded) {
           renderVoiceSamples();
+          return;
         }
+        loadVoiceRoster();
       });
     }
-    if (voiceSamplesLoadBtn) {
-      voiceSamplesLoadBtn.onclick = () => {
-        loadVoiceSamples({ force: state.voiceSamplesLoaded });
-      };
-    }
-    if (voiceSamplesGenerateBtn) {
-      voiceSamplesGenerateBtn.onclick = () => {
-        generateVoiceSamples();
+    if (voiceSamplesRefreshBtn) {
+      voiceSamplesRefreshBtn.onclick = () => {
+        loadVoiceRoster({ force: state.voiceRosterLoaded });
       };
     }
 
@@ -5421,6 +5608,85 @@ def _list_voice_samples(root: Path) -> list[dict[str, object]]:
         )
     )
     return payload
+
+
+def _voice_sample_defaults(config: PlayerConfig) -> dict[str, float]:
+    return {
+        "speed": float(config.speed_scale)
+        if config.speed_scale is not None
+        else float(DEFAULT_SPEED_SCALE),
+        "pitch": float(config.pitch_scale)
+        if config.pitch_scale is not None
+        else float(DEFAULT_PITCH_SCALE),
+        "intonation": float(config.intonation_scale)
+        if config.intonation_scale is not None
+        else float(DEFAULT_INTONATION_SCALE),
+    }
+
+
+def _list_voice_roster(
+    config: PlayerConfig,
+    lock: threading.Lock,
+) -> list[dict[str, object]]:
+    with lock:
+        runtime_hint = config.engine_runtime or discover_voicevox_runtime(
+            config.engine_url
+        )
+        env_override, thread_override = _engine_thread_overrides(config.engine_threads)
+        with managed_voicevox_runtime(
+            runtime_hint,
+            config.engine_url,
+            readiness_timeout=config.engine_wait,
+            extra_env=env_override,
+            cpu_threads=thread_override,
+        ):
+            client = VoiceVoxClient(
+                base_url=config.engine_url,
+                timeout=60.0,
+            )
+            try:
+                payload = client.list_speakers()
+                return voice_roster_from_payload(payload)
+            finally:
+                client.close()
+
+
+def _synthesize_voice_sample(
+    config: PlayerConfig,
+    lock: threading.Lock,
+    *,
+    speaker_id: int,
+    text: str,
+    speed: float,
+    pitch: float,
+    intonation: float,
+) -> bytes:
+    def _modify_query(payload: dict[str, object]) -> None:
+        payload["speedScale"] = float(speed)
+        payload["pitchScale"] = float(pitch)
+        payload["intonationScale"] = float(intonation)
+
+    with lock:
+        runtime_hint = config.engine_runtime or discover_voicevox_runtime(
+            config.engine_url
+        )
+        env_override, thread_override = _engine_thread_overrides(config.engine_threads)
+        with managed_voicevox_runtime(
+            runtime_hint,
+            config.engine_url,
+            readiness_timeout=config.engine_wait,
+            extra_env=env_override,
+            cpu_threads=thread_override,
+        ):
+            client = VoiceVoxClient(
+                base_url=config.engine_url,
+                speaker_id=speaker_id,
+                timeout=60.0,
+            )
+            try:
+                return client.synthesize_wav(text, modify_query=_modify_query)
+            finally:
+                client.close()
 
 
 def _generate_voice_samples(
@@ -6731,6 +6997,98 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
     def api_voice_samples_status() -> JSONResponse:
         count = len(_list_voice_samples(root))
         return JSONResponse({"count": count, "has_samples": count > 0})
+
+    @app.get("/api/voice-samples/voices")
+    def api_voice_samples_voices() -> JSONResponse:
+        try:
+            roster = _list_voice_roster(config, app.state.voicevox_lock)
+            sample_text = build_sample_text()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (
+            VoiceVoxUnavailableError,
+            VoiceVoxError,
+            VoiceVoxRuntimeError,
+            FileNotFoundError,
+        ) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return JSONResponse(
+            {
+                "characters": roster,
+                "defaults": _voice_sample_defaults(config),
+                "sample_text": sample_text,
+            }
+        )
+
+    @app.post("/api/voice-samples/preview")
+    def api_voice_samples_preview(
+        payload: dict[str, object] | None = Body(None),
+    ) -> Response:
+        data = payload or {}
+        if not isinstance(data, dict):
+            raise HTTPException(status_code=400, detail="Invalid payload.")
+        speaker_value = data.get("speaker", data.get("voice_id"))
+        if isinstance(speaker_value, bool) or not isinstance(speaker_value, int):
+            raise HTTPException(status_code=400, detail="speaker must be an integer.")
+        if speaker_value <= 0:
+            raise HTTPException(
+                status_code=400, detail="speaker must be a positive integer."
+            )
+        defaults = _voice_sample_defaults(config)
+
+        def _parse_scale(key: str) -> float:
+            if key not in data or data[key] is None:
+                return float(defaults[key])
+            value = data[key]
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise HTTPException(
+                    status_code=400, detail=f"{key} must be numeric."
+                )
+            return float(value)
+
+        speed = _parse_scale("speed")
+        pitch = _parse_scale("pitch")
+        intonation = _parse_scale("intonation")
+
+        sample_lines = None
+        if "text" in data:
+            text_value = data.get("text")
+            if text_value is None:
+                sample_lines = None
+            elif isinstance(text_value, list):
+                sample_lines = [str(item) for item in text_value]
+            elif isinstance(text_value, str):
+                sample_lines = text_value.splitlines()
+            else:
+                raise HTTPException(
+                    status_code=400, detail="text must be a string or list of strings."
+                )
+        try:
+            sample_text = build_sample_text(sample_lines)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        try:
+            wav_bytes = _synthesize_voice_sample(
+                config,
+                app.state.voicevox_lock,
+                speaker_id=int(speaker_value),
+                text=sample_text,
+                speed=speed,
+                pitch=pitch,
+                intonation=intonation,
+            )
+        except (
+            VoiceVoxUnavailableError,
+            VoiceVoxError,
+            VoiceVoxRuntimeError,
+            FileNotFoundError,
+        ) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return Response(
+            content=wav_bytes,
+            media_type="audio/wav",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/api/voice-samples")
     def api_voice_samples() -> JSONResponse:

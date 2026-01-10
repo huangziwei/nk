@@ -73,6 +73,51 @@ def voice_samples_from_payload(payload: object) -> list[tuple[int, str]]:
     return voices
 
 
+def voice_roster_from_payload(payload: object) -> list[dict[str, object]]:
+    if not isinstance(payload, list):
+        return []
+    roster: list[dict[str, object]] = []
+    for entry in payload:
+        if not isinstance(entry, dict):
+            continue
+        speaker_name = str(entry.get("name") or "").strip()
+        styles = entry.get("styles")
+        if not isinstance(styles, list):
+            continue
+        voices: list[dict[str, object]] = []
+        seen_ids: set[int] = set()
+        for style in styles:
+            if not isinstance(style, dict):
+                continue
+            style_id = style.get("id")
+            if isinstance(style_id, bool) or not isinstance(style_id, int):
+                continue
+            if style_id in seen_ids:
+                continue
+            seen_ids.add(style_id)
+            style_name = str(style.get("name") or "").strip()
+            name_parts = [part for part in (speaker_name, style_name) if part]
+            display_name = "-".join(name_parts) if name_parts else f"Voice-{style_id}"
+            voices.append(
+                {
+                    "id": style_id,
+                    "name": style_name or f"Voice-{style_id}",
+                    "display_name": display_name,
+                }
+            )
+        if not voices:
+            continue
+        voices.sort(key=lambda item: item["id"])
+        roster.append(
+            {
+                "name": speaker_name or voices[0]["display_name"],
+                "voices": voices,
+            }
+        )
+    roster.sort(key=lambda item: str(item.get("name") or "").casefold())
+    return roster
+
+
 def format_voice_sample_filename(
     speaker_id: int,
     display_name: str,
