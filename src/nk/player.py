@@ -138,6 +138,25 @@ INDEX_HTML = r"""<!DOCTYPE html>
       padding: 1.3rem 1.6rem 1rem;
       background: linear-gradient(135deg, rgba(59,130,246,0.18), transparent);
     }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .header-title {
+      display: flex;
+      flex-direction: column;
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .header-actions button {
+      white-space: nowrap;
+    }
     header h1 {
       margin: 0;
       font-size: 1.55rem;
@@ -319,6 +338,21 @@ INDEX_HTML = r"""<!DOCTYPE html>
       gap: 0.8rem;
       width: 100%;
     }
+    .voice-samples-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+    .voice-samples-header h2 {
+      margin: 0;
+    }
+    .voice-samples-intro {
+      margin: 0.35rem 0 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
     .voice-sample-group {
       border-radius: calc(var(--radius) - 6px);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -351,9 +385,6 @@ INDEX_HTML = r"""<!DOCTYPE html>
     .voice-sample-group-grid {
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       margin-top: 0.6rem;
-    }
-    .voice-samples-panel {
-      margin-top: 1rem;
     }
     .voice-samples-actions {
       display: flex;
@@ -1540,8 +1571,15 @@ INDEX_HTML = r"""<!DOCTYPE html>
 </head>
 <body>
   <header>
-    <h1><a href="/" id="home-link">nk Player</a></h1>
-    <p>Stream your EPUB chapter by chapter.</p>
+    <div class="header-row">
+      <div class="header-title">
+        <h1><a href="/" id="home-link">nk Player</a></h1>
+        <p>Stream your EPUB chapter by chapter.</p>
+      </div>
+      <div class="header-actions">
+        <button id="voice-samples-link" class="secondary" type="button">Voice samples</button>
+      </div>
+    </div>
   </header>
   <main>
     <section class="panel" id="books-panel">
@@ -1571,16 +1609,22 @@ INDEX_HTML = r"""<!DOCTYPE html>
       </details>
       <div class="cards collection-cards hidden" id="collections-grid"></div>
       <div class="cards" id="books-grid"></div>
-      <details class="voice-controls voice-samples-panel hidden" id="voice-samples-panel">
-        <summary>Voice samples (optional)</summary>
-        <div class="voice-controls-content">
-          <div class="voice-samples-actions">
-            <button id="voice-samples-refresh" class="secondary" type="button">Load voices</button>
-            <span class="voice-samples-status" id="voice-samples-status"></span>
-          </div>
-          <div class="voice-samples-list" id="voice-samples-grid"></div>
+    </section>
+
+    <section class="panel hidden" id="voice-samples-page">
+      <div class="voice-samples-header">
+        <div>
+          <h2>Voice samples</h2>
+          <p class="voice-samples-intro">Generate sample clips on demand with custom text and tuning.</p>
         </div>
-      </details>
+      </div>
+      <div class="voice-controls-content">
+        <div class="voice-samples-actions">
+          <button id="voice-samples-refresh" class="secondary" type="button">Load voices</button>
+          <span class="voice-samples-status" id="voice-samples-status"></span>
+        </div>
+        <div class="voice-samples-list" id="voice-samples-grid"></div>
+      </div>
     </section>
 
     <section class="panel hidden" id="chapters-panel">
@@ -1720,12 +1764,14 @@ INDEX_HTML = r"""<!DOCTYPE html>
 
   <script type="application/json" id="nk-player-config">__NK_PLAYER_CONFIG__</script>
   <script>
+    const booksPanel = document.getElementById('books-panel');
     const booksGrid = document.getElementById('books-grid');
     const collectionsGrid = document.getElementById('collections-grid');
-    const voiceSamplesPanel = document.getElementById('voice-samples-panel');
+    const voiceSamplesPage = document.getElementById('voice-samples-page');
     const voiceSamplesGrid = document.getElementById('voice-samples-grid');
     const voiceSamplesRefreshBtn = document.getElementById('voice-samples-refresh');
     const voiceSamplesStatus = document.getElementById('voice-samples-status');
+    const voiceSamplesLink = document.getElementById('voice-samples-link');
     const libraryBreadcrumb = document.getElementById('library-breadcrumb');
     const libraryBackButton = document.getElementById('library-back');
     const chaptersPanel = document.getElementById('chapters-panel');
@@ -1794,20 +1840,25 @@ INDEX_HTML = r"""<!DOCTYPE html>
     if (pendingEpubPanel) {
       pendingEpubPanel.open = false;
     }
-    if (voiceSamplesPanel) {
-      voiceSamplesPanel.open = false;
-    }
     const playerConfigNode = document.getElementById('nk-player-config');
     let readerBaseUrl = null;
+    let initialView = 'library';
     if (playerConfigNode && typeof playerConfigNode.textContent === 'string') {
       try {
         const payload = JSON.parse(playerConfigNode.textContent);
         if (payload && typeof payload.reader_url === 'string' && payload.reader_url.trim()) {
           readerBaseUrl = payload.reader_url.trim();
         }
+        if (payload && typeof payload.view === 'string' && payload.view.trim()) {
+          initialView = payload.view.trim();
+        }
       } catch (err) {
         console.warn('Failed to parse nk player config:', err);
       }
+    }
+    const trimmedPath = window.location.pathname.replace(/\/+$/, '');
+    if (initialView === 'library' && trimmedPath.endsWith('/voice-samples')) {
+      initialView = 'voice-samples';
     }
 
     function isIpLikeHost(hostname) {
@@ -1850,10 +1901,16 @@ INDEX_HTML = r"""<!DOCTYPE html>
       pitch: -0.08,
       intonation: 1.25,
     };
+    const VIEW_LIBRARY = 'library';
+    const VIEW_SAMPLES = 'voice-samples';
+    if (![VIEW_LIBRARY, VIEW_SAMPLES].includes(initialView)) {
+      initialView = VIEW_LIBRARY;
+    }
 
     const state = {
       books: [],
       collections: [],
+      activeView: initialView,
       voiceRoster: [],
       voiceRosterLoaded: false,
       voiceRosterLoading: false,
@@ -2043,6 +2100,9 @@ INDEX_HTML = r"""<!DOCTYPE html>
     }
     if (homeLink) {
       homeLink.addEventListener('click', event => {
+        if (isVoiceSamplesView()) {
+          return;
+        }
         event.preventDefault();
         if (state.currentBook) {
           closeBookView({ skipHistory: true });
@@ -3723,6 +3783,10 @@ INDEX_HTML = r"""<!DOCTYPE html>
       voiceSamplesStatus.style.color = isError ? '#f87171' : 'var(--muted)';
     }
 
+    function isVoiceSamplesView() {
+      return state.activeView === VIEW_SAMPLES;
+    }
+
     function updateVoiceSamplesControls() {
       if (!voiceSamplesRefreshBtn) return;
       if (state.voiceRosterLoading) {
@@ -3751,20 +3815,38 @@ INDEX_HTML = r"""<!DOCTYPE html>
     }
 
     function updateVoiceSamplesVisibility() {
-      if (!voiceSamplesPanel) return;
-      const isRoot = !normalizeLibraryPath(state.libraryPrefix);
-      voiceSamplesPanel.classList.toggle('hidden', !isRoot);
-      if (!isRoot) {
-        voiceSamplesPanel.open = false;
+      if (!voiceSamplesPage) return;
+      const isSamplesView = isVoiceSamplesView();
+      voiceSamplesPage.classList.toggle('hidden', !isSamplesView);
+      if (!isSamplesView) {
         clearVoiceSamplesGrid();
-        state.voiceRosterLoaded = false;
-        state.voiceRosterLoading = false;
-        state.voiceRoster = [];
-        state.voiceSampleText = '';
-        state.voiceSampleDefaults = { ...DEFAULT_VOICE };
-        state.voiceSampleError = null;
         setVoiceSamplesStatus('');
       }
+    }
+
+    function updateVoiceSamplesLink() {
+      if (!voiceSamplesLink) return;
+      const isSamplesView = isVoiceSamplesView();
+      voiceSamplesLink.textContent = isSamplesView ? 'Back to library' : 'Voice samples';
+      voiceSamplesLink.setAttribute(
+        'aria-label',
+        isSamplesView ? 'Back to library' : 'Open voice samples'
+      );
+    }
+
+    function applyViewMode() {
+      const isSamplesView = isVoiceSamplesView();
+      if (booksPanel) {
+        booksPanel.classList.toggle('hidden', isSamplesView);
+      }
+      if (chaptersPanel && isSamplesView) {
+        chaptersPanel.classList.add('hidden');
+      }
+      if (playerDock && isSamplesView) {
+        playerDock.classList.add('hidden');
+      }
+      updateVoiceSamplesVisibility();
+      updateVoiceSamplesLink();
     }
 
     async function loadVoiceRoster({ force = false } = {}) {
@@ -4012,12 +4094,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
     }
 
     function renderVoiceSamples() {
-      if (!voiceSamplesPanel || !voiceSamplesGrid) return;
-      const isRoot = !normalizeLibraryPath(state.libraryPrefix);
-      if (!isRoot) {
-        return;
-      }
-      if (!voiceSamplesPanel.open) {
+      if (!voiceSamplesPage || !voiceSamplesGrid) return;
+      if (!isVoiceSamplesView()) {
         clearVoiceSamplesGrid();
         return;
       }
@@ -5383,23 +5461,19 @@ INDEX_HTML = r"""<!DOCTYPE html>
       closeBookView();
     };
 
-    if (voiceSamplesPanel) {
-      voiceSamplesPanel.addEventListener('toggle', () => {
-        if (!voiceSamplesPanel.open) {
-          clearVoiceSamplesGrid();
-          return;
-        }
-        updateVoiceSamplesControls();
-        if (state.voiceRosterLoaded) {
-          renderVoiceSamples();
-          return;
-        }
-        loadVoiceRoster();
-      });
-    }
     if (voiceSamplesRefreshBtn) {
       voiceSamplesRefreshBtn.onclick = () => {
         loadVoiceRoster({ force: state.voiceRosterLoaded });
+      };
+    }
+    if (voiceSamplesLink) {
+      voiceSamplesLink.onclick = () => {
+        const search = window.location.search || '';
+        const hash = window.location.hash || '';
+        const target = isVoiceSamplesView()
+          ? `/${search}${hash}`
+          : `/voice-samples${search}${hash}`;
+        window.location.href = target;
       };
     }
 
@@ -5467,31 +5541,36 @@ INDEX_HTML = r"""<!DOCTYPE html>
 
     setBookmarks({ manual: [], last_played: null });
 
-    renderLibraryNav();
-    updateVoiceSamplesVisibility();
+    applyViewMode();
     updateVoiceSamplesControls();
     renderVoiceSamples();
-    renderCollections();
-    renderPendingEpubs();
 
-    const initialLoadOptions = initialBookId
-      ? { skipHistory: true }
-      : { replaceHistory: true };
-    loadBooks(initialLibraryPrefix || undefined, initialLoadOptions)
-      .then(() => {
-        if (!initialBookId) {
-          return null;
-        }
-        return openBookById(initialBookId, { replaceHistory: true }).then(opened => {
-          if (!opened) {
-            updateLocationFromState({ replace: true });
+    if (isVoiceSamplesView()) {
+      loadVoiceRoster();
+    } else {
+      renderLibraryNav();
+      renderCollections();
+      renderPendingEpubs();
+
+      const initialLoadOptions = initialBookId
+        ? { skipHistory: true }
+        : { replaceHistory: true };
+      loadBooks(initialLibraryPrefix || undefined, initialLoadOptions)
+        .then(() => {
+          if (!initialBookId) {
+            return null;
           }
-          return opened;
+          return openBookById(initialBookId, { replaceHistory: true }).then(opened => {
+            if (!opened) {
+              updateLocationFromState({ replace: true });
+            }
+            return opened;
+          });
+        })
+        .catch(err => {
+          booksGrid.innerHTML = `<div style="color:var(--danger)">Failed to load books: ${err.message}</div>`;
         });
-      })
-      .catch(err => {
-        booksGrid.innerHTML = `<div style="color:var(--danger)">Failed to load books: ${err.message}</div>`;
-      });
+    }
   </script>
 </body>
 </html>
@@ -6797,14 +6876,23 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
                 error=message,
             )
 
-    @app.get("/", response_class=HTMLResponse)
-    def index() -> HTMLResponse:
+    def _render_player(view: str | None = None) -> HTMLResponse:
         payload = {"reader_url": getattr(app.state, "reader_url", None)}
+        if view:
+            payload["view"] = view
         config_blob = json.dumps(payload, ensure_ascii=False)
         html = INDEX_HTML.replace("__NK_PLAYER_CONFIG__", config_blob).replace(
             "__NK_FAVICON__", NK_FAVICON_URL
         )
         return HTMLResponse(html)
+
+    @app.get("/", response_class=HTMLResponse)
+    def index() -> HTMLResponse:
+        return _render_player()
+
+    @app.get("/voice-samples", response_class=HTMLResponse)
+    def voice_samples_page() -> HTMLResponse:
+        return _render_player("voice-samples")
 
     @app.get("/apple-touch-icon.png")
     def apple_touch_icon() -> Response:
