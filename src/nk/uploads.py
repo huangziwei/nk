@@ -12,7 +12,6 @@ from typing import Mapping
 from uuid import uuid4
 
 from .book_io import write_book_package
-from .chunk_manifest import write_chunk_manifests
 from .core import epub_to_chapter_texts, get_epub_cover
 from .nlp import NLPBackend, NLPBackendUnavailableError
 from .refine import OverrideRule, load_override_config, load_refine_config, refine_book

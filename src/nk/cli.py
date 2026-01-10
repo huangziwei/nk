@@ -39,7 +39,6 @@ from .book_io import (
     write_book_package,
 )
 from .cast import cast_manifests
-from .chunk_manifest import write_chunk_manifests
 from .core import (
     _apply_mapping_with_pattern,
     _build_mapping_pattern,

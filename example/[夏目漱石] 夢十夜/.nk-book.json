@@ -1,110 +1,111 @@
 {
-  "version": 1,
-  "title": "夢十夜",
-  "chapters": [
-    {
-      "index": 1,
-      "file": "001_夢十夜.txt",
-      "title": "夢十夜",
-      "original_title": "夢十夜",
-      "source": "item/xhtml/title.xhtml"
+    "version": 1,
+    "title": "夢十夜",
+    "chapters": [
+        {
+            "index": 1,
+            "file": "001_夢十夜.txt",
+            "title": "夢十夜",
+            "original_title": "夢十夜",
+            "source": "item/xhtml/title.xhtml"
+        },
+        {
+            "index": 2,
+            "file": "002_第一夜.txt",
+            "title": "第一夜",
+            "original_title": "第一夜",
+            "source": "item/xhtml/0001.xhtml"
+        },
+        {
+            "index": 3,
+            "file": "003_第二夜.txt",
+            "title": "第ニ夜",
+            "original_title": "第二夜",
+            "source": "item/xhtml/0001.xhtml"
+        },
+        {
+            "index": 4,
+            "file": "004_第三夜.txt",
+            "title": "第三夜",
+            "original_title": "第三夜",
+            "source": "item/xhtml/0001.xhtml"
+        },
+        {
+            "index": 5,
+            "file": "005_第四夜.txt",
+            "title": "第四ヤ",
+            "original_title": "第四夜",
+            "source": "item/xhtml/0001.xhtml"
+        },
+        {
+            "index": 6,
+            "file": "006_第五夜.txt",
+            "title": "第五ヤ",
+            "original_title": "第五夜",
+            "source": "item/xhtml/0001.xhtml"
+        },
+        {
+            "index": 7,
+            "file": "007_第六夜.txt",
+            "title": "第六夜",
+            "original_title": "第六夜",
+            "source": "item/xhtml/0001.xhtml"
+        },
+        {
+            "index": 8,
+            "file": "008_第七夜.txt",
+            "title": "第七夜",
+            "original_title": "第七夜",
+            "source": "item/xhtml/0001.xhtml"
+        },
+        {
+            "index": 9,
+            "file": "009_第八夜.txt",
+            "title": "第八夜",
+            "original_title": "第八夜",
+            "source": "item/xhtml/0001.xhtml"
+        },
+        {
+            "index": 10,
+            "file": "010_第九夜.txt",
+            "title": "第九ヤ",
+            "original_title": "第九夜",
+            "source": "item/xhtml/0001.xhtml"
+        },
+        {
+            "index": 11,
+            "file": "011_第十夜.txt",
+            "title": "第十夜",
+            "original_title": "第十夜",
+            "source": "item/xhtml/0001.xhtml"
+        },
+        {
+            "index": 12,
+            "file": "012_底本_「夏目漱石全集10巻」ちくま文庫、筑摩書房.txt",
+            "title": "底本:「夏目漱石全集10巻」ちくま文庫、筑摩書房",
+            "original_title": "底本:「夏目漱石全集10巻」ちくま文庫、筑摩書房",
+            "source": "item/xhtml/0002.xhtml"
+        }
+    ],
+    "author": "夏目漱石",
+    "cover": "cover.jpg",
+    "epub": "[夏目漱石] 夢十夜.epub",
+    "tts_voices": {
+        "narrator": {
+            "speaker": 13,
+            "speed": 1.0,
+            "pitch": -0.08,
+            "intonation": 1.25
+        },
+        "female": {
+            "speaker": 2,
+            "speed": 1.05
+        }
     },
-    {
-      "index": 2,
-      "file": "002_第一夜.txt",
-      "title": "第一夜",
-      "original_title": "第一夜",
-      "source": "item/xhtml/0001.xhtml"
-    },
-    {
-      "index": 3,
-      "file": "003_第二夜.txt",
-      "title": "第ニ夜",
-      "original_title": "第二夜",
-      "source": "item/xhtml/0001.xhtml"
-    },
-    {
-      "index": 4,
-      "file": "004_第三夜.txt",
-      "title": "第三夜",
-      "original_title": "第三夜",
-      "source": "item/xhtml/0001.xhtml"
-    },
-    {
-      "index": 5,
-      "file": "005_第四夜.txt",
-      "title": "第四ヤ",
-      "original_title": "第四夜",
-      "source": "item/xhtml/0001.xhtml"
-    },
-    {
-      "index": 6,
-      "file": "006_第五夜.txt",
-      "title": "第五ヤ",
-      "original_title": "第五夜",
-      "source": "item/xhtml/0001.xhtml"
-    },
-    {
-      "index": 7,
-      "file": "007_第六夜.txt",
-      "title": "第六夜",
-      "original_title": "第六夜",
-      "source": "item/xhtml/0001.xhtml"
-    },
-    {
-      "index": 8,
-      "file": "008_第七夜.txt",
-      "title": "第七夜",
-      "original_title": "第七夜",
-      "source": "item/xhtml/0001.xhtml"
-    },
-    {
-      "index": 9,
-      "file": "009_第八夜.txt",
-      "title": "第八夜",
-      "original_title": "第八夜",
-      "source": "item/xhtml/0001.xhtml"
-    },
-    {
-      "index": 10,
-      "file": "010_第九夜.txt",
-      "title": "第九ヤ",
-      "original_title": "第九夜",
-      "source": "item/xhtml/0001.xhtml"
-    },
-    {
-      "index": 11,
-      "file": "011_第十夜.txt",
-      "title": "第十夜",
-      "original_title": "第十夜",
-      "source": "item/xhtml/0001.xhtml"
-    },
-    {
-      "index": 12,
-      "file": "012_底本_「夏目漱石全集10巻」ちくま文庫、筑摩書房.txt",
-      "title": "底本:「夏目漱石全集10巻」ちくま文庫、筑摩書房",
-      "original_title": "底本:「夏目漱石全集10巻」ちくま文庫、筑摩書房",
-      "source": "item/xhtml/0002.xhtml"
+    "tts_defaults": {
+        "speaker": 2,
+        "speed": 1.0,
+        "pitch": -0.08,
+        "intonation": 1.25
     }
-  ],
-  "author": "夏目漱石",
-  "cover": "cover.jpg",
-  "epub": "[夏目漱石] 夢十夜.epub",
-  "tts_defaults": {
-    "speaker": 13,
-    "speed": 1.0,
-    "pitch": -0.08,
-    "intonation": 1.25
-  },
-  "tts_voices": {
-    "narrator": {
-      "speaker": 13
-    },
-    "female": {
-      "speaker": 2
-    },
-    "male": {
-      "speaker": 13
-    }
-  }
 }

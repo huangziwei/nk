@@ -676,8 +676,6 @@ def _chunk_entries_from_text(
     text: str,
     text_path: Path,
     text_sha1: str,
-    *,
-    default_voice: int | None = None,
 ) -> list[tuple[ChunkSpan, dict[str, object]]]:
     manifest_chunks = _load_chunk_manifest_entries(text_path, text_sha1)
     if manifest_chunks:
@@ -695,7 +693,6 @@ def _chunk_entries_from_text(
                     "text": span.text,
                     "start": span.start,
                     "end": span.end,
-                    **({"voice": default_voice} if isinstance(default_voice, int) else {}),
                 },
             )
         )
@@ -705,21 +702,16 @@ def _chunk_entries_from_text(
             text_path,
             text,
             default_speaker="narrator",
-            default_voice=default_voice,
         )
     return chunk_entries
 
 
 def _profile_from_manifest_entry(entry: Mapping[str, object]) -> VoiceProfile | None:
-    speaker = entry.get("voice")
     speed = entry.get("speed")
     pitch = entry.get("pitch")
     intonation = entry.get("intonation")
     has_value = False
     profile = VoiceProfile()
-    if isinstance(speaker, int):
-        profile.speaker = speaker
-        has_value = True
     if isinstance(speed, (int, float)):
         profile.speed = float(speed)
         has_value = True
@@ -815,7 +807,6 @@ def _synthesize_target_with_client(
         text,
         text_path,
         text_hash,
-        default_voice=narrator_profile.speaker if narrator_profile else None,
     )
     if not chunk_entries:
         _emit_progress(

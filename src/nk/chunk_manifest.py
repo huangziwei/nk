@@ -27,7 +27,6 @@ def _build_chunk_manifest_payload(
     spans: Iterable[ChunkSpan],
     *,
     default_speaker: str = "narrator",
-    default_voice: int | None = None,
 ) -> dict[str, object]:
     chunks: list[dict[str, object]] = []
     for index, span in enumerate(spans, start=1):
@@ -38,8 +37,6 @@ def _build_chunk_manifest_payload(
             "text": span.text,
             "speaker": default_speaker,
         }
-        if default_voice is not None:
-            entry["voice"] = default_voice
         chunks.append(entry)
     payload: dict[str, object] = {
         "version": CHUNK_MANIFEST_VERSION,
@@ -55,7 +52,6 @@ def write_chunk_manifest(
     text: str,
     *,
     default_speaker: str = "narrator",
-    default_voice: int | None = None,
 ) -> Path | None:
     manifest_path = chunk_manifest_path(chapter_path)
     cleaned = text.strip()
@@ -67,7 +63,6 @@ def write_chunk_manifest(
         cleaned,
         spans,
         default_speaker=default_speaker,
-        default_voice=default_voice,
     )
     manifest_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2),
@@ -80,7 +75,6 @@ def write_chunk_manifest_from_path(
     chapter_path: Path,
     *,
     default_speaker: str = "narrator",
-    default_voice: int | None = None,
 ) -> Path | None:
     try:
         text = chapter_path.read_text(encoding="utf-8")
@@ -90,7 +84,6 @@ def write_chunk_manifest_from_path(
         chapter_path,
         text,
         default_speaker=default_speaker,
-        default_voice=default_voice,
     )
 
 
@@ -98,14 +91,12 @@ def write_chunk_manifests(
     chapter_paths: Iterable[Path],
     *,
     default_speaker: str = "narrator",
-    default_voice: int | None = None,
 ) -> list[Path]:
     written: list[Path] = []
     for chapter_path in chapter_paths:
         manifest_path = write_chunk_manifest_from_path(
             chapter_path,
             default_speaker=default_speaker,
-            default_voice=default_voice,
         )
         if manifest_path is not None:
             written.append(manifest_path)

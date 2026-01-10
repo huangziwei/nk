@@ -618,15 +618,9 @@ def write_book_package(
             except ValueError:
                 # If overrides are invalid, leave the original text; user can fix and rerun refine.
                 pass
-    default_voice = (
-        previous_metadata.tts_defaults.speaker
-        if previous_metadata and previous_metadata.tts_defaults
-        else None
-    )
     write_chunk_manifests(
         (record.path for record in records),
         default_speaker="narrator",
-        default_voice=default_voice,
     )
     return BookPackage(
         output_dir=output_dir,

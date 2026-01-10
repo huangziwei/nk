@@ -8,16 +8,14 @@
       "start": 0,
       "end": 3,
       "text": "夢十夜",
-      "speaker": "narrator",
-      "voice": 13
+      "speaker": "narrator"
     },
     {
       "index": 2,
       "start": 5,
       "end": 9,
       "text": "夏目漱石",
-      "speaker": "narrator",
-      "voice": 13
+      "speaker": "narrator"
     }
   ]
 }
