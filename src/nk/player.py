@@ -27,6 +27,7 @@ from .refine import create_token_from_selection
 from .tts import (
     FFmpegError,
     TTSTarget,
+    VoiceProfile,
     VoiceVoxClient,
     VoiceVoxError,
     VoiceVoxRuntimeError,
@@ -34,6 +35,7 @@ from .tts import (
     _parse_track_number_from_name,
     _synthesize_target_with_client,
     _target_cache_dir,
+    _voice_profile_from_defaults,
     discover_voicevox_runtime,
     managed_voicevox_runtime,
     wav_bytes_to_mp3,
@@ -7047,6 +7049,8 @@ def _synthesize_sequence(
     force_indices: frozenset[int] | None = None,
     progress_handler: Callable[[TTSTarget, dict[str, object]], None] | None = None,
     voice_settings: dict[str, float | int | None] | None = None,
+    narrator_profile: VoiceProfile | None = None,
+    voice_overlays: dict[str, VoiceProfile] | None = None,
     cancel_event: threading.Event | None = None,
 ) -> int:
     if not targets:
@@ -7081,14 +7085,40 @@ def _synthesize_sequence(
                 speaker_value = int(speaker_value)
             elif not isinstance(speaker_value, int):
                 speaker_value = config.speaker
+            if speaker_value is None:
+                speaker_value = DEFAULT_SPEAKER_ID
+            if narrator_profile is None:
+                narrator_profile = VoiceProfile(
+                    speaker=speaker_value,
+                    speed=voice.get("speed", config.speed_scale),
+                    pitch=voice.get("pitch", config.pitch_scale),
+                    intonation=voice.get("intonation", config.intonation_scale),
+                )
+            client_speaker = (
+                narrator_profile.speaker
+                if narrator_profile.speaker is not None
+                else speaker_value
+            )
             client = VoiceVoxClient(
                 base_url=config.engine_url,
-                speaker_id=speaker_value,
+                speaker_id=client_speaker if client_speaker is not None else DEFAULT_SPEAKER_ID,
                 timeout=60.0,
                 post_phoneme_length=config.pause,
-                speed_scale=voice.get("speed", config.speed_scale),
-                pitch_scale=voice.get("pitch", config.pitch_scale),
-                intonation_scale=voice.get("intonation", config.intonation_scale),
+                speed_scale=(
+                    narrator_profile.speed
+                    if narrator_profile.speed is not None
+                    else voice.get("speed", config.speed_scale)
+                ),
+                pitch_scale=(
+                    narrator_profile.pitch
+                    if narrator_profile.pitch is not None
+                    else voice.get("pitch", config.pitch_scale)
+                ),
+                intonation_scale=(
+                    narrator_profile.intonation
+                    if narrator_profile.intonation is not None
+                    else voice.get("intonation", config.intonation_scale)
+                ),
             )
             try:
                 total = len(work_plan)
@@ -7119,6 +7149,8 @@ def _synthesize_sequence(
                             progress=progress_callback,
                             cache_base=config.cache_dir,
                             keep_cache=config.keep_cache,
+                            narrator_profile=narrator_profile,
+                            voice_overlays=voice_overlays,
                             cancel_event=cancel_event,
                         )
                     except Exception as exc:
@@ -8312,6 +8344,25 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
         metadata = load_book_metadata(book_path)
         _populate_target_metadata(target, book_path, metadata)
         voice_overrides = _voice_settings_for_book(config, metadata)
+        narrator_profile = None
+        if metadata and metadata.tts_defaults:
+            narrator_profile = _voice_profile_from_defaults(metadata.tts_defaults)
+        if narrator_profile is None:
+            narrator_profile = VoiceProfile(
+                speaker=voice_overrides.get("speaker"),
+                speed=voice_overrides.get("speed"),
+                pitch=voice_overrides.get("pitch"),
+                intonation=voice_overrides.get("intonation"),
+            )
+        voice_overlays: dict[str, VoiceProfile] | None = None
+        if metadata and metadata.tts_voices:
+            voice_overlays = {}
+            for name, defaults in metadata.tts_voices.items():
+                profile = _voice_profile_from_defaults(defaults)
+                if profile:
+                    voice_overlays[name] = profile
+            if not voice_overlays:
+                voice_overlays = None
         force_indices = frozenset({0}) if restart else frozenset()
 
         loop = asyncio.get_running_loop()
@@ -8327,6 +8378,8 @@ def create_app(config: PlayerConfig, *, reader_url: str | None = None) -> FastAP
                 force_indices=force_indices,
                 progress_handler=_record_progress_event,
                 voice_settings=voice_overrides,
+                narrator_profile=narrator_profile,
+                voice_overlays=voice_overlays,
                 cancel_event=cancel_event,
             )
 
