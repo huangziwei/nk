@@ -797,6 +797,8 @@ INDEX_HTML = r"""<!DOCTYPE html>
       padding: 0.25rem 0.7rem;
       font-size: 0.78rem;
       letter-spacing: 0.02em;
+      white-space: nowrap;
+      flex: 0 0 auto;
     }
     .badge.success {
       background: rgba(34, 197, 94, 0.28);
