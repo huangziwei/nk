@@ -1,6 +1,12 @@
 # nk
 
-> Originally short for `no Kanji`, but it evolves so much over time that the name doesn't mean anything anymore. Let's just call it /nik/. 
+> ## Note
+>
+> 1. Originally short for `no kanji`, but it evolves so much over time that the name doesn't mean anything anymore. Let's just call it /nik/.
+>
+> 2. as of 20260206, `nk` has been superseded by [`nik`](https://github.com/huangziwei/nik).
+
+
 
 `nk` converts Japanese EPUBs into TTS-friendly, chapterized TXT files. It leans on in-text ruby first and falls back to UniDic lookups (reinforced with NHK easy news corpus). From there you can synthesize MP3s with VoiceVox and expose them over WebDAV or the built-in web-based player.
 
